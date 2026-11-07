@@ -67,6 +67,24 @@ neoForge {
     }
 }
 
+// 框架规划的不变量检查。仓库里没有 JUnit（新增依赖要重写 verification-metadata），
+// 所以测试是一个带 main 的类，直接用 JavaExec 跑，失败时以非零码退出。
+tasks.register('frameCheck', JavaExec) {
+    group = 'verification'
+    description = '检查 GridFrame 规划的不变量'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.dawnduskterminal.structure.GridFrameTest'
+    if (project.hasProperty('frameShow')) {
+        args 'show'
+    }
+}
+
+// 让 ./gradlew build 也跑一遍框架的不变量检查
+tasks.named('check') {
+    dependsOn tasks.named('frameCheck')
+}
+
 repositories {
     // GeckoLib 的坐标只存在于它自己的 maven，用 exclusiveContent 把这一组从其余源里摘出来：
     // 暮色森林只有 CurseMaven 一条路：它自己的 modmaven 停更在 2024-07-06（最新 4.5.2428），
