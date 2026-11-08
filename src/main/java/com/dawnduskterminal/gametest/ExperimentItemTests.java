@@ -548,7 +548,7 @@ public final class ExperimentItemTests {
      * 1..115 的分档：占位的定义是「图标还借 {@code experiment_temp.png}」，有自己贴图的不算占位
      *
      * <p>三张表要互补：{@code TAKEN}（有行为）+ 有自己贴图的那批 + 占位 = 1..115，谁也不能同时落两处。
-     * 占位一共 41 个——不是「115 减去被占的号」那么简单，因为 32 个号早就有自己的贴图与模型了
+     * 占位一共 41 个——不是「115 减去被占的号」那么简单，因为 31 个号早就有自己的贴图与模型了
      */
     @GameTest(template = "ddt_empty")
     public static void placeholdersOnlyCoverTheBlankIcons(GameTestHelper helper) {
@@ -559,9 +559,9 @@ public final class ExperimentItemTests {
                 placeholders.size() == 41,
                 "only the numbers whose icon still borrows experiment_temp count as placeholders, expected 41, got "
                         + placeholders.size());
-        // 已经有自己贴图的 32 个号
+        // 已经有自己贴图的 31 个号
         helper.assertTrue(
-                textured.size() == 32, "32 numbers already own their icon, expected 32, got " + textured.size());
+                textured.size() == 31, "31 numbers already own their icon, expected 31, got " + textured.size());
         helper.assertTrue(
                 ModExperimentItems.simpleItems().size() == placeholders.size() + textured.size(),
                 "simpleItems() must be exactly the two tables put together, got "
@@ -571,7 +571,7 @@ public final class ExperimentItemTests {
             helper.assertTrue(placeholders.containsKey(number), "number " + number + " must have a placeholder item");
         }
         for (int number :
-                new int[] {3, 5, 6, 13, 15, 16, 18, 21, 35, 58, 60, 64, 68, 72, 73, 75, 77, 79, 82, 85, 90, 100, 113}) {
+                new int[] {3, 5, 6, 13, 15, 16, 18, 21, 35, 58, 64, 68, 72, 73, 75, 77, 79, 82, 85, 90, 100, 113}) {
             helper.assertFalse(
                     placeholders.containsKey(number),
                     "number " + number + " already owns its icon, it must not be a placeholder any more");
@@ -580,7 +580,7 @@ public final class ExperimentItemTests {
         // 被占的号两边都不许出现
         for (int number : new int[] {
             1, 4, 7, 8, 11, 12, 17, 19, 20, 27, 32, 33, 36, 37, 38, 40, 41, 42, 43, 45, 46, 47, 48, 49, 50, 51, 52, 55,
-            57, 59, 61, 65, 66, 69, 70, 74, 76, 95, 104, 107, 114, 115
+            57, 59, 60, 61, 65, 66, 69, 70, 74, 76, 95, 104, 107, 114, 115
         }) {
             helper.assertFalse(
                     placeholders.containsKey(number), "number " + number + " is taken and must not be a placeholder");
@@ -647,8 +647,8 @@ public final class ExperimentItemTests {
             }
         }
         helper.assertTrue(placeholders == 41, "41 numbers still borrow experiment_temp, got " + placeholders);
-        helper.assertTrue(textured == 32, "32 numbers own their icon but have no behaviour, got " + textured);
-        helper.assertTrue(taken == 42, "42 numbers are taken, got " + taken);
+        helper.assertTrue(textured == 31, "31 numbers own their icon but have no behaviour, got " + textured);
+        helper.assertTrue(taken == 43, "43 numbers are taken, got " + taken);
         helper.succeed();
     }
 

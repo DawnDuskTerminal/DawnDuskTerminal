@@ -147,6 +147,10 @@
 `dawnduskterminal:canocan` 是唯一能舀取这两种流体的容器：
 舀取 `portal_fluid` 得到 `portal_bucket`，舀取热情的暮光得到 `enthu_fluid_bucket`。
 
+它还有另一门用处：拿它点暮色森林那两块「正变绿」的方块（重现方块缩成小方块变绿的那 15 tick，
+以及砷铅铁建造器搭出来的建造方块变绿的那 10 tick），可以把方块整个取走，换来一枚 `experiment_028`。
+点这两块以外的东西它没有任何额外行为，照旧舀流体。
+
 ## 音效
 
 `portal_open` 用于开门。

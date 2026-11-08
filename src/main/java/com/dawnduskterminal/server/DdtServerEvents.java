@@ -13,6 +13,7 @@ import com.dawnduskterminal.registry.ModFluids;
 import com.dawnduskterminal.registry.ModItems;
 import com.dawnduskterminal.registry.ModScorchingTwilight;
 import com.dawnduskterminal.structure.StructureExclusions;
+import com.dawnduskterminal.world.AntibuilderType2Field;
 import com.dawnduskterminal.world.CampCarminiteFireAura;
 import com.dawnduskterminal.world.ChronoLineState;
 import com.dawnduskterminal.world.Experiment065Field;
@@ -120,7 +121,7 @@ public final class DdtServerEvents {
         StringSpawner.tick(event.getServer());
     }
 
-    /** 服务器停下：把还在跑的喷火过程、恶魂陷阱场、095 与 055 的场、076 的反应、065 / 069 两张场的场心表与红篝火的气场表清干净，别留到下一次启动 */
+    /** 服务器停下：把还在跑的喷火过程、恶魂陷阱场、095 与 055 的场、076 的反应、065 / 069 两张场的场心表、反建器二型的场心表与红篝火的气场表清干净，别留到下一次启动 */
     public static void onServerStopped(ServerStoppedEvent event) {
         FireJetProcess.clear();
         GhastTrapProcess.clear();
@@ -129,6 +130,7 @@ public final class DdtServerEvents {
         Experiment076Reaction.clear();
         Experiment065Field.clear();
         Experiment069Field.clear();
+        AntibuilderType2Field.clear();
         CampCarminiteFireAura.clear();
     }
 

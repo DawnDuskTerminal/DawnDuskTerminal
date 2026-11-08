@@ -8,6 +8,7 @@ import com.dawnduskterminal.item.Experiment043Item;
 import com.dawnduskterminal.item.Experiment045Item;
 import com.dawnduskterminal.item.Experiment055Item;
 import com.dawnduskterminal.item.Experiment057Item;
+import com.dawnduskterminal.item.Experiment060Item;
 import com.dawnduskterminal.item.Experiment066Item;
 import com.dawnduskterminal.item.Experiment095Item;
 import com.dawnduskterminal.item.ExperimentArmorItem;
@@ -49,6 +50,7 @@ import net.neoforged.neoforge.registries.DeferredRegister;
  * 一件食物（试验物品 008）、一支画红石点的笔（试验物品 027）、两支长矛（试验物品 032、033）、
  * 高塔五件套（试验物品 036~038 与 040、041，039 号留空）与一件简单物品（试验物品 042）、
  * 一本恶魂陷阱书（试验物品 066）、三块不明肉块（试验物品 061、070、074）、
+ * 一支往下探的金探针（试验物品 060）、
  * 一支镇魂曲（试验物品 095）、一个慢慢充能的外泄的场（试验物品 055）、
  * 以及一本血肉之书（试验物品 057 的加强版，注册 ID 不含序号）
  *
@@ -268,6 +270,19 @@ public final class ModExperimentItems {
             () -> new Experiment066Item(new Item.Properties().durability(Experiment066Item.DURABILITY)));
 
     /**
+     * 试验物品 060：金探针，单击右键往下探一层，报出石头与沙土层下面第一块别的东西
+     *
+     * <p>起点是使用者正下方那一格，先找到第一块石头类方块，再往下跳过石头与沙土，
+     * 停在第一块既不是石头、也不是沙土的方块上，actionbar 报它的名字——空气也算结果。
+     * 扫到世界底部还没结果就报「下方没有东西」。
+     * 探到了才扣 1 点耐久，{@value com.dawnduskterminal.item.Experiment060Item#DURABILITY} 点；
+     * 判定与扫描都在 {@link Experiment060Item#probe}
+     */
+    public static final DeferredItem<Experiment060Item> EXPERIMENT_060 = ITEMS.register(
+            "experiment_060",
+            () -> new Experiment060Item(new Item.Properties().durability(Experiment060Item.DURABILITY)));
+
+    /**
      * 试验物品 055：按住右键慢慢充能的那个场，充能 5 秒里影响半径从 0 涨到
      * {@value com.dawnduskterminal.item.BeetrootProcess#MAX_RADIUS} 格、伤害系数涨到
      * {@value com.dawnduskterminal.item.BeetrootProcess#MAX_DAMAGE_FACTOR}，
@@ -395,7 +410,7 @@ public final class ModExperimentItems {
      * 物品在 {@link ModItems#EXPERIMENT_076}），
      * 036~038 与 040~042 是上面那批工具与简单物品（039 号留空），043 是上面那台喷火器，045 是上面那面盾，
      * 057 是上面那把制导飞刃，066 是那本恶魂陷阱书，095 是上面那支镇魂曲，
-     * 055 是上面那个充能的场，
+     * 055 是上面那个充能的场，060 是上面那支往下探的金探针，
      * 061/070/074 是上面那三块不明肉块（同一份规格，见 {@link UnknownMeatItem}），
      * 047~050 是上面那套护甲，
      * 046 是砷铅铁钼反应权杖（注册 ID 仍是 {@code carminite_molybdenum_reactor_staff}），
@@ -408,7 +423,7 @@ public final class ModExperimentItems {
      */
     private static final Set<Integer> TAKEN = Set.of(
             1, 4, 7, 8, 11, 12, 17, 19, 20, 27, 32, 33, 36, 37, 38, 40, 41, 42, 43, 45, 46, 47, 48, 49, 50, 51, 52, 55,
-            57, 59, 61, 65, 66, 69, 70, 74, 76, 95, 104, 107, 114, 115);
+            57, 59, 60, 61, 65, 66, 69, 70, 74, 76, 95, 104, 107, 114, 115);
 
     /**
      * 已经有自己那张图标的试验物品：贴图与物品模型各有一份，只差行为
@@ -422,14 +437,13 @@ public final class ModExperimentItems {
      * 以后谁把某个号的图标从 {@code experiment_temp} 换成自己的、却没写进这张表，那条断言就会红
      */
     private static final Set<Integer> TEXTURED = Set.of(
-            3, 5, 6, 9, 13, 15, 16, 18, 21, 22, 23, 24, 28, 29, 35, 58, 60, 64, 68, 72, 73, 75, 77, 79, 82, 85, 88, 90,
-            100, 105, 110, 113);
+            3, 5, 6, 9, 13, 15, 16, 18, 21, 22, 23, 24, 28, 29, 35, 58, 64, 68, 72, 73, 75, 77, 79, 82, 85, 88, 90, 100,
+            105, 110, 113);
 
     /** {@link #TEXTURED} 里有描述行的那些：序号 → 语言键 */
     private static final Map<Integer, String> DESCRIPTIONS = Map.of(
             3, "item.dawnduskterminal.experiment_003.desc",
-            15, "item.dawnduskterminal.experiment_015.desc",
-            60, "item.dawnduskterminal.experiment_060.desc");
+            15, "item.dawnduskterminal.experiment_015.desc");
 
     /** 已经有自己贴图的那批，按序号升序 */
     private static final SortedMap<Integer, DeferredItem<Item>> TEXTURED_ITEMS = registerTextured();

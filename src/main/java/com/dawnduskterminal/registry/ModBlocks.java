@@ -1,6 +1,7 @@
 package com.dawnduskterminal.registry;
 
 import com.dawnduskterminal.DawnDuskTerminal;
+import com.dawnduskterminal.block.AntibuilderType2Block;
 import com.dawnduskterminal.block.CampCarminiteFireBlock;
 import com.dawnduskterminal.block.CarminiteFireBlock;
 import com.dawnduskterminal.block.E115RegeneratorBlock;
@@ -403,6 +404,52 @@ public final class ModBlocks {
                     .lightLevel(state -> state.getValue(CampCarminiteFireBlock.LIT) ? 15 : 0)
                     .noOcclusion()
                     .ignitedByLava());
+
+    /**
+     * 反建器二型：照暮色森林的 {@code twilightforest:antibuilder} 做的那台反建器的第二型，
+     * 行为与那四条差别见 {@link AntibuilderType2Block}
+     *
+     * <p>方块属性照抄暮色森林那一台的注册参数：{@code noLootTable}（挖掉什么都不掉）、
+     * {@code pushReaction(BLOCK)}、{@code mapColor(SAND)}、{@code requiresCorrectToolForDrops}、
+     * {@code WOOD} 音效、10 点硬度 6 点抗性、开着时 10 级光（收到红石信号关机就熄灯）。
+     * 进 {@code #minecraft:mineable/pickaxe}。
+     * 那两条状态是这一台自己的东西：{@code RANGE}（场的半边长，1~8，右键可调）与 {@code POWERED}（红石关机）
+     *
+     * <p>贴图两层：{@code antibuilder_type2} 与 {@code antibuilder_type2_glow}，后者在模型里按满亮画；
+     * 关机时换成不带发光层的 {@code block/antibuilder_type2_off}，看起来才是真的关了。
+     * 它没有战利品表，与暮色森林那一台一样只能从创造栏或命令取得
+     */
+    public static final DeferredBlock<AntibuilderType2Block> ANTIBUILDER_TYPE2 = BLOCKS.registerBlock(
+            "antibuilder_type2",
+            AntibuilderType2Block::new,
+            BlockBehaviour.Properties.of()
+                    .mapColor(MapColor.SAND)
+                    .noLootTable()
+                    .pushReaction(PushReaction.BLOCK)
+                    .requiresCorrectToolForDrops()
+                    .sound(SoundType.WOOD)
+                    .strength(10.0F, 6.0F)
+                    .lightLevel(state -> state.getValue(AntibuilderType2Block.POWERED) ? 0 : 10));
+
+    /**
+     * 反建方块二型：反建器二型的场里，被破坏掉的那一格换成它
+     *
+     * <p>方块属性照抄暮色森林的 {@code twilightforest:antibuilt_block}：{@code noLootTable}（挖掉什么都不掉）、
+     * {@code noOcclusion}（贴图带透明，邻面要照画）、{@code pushReaction(BLOCK)}、{@code WOOD} 音效、
+     * 0.3 点硬度 2000 点抗性。与那一块不同的一点：它有物品形态，主栏目里能直接拿到，
+     * 挖掉仍然什么都不掉
+     *
+     * <p>贴图两层：{@code antibuildblock_type2} 与 {@code antibuildblock_type2_glow}，
+     * 后者在模型里按 10 级光画，与暮色森林那一块的发光层同档
+     */
+    public static final DeferredBlock<Block> ANTIBUILD_BLOCK_TYPE2 = BLOCKS.registerSimpleBlock(
+            "antibuildblock_type2",
+            BlockBehaviour.Properties.of()
+                    .noLootTable()
+                    .noOcclusion()
+                    .pushReaction(PushReaction.BLOCK)
+                    .sound(SoundType.WOOD)
+                    .strength(0.3F, 2000.0F));
 
     private ModBlocks() {}
 

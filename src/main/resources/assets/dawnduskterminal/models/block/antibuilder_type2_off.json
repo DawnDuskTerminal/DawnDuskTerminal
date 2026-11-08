@@ -1,0 +1,48 @@
+{
+  "parent": "minecraft:block/block",
+  "render_type": "minecraft:cutout",
+  "elements": [
+    {
+      "from": [0, 0, 0],
+      "to": [16, 16, 16],
+      "faces": {
+        "down": {
+          "texture": "#bottom",
+          "cullface": "down"
+        },
+        "up": {
+          "texture": "#top",
+          "cullface": "up"
+        },
+        "north": {
+          "texture": "#north",
+          "cullface": "north"
+        },
+        "south": {
+          "texture": "#south",
+          "cullface": "south"
+        },
+        "east": {
+          "texture": "#east",
+          "cullface": "east"
+        },
+        "west": {
+          "texture": "#west",
+          "cullface": "west"
+        }
+      }
+    }
+  ],
+  "textures": {
+    "particle": "#all",
+    "all": "dawnduskterminal:block/antibuilder_type2",
+    "bottom": "#all",
+    "top": "#all",
+    "down": "#all",
+    "up": "#all",
+    "north": "#all",
+    "south": "#all",
+    "east": "#all",
+    "west": "#all"
+  }
+}

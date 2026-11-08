@@ -123,3 +123,52 @@ NeoForge 自带 191 个原版配方覆盖，其中 13 条与本模组需要修�
   梯子只是模型里的一层薄板，方块本身没有爬行逻辑，标签缺了这一项就只看得到梯子、爬不上去。
 
 `SkygateWoodTests` 断言放置分派与掉落映射，`SkygatePineTests` 断言树上的枝用的是木。
+
+## 七 试验物品的烧炼
+
+烧炼配方都在 `data/dawnduskterminal/recipe/` 下，命名是 `<试验物品>_smelting.json`，与已有的
+`experiment_003/005/009/013` 同一套：003 烧成铜锭，005 烧成土，009 烧成骨粉，013 烧成砷铅铁锭。
+
+这一批新增三条：
+
+| 配方 | 输入 | 产物 |
+|---|---|---|
+| `experiment_060_smelting` | 金探针 | `minecraft:gold_ingot` |
+| `experiment_015_smelting` | 试验物品 015 | 通用标签 `c:ingots/silver` 里的第一个物品 |
+| `experiment_059_smelting` | 铂催化网格 | 通用标签 `c:ingots/platinum` 里的第一个物品 |
+
+060 是无条件的，另外两条要「这一局里存在那种金属」才成立。
+
+### 产物为什么写标签
+
+原版配方的产物必须是写死的物品 ID，而银与铂不是原版材料：整合包装了什么模组，银锭就是哪一个 ID。
+写死某一个模组的 ID，换个整合包就不成立；为每个可能的模组各写一条配方又会撞出重复配方——
+同一个输入出现多条匹配，熔炉取哪一条不确定。
+
+所以这两条用本模组自己的配方类型 `dawnduskterminal:tag_smelting`（`crafting/TagSmeltingRecipe`，
+序列化器注册在 `registry/ModRecipeSerializers`），配方的 `result_tag` 写通用标签：
+
+```json
+{
+  "type": "dawnduskterminal:tag_smelting",
+  "ingredient": { "item": "dawnduskterminal:experiment_015" },
+  "result_tag": "c:ingots/silver",
+  "experience": 0.7,
+  "cookingtime": 200
+}
+```
+
+规则只有三条：
+
+- `getType()` 仍然是 `minecraft:smelting`：熔炉与别的模组都按这个类型取配方，取出来当 `SmeltingRecipe` 用，
+  所以这个类继承的是 `SmeltingRecipe`，只换掉 `getSerializer()`；
+- 标签不存在或者是空的（这一局里没有银、没有铂）时 `matches` 直接回 `false`，对熔炉来说等于这条配方不存在，
+  输入物不会被吞掉；
+- 标签里有东西时，产物是标签里的第一个物品，`assemble` 与 `getResultItem` 都按它现查。
+
+`gametest/TagSmeltingTests` 钉住三件事：060 一定烧得出金锭；没有银与铂的环境里 015 与 059 匹配不上
+（配方本身在数据里，靠标签为空关掉）；把同一条配方的标签换成原版自带的 `c:ingots/gold` 时能烧出金锭，
+证明「标签里有东西就烧得出」那一半。
+
+如果某个模组提供了银锭却没有把银锭加进 `c:ingots/silver`，那条配方就烧不出来，需要在那边补标签。
+

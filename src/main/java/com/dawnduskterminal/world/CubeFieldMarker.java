@@ -8,14 +8,15 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 
 /**
- * 反建器那一档的范围标示粒子：把 17×17×17 的场用红石粉画出边框
+ * 反建器那一档的范围标示粒子：把场用红石粉画出边框
  *
  * <p>整段照暮色森林 {@code twilightforest:antibuilder} 的 {@code AntibuilderBlockEntity#tick} /
  * {@code makeRandomOutline} / {@code makeOutline} / {@code drawParticleLine} 写的（对照 4.8.3345 的源码），
  * 只改了三处，都在下面注明：
  * <ul>
- *   <li>半径：那边 {@code RADIUS = 4}（9×9×9），这里用 {@link CubeField#RADIUS}（17×17×17），
- *       两台 065/069 是「更高级」的那一档
+ *   <li>半径：那边 {@code RADIUS = 4}（9×9×9）；两台 065/069 用 {@link CubeField#RADIUS}（17×17×17），
+ *       反建器二型用 {@code block.AntibuilderType2Block#RANGE}（3×3×3 到 17×17×17，右键可变），
+ *       两者的 ticker 都走 {@link #tick(Level, BlockPos, BlockState, BlockEntity, int)}
  *   <li>每条线上的粒子数：那边一段固定 16 颗；这里的框有 17 格宽，固定 16 颗会稀得看不出来，
  *       改成按长度给（每格 {@value #PARTICLES_PER_BLOCK} 颗），密与那边一致
  *   <li>两段线里「中心到角」与「角到中心」仍然随机二选一，与那边一样；点集不一样，所以不能合并
@@ -48,9 +49,14 @@ public final class CubeFieldMarker {
 
     private CubeFieldMarker() {}
 
-    /** 方块中心往外的半边长：8 格加半格，框住的正好是那 17 格方块 */
+    /** 方块中心往外的半边长：{@code radius} 格加半格，框住的正好是那 {@code 2 * radius + 1} 格方块 */
+    public static double halfExtent(int radius) {
+        return radius + 0.5D;
+    }
+
+    /** 17×17×17 那张场的半边长，{@code radius} 取 {@link CubeField#RADIUS} 的简写 */
     public static double halfExtent() {
-        return CubeField.RADIUS + 0.5D;
+        return halfExtent(CubeField.RADIUS);
     }
 
     /** 框线一共十二条，测试用 */
@@ -61,9 +67,19 @@ public final class CubeFieldMarker {
     /**
      * 方块实体的客户端刻：签名与 {@code BlockEntityTicker} 对齐，方块那边直接方法引用过来
      *
-     * <p>顺序也照那边：先问附近有没有玩家，再是方块自己那一格的一颗粉尘，最后是概率性的框线
+     * <p>这个重载是 065 / 069 那两张固定 17×17×17 的场用的，半径取 {@link CubeField#RADIUS}
      */
     public static void tick(Level level, BlockPos pos, BlockState state, BlockEntity blockEntity) {
+        tick(level, pos, state, blockEntity, CubeField.RADIUS);
+    }
+
+    /**
+     * 半径可变的版本：反建器二型的场是 3×3×3 到 17×17×17，半径从方块状态上读，见
+     * {@link com.dawnduskterminal.block.AntibuilderType2Block#getTicker}
+     *
+     * <p>顺序也照那边：先问附近有没有玩家，再是方块自己那一格的一颗粉尘，最后是概率性的框线
+     */
+    public static void tick(Level level, BlockPos pos, BlockState state, BlockEntity blockEntity, int radius) {
         if (!level.isClientSide) {
             return;
         }
@@ -85,7 +101,7 @@ public final class CubeFieldMarker {
                 0.0D);
         if (random.nextInt(OUTLINE_CHANCE) == 0) {
             for (int draw = 0; draw < OUTLINES_PER_FLASH; draw++) {
-                outline(level, pos, random, random.nextInt(OUTLINES));
+                outline(level, pos, random, random.nextInt(OUTLINES), radius);
             }
         }
     }
@@ -96,8 +112,8 @@ public final class CubeFieldMarker {
      * <p>「斜线」那一侧与那边一样随机：{@code true} 画「中心→远端角」，{@code false} 画「起始角→中心」。
      * 两个方向在顶面/底面那八条上的点集并不相同，所以这条随机不能省
      */
-    private static void outline(Level level, BlockPos pos, RandomSource random, int outline) {
-        double[] edge = edge(pos, outline);
+    private static void outline(Level level, BlockPos pos, RandomSource random, int outline, int radius) {
+        double[] edge = edge(pos, outline, radius);
         if (edge.length == 0) {
             return;
         }
@@ -113,13 +129,13 @@ public final class CubeFieldMarker {
     }
 
     /**
-     * 第 {@code outline} 号框线的那条棱，绝对坐标 {@code {x0, y0, z0, x1, y1, z1}}
+     * 第 {@code outline} 号框线的那条棱的绝对坐标 {@code {x0, y0, z0, x1, y1, z1}}，场半径为 {@code radius}
      *
      * <p>编号与那边逐条对齐：0~3 是顶面四条、4~7 是竖直四条、8~11 是底面四条；
-     * 每条棱的两个端点都落在场最外层方块的外侧面上（{@code pos - RADIUS} 与 {@code pos + RADIUS + 1}）
+     * 每条棱的两个端点都落在场最外层方块的外侧面上（{@code pos - radius} 与 {@code pos + radius + 1}）
      */
-    public static double[] edge(BlockPos pos, int outline) {
-        int r = CubeField.RADIUS;
+    public static double[] edge(BlockPos pos, int outline, int radius) {
+        int r = radius;
         double sx = pos.getX();
         double sy = pos.getY();
         double sz = pos.getZ();
@@ -195,6 +211,11 @@ public final class CubeFieldMarker {
             default -> {}
         }
         return new double[] {sx, sy, sz, dx, dy, dz};
+    }
+
+    /** 17×17×17 那张场的第 {@code outline} 号棱，半径取 {@link CubeField#RADIUS} 的简写 */
+    public static double[] edge(BlockPos pos, int outline) {
+        return edge(pos, outline, CubeField.RADIUS);
     }
 
     /** 一段红石粉线：沿长度均匀采样，每格 {@value #PARTICLES_PER_BLOCK} 颗，抖动照那边（±0.005） */

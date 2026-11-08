@@ -106,6 +106,10 @@ public final class ModCreativeTabs {
                         // 血肉之书没有序号，不是试验物品，挂在主栏目
                         accept(output, ModExperimentItems.EXPOWHEEL_FLESHBOOK.get());
                         // 115 再生机不是有号的试验物品，排在主栏目这一档机器里
+                        // 反建器二型：暮色森林反建器的第二型，范围右键可调，没有编号，排在主栏目这一档机器里；
+                        // 它生出来的反建方块二型紧跟在后，两块都能直接拿
+                        accept(output, ModItems.ANTIBUILDER_TYPE2.get());
+                        accept(output, ModItems.ANTIBUILD_BLOCK_TYPE2.get());
                         accept(output, ModItems.E_115_REGENERATOR.get());
                         accept(output, ModItems.TOWER_GHAST_SPAWN_EGG.get());
                         accept(output, ModItems.STRING_SPAWN_EGG.get());
@@ -125,6 +129,7 @@ public final class ModCreativeTabs {
      * 伤害 4、攻速 5 的裸武器，008 是那件 5 点饥饿 5 点饱和度的食物，027 是那支画红石点的笔，032/033 是两支长矛，
      * 036~038 与 040~042 是高塔工具与简单物品（039 号空着），046 是权杖，051 是拆解台那台机器，057 是那把制导飞刃，065 是压出「打不出伤害」的场的机器，
      * 066 是那本恶魂陷阱书，069 是压出「更新不处理」的场的机器，061/070/074 是三块不明肉块，055 是那个充能的场，095 是那支镇魂曲，
+     * 060 是那支往下探的金探针，
      * 104 是那个食物，107 是整块的红丝绒蛋糕，114 是能吃能摆的那一块，
      * 其余空号是 {@link ModExperimentItems#simpleItems()} 补的：已经有自己贴图的那批，加上图标还借
      * {@code experiment_temp} 的真占位
@@ -173,6 +178,7 @@ public final class ModCreativeTabs {
                         sequence.put(55, ModExperimentItems.EXPERIMENT_055.get());
                         sequence.put(57, ModExperimentItems.EXPERIMENT_057.get());
                         sequence.put(59, ModItems.EXPERIMENT_059.get());
+                        sequence.put(60, ModExperimentItems.EXPERIMENT_060.get());
                         sequence.put(61, ModExperimentItems.EXPERIMENT_061.get());
                         sequence.put(65, ModItems.EXPERIMENT_065.get());
                         sequence.put(66, ModExperimentItems.EXPERIMENT_066.get());

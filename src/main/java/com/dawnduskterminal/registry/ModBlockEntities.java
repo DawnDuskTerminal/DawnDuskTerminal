@@ -1,6 +1,7 @@
 package com.dawnduskterminal.registry;
 
 import com.dawnduskterminal.DawnDuskTerminal;
+import com.dawnduskterminal.block.entity.AntibuilderType2BlockEntity;
 import com.dawnduskterminal.block.entity.CampCarminiteFireBlockEntity;
 import com.dawnduskterminal.block.entity.E115RegeneratorBlockEntity;
 import com.dawnduskterminal.block.entity.Experiment004BlockEntity;
@@ -16,7 +17,8 @@ import net.neoforged.neoforge.registries.DeferredRegister;
 
 /**
  * 方块实体类型。目前有试验物品 004 那台熔炉、051 那台机器、065 那台不让人打伤害的机器、069 那台让更新不处理的机器、
- * 076 那个没有数据、只为挂客户端渲染器的异常方块、115 再生机那一格产物格加一个进度，以及红篝火那四格食材
+ * 076 那个没有数据、只为挂客户端渲染器的异常方块、115 再生机那一格产物格加一个进度、红篝火那四格食材，
+ * 以及反建器二型那个只为登记场心的方块实体
  */
 public final class ModBlockEntities {
     public static final DeferredRegister<BlockEntityType<?>> BLOCK_ENTITIES =
@@ -73,6 +75,15 @@ public final class ModBlockEntities {
     public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<CampCarminiteFireBlockEntity>>
             CAMP_CARMINITE_FIRE = BLOCK_ENTITIES.register("campcarminitefire", () -> BlockEntityType.Builder.of(
                     CampCarminiteFireBlockEntity::new, ModBlocks.CAMP_CARMINITE_FIRE.get())
+            .build(null));
+
+    /**
+     * 反建器二型的方块实体：没有数据，只为在区块载入/卸载时登记与撤掉那张场的场心，
+     * 见 {@link com.dawnduskterminal.block.entity.AntibuilderType2BlockEntity}
+     */
+    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<AntibuilderType2BlockEntity>>
+            ANTIBUILDER_TYPE2 = BLOCK_ENTITIES.register("antibuilder_type2", () -> BlockEntityType.Builder.of(
+                    AntibuilderType2BlockEntity::new, ModBlocks.ANTIBUILDER_TYPE2.get())
             .build(null));
 
     private ModBlockEntities() {}

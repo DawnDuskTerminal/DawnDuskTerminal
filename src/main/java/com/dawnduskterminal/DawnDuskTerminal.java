@@ -26,6 +26,7 @@ import com.dawnduskterminal.registry.ModItems;
 import com.dawnduskterminal.registry.ModMenus;
 import com.dawnduskterminal.registry.ModParticles;
 import com.dawnduskterminal.registry.ModPotions;
+import com.dawnduskterminal.registry.ModRecipeSerializers;
 import com.dawnduskterminal.registry.ModScorchingTwilight;
 import com.dawnduskterminal.registry.ModSounds;
 import com.dawnduskterminal.registry.ModTerrainBlocks;
@@ -77,6 +78,7 @@ public final class DawnDuskTerminal {
         ModDensityFunctions.register(modBus);
         ModFeatures.register(modBus);
         ModTrunkPlacers.register(modBus);
+        ModRecipeSerializers.register(modBus);
         ModCreativeTabs.register(modBus);
 
         modBus.addListener(ModNetwork::registerPayloads);

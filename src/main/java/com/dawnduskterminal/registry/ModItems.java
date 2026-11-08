@@ -322,6 +322,22 @@ public final class ModItems {
             ITEMS.registerSimpleBlockItem(ModBlocks.CAMP_CARMINITE_FIRE);
 
     /**
+     * 反建器二型：照暮色森林反建器做的那台机器的物品形态，放下来就是 {@link ModBlocks#ANTIBUILDER_TYPE2}
+     */
+    public static final DeferredItem<BlockItem> ANTIBUILDER_TYPE2 =
+            ITEMS.registerSimpleBlockItem(ModBlocks.ANTIBUILDER_TYPE2);
+
+    /**
+     * 反建方块二型：反建器二型的场里生出来的那一块的物品形态，放下来就是
+     * {@link ModBlocks#ANTIBUILD_BLOCK_TYPE2}
+     *
+     * <p>暮色森林的 {@code antibuilt_block} 没有物品形态，这一块有：主栏目里直接拿得到，
+     * 不必为了摆一块去场里炸出来。挖掉仍然什么都不掉
+     */
+    public static final DeferredItem<BlockItem> ANTIBUILD_BLOCK_TYPE2 =
+            ITEMS.registerSimpleBlockItem(ModBlocks.ANTIBUILD_BLOCK_TYPE2);
+
+    /**
      * 试验物品 104 一口的数值：10 与 0.6，也就是 10 点饥饿、饱食度 12.0，等于两块烤马铃薯
      * （一块烤马铃薯是 5 与 0.6，即 5 点饥饿、饱食度 6.0）
      *

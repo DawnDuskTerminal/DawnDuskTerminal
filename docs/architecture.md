@@ -399,6 +399,7 @@
 - 046：砷铅铁钼反应权杖。
 - 047~050：护甲（`item/ExperimentArmorItem`，见下面「试验物品 047~050」）。
 - 051：拆解台，方块在 `ModBlocks`、物品在 `ModItems`。
+- 060：金探针（`item/Experiment060Item`），右键往下探石头与沙土层下面第一块别的东西，见下面「试验物品 060」。
 - 061 / 070 / 074：三块不明肉块（`item/UnknownMeatItem`，共用一份规格）。
 - 066：恶魂陷阱书（`item/Experiment066Item`）。
 - 104：食物，位于 `ModItems`。
@@ -415,7 +416,7 @@
 已经有自己那张图标的不算占位，登记在 `ModExperimentItems.TEXTURED`，各自注册成普通物品。
 判据是 `models/item/experiment_%03d.json` 的 `layer0` 指向自己的贴图。
 真正还借 `experiment_temp.png` 的才是占位，由 `ModExperimentItems.PLACEHOLDERS` 补出。
-两张表加起来一共 73 个号，即 32 个有贴图的加 41 个占位，用 `simpleItems()` 取。
+两张表加起来一共 72 个号，即 31 个有贴图的加 41 个占位，用 `simpleItems()` 取。
 `gametest/ExperimentItemTests#placeholderTableMatchesTheIcons` 把两张表与 115 份模型逐号对上，
 换了某个号的图标却忘了写进 `TEXTURED` 会直接红。
 
@@ -1119,6 +1120,28 @@ thirdperson 为 [-80,260,-40] / [-80,-280,40] 与 -1,-2,2.5 的位移，firstper
 
 `gametest/Experiment027Tests` 断言：占位号已让出、粒子类型已注册、
 正对石头时落点在那个面上、看向空处与超出距离时均为 null。
+
+### 试验物品 060（金探针）
+
+`item/Experiment060Item` 单击右键，从使用者正下方那一格开始往下扫，全部逻辑在 `Experiment060Item#probe`。
+扫描分两段：先无视一路上所有的方块，找到第一块石头类方块；再从它下面一格起继续往下，跳过石头类与沙土类；
+停在第一块两边都不是的方块上，用 actionbar 报出它的名字，并扣 1 点耐久。
+扫到 `getMinBuildHeight()` 还没结果、或者压根没见到石头，都只报「下方没有东西」且不扣耐久。
+
+「石头类」是基岩、粉砂岩，与 `#minecraft:base_stone_overworld`、`#minecraft:base_stone_nether`。
+基岩是本维度底下那一整层，粉砂岩是砂岩那一档的岩层（白地地表就是它），两块都是地形本身，不是「探到的东西」；
+这两块没有塞进数据包标签，因为 `#minecraft:base_stone_overworld` 同时是花岗岩、闪长岩、安山岩、凝灰岩、砂砾、
+黏土、泥土那七种矿脉的替换目标，挂上去它们在地里会吃掉这两块。
+`#minecraft:base_stone_overworld` 已经被数据包扩到含本模组的苍穹石、紫苏岩、榴辉岩、绿片岩、赭石、暮光石。
+「沙土类」是 `#minecraft:dirt`（含草方块，数据包又扩了霞土与霞草）与 `#minecraft:sand`（数据包又扩了路之沙与不醒沙）。
+两类之外的东西都是结果：矿石、砂砾、冰霜、流体、空气都算。
+
+两条 actionbar 的键是 `message.dawnduskterminal.experiment_060.found`（带方块名）与同名 `_nothing`。
+方块名取 `Block#getName()`，所以报出来的是玩家当前语言里的名字。
+
+`gametest/Experiment060Tests` 摆了几列方块直接问 `probe`：跳过石头与沙土后落在铁矿上、石头下面是空气、
+一路只有石头与沙土时扫到世界底部仍为空、基岩与粉砂岩算地形所以不报、本模组那套岩石与沙土同样被跳过，
+并钉住 256 点耐久与两条翻译键。
 
 ### 试验物品 043（手持喷火器）
 
@@ -1851,6 +1874,127 @@ thirdperson 为 [-80,260,-40] / [-80,-280,40] 与 -1,-2,2.5 的位移，firstper
   不写死支数，只钉「表里有几支，三处就得几支一一对上」；
 - 伤害类型与两个语言文件的关键字齐备。
 
+## 反建器二型（反建场）
+
+暮色森林 `twilightforest:antibuilder` 的第二型。
+方块在 `block/AntibuilderType2Block`，方块实体在 `block/entity/AntibuilderType2BlockEntity`，
+场在 `world/AntibuilderType2Field`，热路径上的那一处拦截在 `mixin/LevelSetBlockReactionMixin`。
+
+与暮色森林那一台只差四条：范围可变、不抄快照、产出的方块换成本模组那一块、反建器家族两条例外。
+其余一律照抄，包括方块属性（`noLootTable`、`pushReaction(BLOCK)`、`mapColor(SAND)`、
+`requiresCorrectToolForDrops`、`WOOD` 音效、10 点硬度 6 点抗性、10 级光）、红石粉框线与 `#minecraft:mineable/pickaxe`。
+
+### 范围
+
+场的半边长是一条状态 `RANGE`（1~8），直径是 `2 * range + 1`，默认取满 8，即 17×17×17；最小 1，即 3×3×3。
+状态而不是方块实体字段：右键调完当场生效，也不存在两份数值对不上的可能。
+
+创造模式玩家右键加大一格、潜行右键缩小一格，两端封顶不再回绕。
+动作栏报当前范围，键是 `block.dawnduskterminal.antibuilder_type2.range`。
+其它模式右键不算这个方块的交互，`useWithoutItem` 与 `useItemOn` 都返回「往下走」，所以手上拿着方块照样能放。
+一格都不变的判定收在 `AntibuilderType2Block#nextRadius`，测试直接钉这个函数，不必构造「按住潜行键的假玩家」。
+
+### 红石关机
+
+方块状态 `POWERED`（`BlockStateProperties.POWERED`）为真时这台机器关机：场整个停摆、框线不画、方块自己不再发光。
+
+摆下那一刻由 `getStateForPlacement` 按当时的红石信号定下初值，之后由 `neighborChanged` 跟着信号变。
+两处都要：贴着一条通着电的红石线摆下时，那条线不会因为这台机器落地而变化，也就不会给它发更新。
+用状态而不是每次现算，是因为客户端要照着它决定画不画框线，而红石信号在客户端算不准。
+
+关机只停场，方块本身、`RANGE` 与场心登记都留着，信号一断当 tick 恢复。
+`AntibuilderType2Field` 的 `covers` 与相邻判定都跳过关机的机器，所以贴着关机的机器摆第二台是允许的。
+
+### 不抄快照
+
+暮色森林那一台每 tick 把 9³ 格抄进 `BlockState[]`，再慢慢比对着往回改；
+这一台一个方块状态都不存，只在方块真正被破坏或被放置的那一刻判定一次。
+
+判定位置是 `Level#setBlock(BlockPos, BlockState, int, int)`，它是原版改方块唯一的漏斗：
+玩家挖方块走 `ServerPlayerGameMode#removeBlock` → `BlockState#onDestroyedByPlayer` → `Level#removeBlock`，
+爆炸、活塞、`/setblock` 与 `setBlockAndUpdate` 最后也都落到它上面。
+因此只需要在这一处拦一次，不必给每个入口各挂一次。
+
+`AntibuilderType2Field#react` 拿「原来的状态」与「要写进去的状态」比一次，只认两种变化：
+
+- 破坏：原来不是空气也不是液体，新的状态是空气或液体（后者是含水方块被拆掉）。
+- 放置：原来是可以被顶掉的东西（空气、液体、`canBeReplaced()` 为真的草与雪层），新的状态是实心方块。
+
+其余一律放过：方块自己的状态变化（门开、熔炉点火、红石灯亮灭）两条都套不上；
+水的流动与退去也套不上，所以场里照常能进水。
+暮色森林那一台靠 `#twilightforest:antibuilder_ignores` 里的 `minecraft:water` 躲开这件事，这里不需要那张标签。
+
+反应不是「改参数再放行」，而是整个接管这一格：在 `HEAD` 处取消原调用，把结果写进去再返回。
+直接改参数是错的——原调用接着会把真正想写的空气盖到反建方块上面，等于什么都没做。
+反应自己也要写方块，那次写入必须被挡住，否则「空气 → 反建方块」会被判成一次放置，转头又退回去，来回翻烧饼。
+闸是 `ThreadLocal` 上的一位，因为服务端只有一条世界刻线程，客户端则压根不判定。
+代价是反应自己那一次写入引起的邻居更新也落在闸内，那一条连锁不再判定——方块变动本身还是照常发生。
+
+### 产出的方块
+
+被破坏的那一格换成 `dawnduskterminal:antibuildblock_type2`（`ModBlocks#ANTIBUILD_BLOCK_TYPE2`）。
+方块属性照暮色森林的 `antibuilt_block`：`noLootTable`（挖掉什么都不掉）、`noOcclusion`（贴图带透明）、
+`pushReaction(BLOCK)`、`WOOD` 音效、0.3 点硬度 2000 点抗性；不进 `#minecraft:mineable/pickaxe`。
+与那一块不同的一点：这一块有物品形态，主栏目里直接拿得到（`ModItems#ANTIBUILD_BLOCK_TYPE2`），
+不必为了摆一块去场里炸出来。
+
+### 三条例外
+
+- 范围内被破坏的方块是反建器家族（`twilightforest:antibuilder` 或本模组这一台）：复原它，而不是换成反建方块。
+- 范围内被放置的方块是反建器家族：放着不管，而不是退回去。
+  唯一的例外是相邻：反建器二型挨着任意一台开着的反建器二型摆（切比雪夫距离 ≤ 1，斜角也算）会被破坏，
+  那一台照普通方块处理。暮色森林那一台不受这条管，紧贴着也能摆；关机的机器也不算相邻。
+- 一个场不管自己的场心那一格：否则任何半径都包住场心，单台机器放下就再也拆不掉。
+
+第三条只豁免「这个场自己的场心」，不是「所有机器的场心」：
+别的机器的场照管它，所以范围内的反建器二型被破坏时照样复原。
+距离两格以上摆进彼此的场里时两台机器仍会互相保护，谁也拆不掉，只能靠命令移走——这是规格的直接后果。
+复原走的是「把原来的状态写回去」，原状态与新状态相同时那次写入是空操作，方块根本没被移走。
+
+撤销登记靠两条路：方块的 `onPlace` / `onRemove` 管摆下与挖掉，方块实体的 `onLoad` / `setRemoved` 管区块载入与卸载。
+`DdtServerEvents#onServerStopped` 里再把整张场心表清干净。
+
+判定不扫 17³ 格，也不把全维度的机器挨个量：场心按区块分桶，查一格只看它所在区块与紧邻的两个方向共 3×3 个桶。
+半径最大 8 格，小于区块的 16 格，能盖住这一格的机器一定在这九个桶里，远处的机器一次都不碰——
+于是这条判定的开销与场上机器总数无关。
+每个桶里还要回头核一遍那一格还是不是本方块，幽灵场只活到它下一次被问到；核之前先问 `ChunkSource#hasChunk`，
+不会为了找方块把区块读进来。
+每次判定会读一次场心那一格的方块状态（半径、开关机都写在那上面），这也是分桶之外唯一的读。
+
+### 退回时要有破坏的样子
+
+放置被退回去之前先发一次 `LevelEvent.PARTICLES_DESTROY_BLOCK`（2001，带被放方块的状态 id）：
+客户端会炸出那块的碎片、放那块的破坏音。方块凭空消失看着像「没放上去」，炸一下才看得出是「被破坏了」。
+暮色森林那一台在同样的位置也发这一个事件。
+
+### 资源
+
+两层模型：`antibuilder_type2` 是底座，`antibuilder_type2_glow` 是发光层。
+发光层按满亮画（`block_light` 与 `sky_light` 都是 15），
+`render_type` 是 `minecraft:cutout`；反建方块二型同构，发光层按 10 级画。
+关机用的是 `antibuilder_type2_off`：只有底座、没有发光层，看上去才是真的关了。
+方块状态十六个变体（八档 `range` × `powered` 两种），`powered=false` 指向带发光层的模型，
+`powered=true` 指向关机模型。两个方块各有一个物品模型，都指向自己的方块模型；两个方块都没有战利品表。
+
+模型的 `textures` 里必须把面上用到的每个键都定义出来：面写 `#bottom` 就得有 `bottom` 这个键，
+只写 `down` 还不够，游戏里那一面会画成紫黑格子而不报错。
+`gametest/AntibuilderType2Tests` 里有一条逐面查引用的用例把这件事钉住。
+
+场的框线沿用 `world/CubeFieldMarker`，它为这一台加了带半径参数的重载：顶点按 `radius` 而不是固定的 8 算。
+客户端绘制，16 格内有玩家才画，服务端不挂 ticker。
+
+`gametest/AntibuilderType2Tests` 覆盖：范围跨度与两端封顶、默认 17 格、10 级光、`#minecraft:mineable/pickaxe`、
+方块实体已注册、两个方块都有物品形态且都排在主栏目里、反建方块不进镐子标签；
+场里破坏换成反建方块、半径缩到最小以后场外那一格不再反应；
+场里放置被退回、反建器家族两样都不动、摆进草里退回草，反建器二型紧贴另一台摆不下来
+（正着挨与斜着挨各一条，暮色森林那一台紧贴着摆得下）；
+被破坏的暮色反建器复原、另一台反建器二型在别人的场里也复原、机器自己那一格拆得掉且拆掉当场停；
+水的流动与方块自己的状态变化照过；创造模式右键加一格、其它模式右键不算交互；
+收到红石信号就关机（不反应、不发光、框线不画），信号一断当 tick 恢复；
+机器贴着区块边界摆时隔壁区块里的那一格照样管得住（分桶查询走的是 3×3 个桶）；
+十六个变体、两层模型与关机模型、逐面的贴图引用都解析得到、两层贴图的发光档位、两个物品模型、
+两个方块都没有战利品表、服务端没有 ticker。
+
 ## 装饰画
 
 十幅画，尺寸从 1 格宽 2 格高（`painting_ghast_2_sub`）到 6 格宽 4 格高（`painting_ghast_9`）。
@@ -2039,6 +2183,23 @@ thirdperson 为 [-80,260,-40] / [-80,-280,40] 与 -1,-2,2.5 的位移，firstper
 `block/ScorchingTwilightBlock` 继承岩浆的方块属性，但不会引燃，也不会清除植物，接触时造成 6 点 `enthu_fluid` 伤害。
 
 `item/CanocanItem` 是唯一能够舀取这两种流体的容器，原版桶会被销毁。
+
+它还多一门用处：拿它点暮色森林那两块「正变绿」的方块，可以把方块整个取走，换来一枚 `experiment_028`。
+
+两个绿色窗口都写在方块状态上，所以判定只看状态，不用等 tick：
+
+- `twilightforest:reappearing_block`（重现方块）：被点过之后缩成小方块，临回来之前那 15 tick 是
+  `vanished && active`（模型换成发绿的那一份）。窗口一过它自己长回原样。
+- `twilightforest:built_block`（砷铅铁建造器搭出来的方块）：被激活之后 10 tick 是 `active`（同样是发绿那一份）。
+  窗口一过方块直接消失。
+
+窗口里方块本来就已经不属于「正常世界」了：这里把它整个拿掉（`removeBlock`，不掉任何东西），
+发一枚 `experiment_028`，方块自己的定时逻辑随之作废——重现方块不会长回来，建造方块也不会自己消失。
+取走前发一次 `LevelEvent.PARTICLES_DESTROY_BLOCK`，客户端看得见方块是被拿走的。
+
+不是这两块、或者不在窗口里，`useOn` 一律返回 `PASS`，罐子照旧走 `use` 那条舀流体的路。
+`gametest/CanocanPickupTests` 覆盖：两个窗口各取一次（方块消失、进账一枚 028）、
+窗口外三块方块与一块石头都不动也不给东西、奖励就是注册表里的 `dawnduskterminal:experiment_028`。
 
 ## 进度与效果
 
