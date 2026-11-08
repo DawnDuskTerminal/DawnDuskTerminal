@@ -1,0 +1,13 @@
+{
+  "replace": false,
+  "values": [
+    "dawnduskterminal:birch_forest",
+    "dawnduskterminal:dark_forest",
+    "dawnduskterminal:flower_forest",
+    "dawnduskterminal:forest",
+    "dawnduskterminal:plains",
+    "dawnduskterminal:savanna",
+    "dawnduskterminal:sunflower_plains",
+    "dawnduskterminal:taiga"
+  ]
+}

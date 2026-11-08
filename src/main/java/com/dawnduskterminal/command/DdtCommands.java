@@ -4,6 +4,7 @@ import com.dawnduskterminal.config.DdtConfig;
 import com.dawnduskterminal.entity.YsmPackUser;
 import com.dawnduskterminal.portal.PortalTeleporter;
 import com.dawnduskterminal.registry.ModDimensions;
+import com.dawnduskterminal.structure.GridPlacer;
 import com.dawnduskterminal.world.ChronoLine;
 import com.dawnduskterminal.world.ChronoLineState;
 import com.dawnduskterminal.world.ChronoSkyLight;
@@ -11,6 +12,7 @@ import com.mojang.brigadier.arguments.DoubleArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.EntityArgument;
+import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -128,6 +130,23 @@ public final class DdtCommands {
                                                                     false);
                                                     return applied;
                                                 }))))
+                        .then(Commands.literal("griddump").executes(ctx -> {
+                            ServerLevel level = ctx.getSource().getLevel();
+                            BlockPos pos = BlockPos.containing(ctx.getSource().getPosition());
+                            String dump = GridPlacer.dump(level, pos);
+                            for (String line : dump.split("\n")) {
+                                ctx.getSource().sendSuccess(() -> Component.literal(line), false);
+                            }
+                            return 1;
+                        }))
+                        .then(Commands.literal("pieces").executes(ctx -> {
+                            ServerLevel level = ctx.getSource().getLevel();
+                            BlockPos origin =
+                                    BlockPos.containing(ctx.getSource().getPosition());
+                            String result = GridPlacer.placeCatalogue(level, origin);
+                            ctx.getSource().sendSuccess(() -> Component.literal(result), false);
+                            return 1;
+                        }))
                         .then(Commands.literal("tp")
                                 .then(Commands.argument("param", DoubleArgumentType.doubleArg(-1.0D, 1.0D))
                                         .executes(ctx -> {

@@ -63,6 +63,21 @@ NON_MODEL = {
     "is_one_way": {"false", "true"},
     # chest/double-chest shape; chest's blockstates json is a single static model
     "type": {"single", "left", "right"},
+    # twilightforest:wrought_iron_fence; its blockstates json only lists the states
+    # that pick a model, and NONE is a real value of both enums
+    "post": {"none", "post", "capped"},
+    "north_fence": {"none", "bottom", "middle", "top", "full"},
+    "south_fence": {"none", "bottom", "middle", "top", "full"},
+    "east_fence": {"none", "bottom", "middle", "top", "full"},
+    "west_fence": {"none", "bottom", "middle", "top", "full"},
+    # campfire and candelabra drive particles and light level, so their
+    # blockstates json leaves these out entirely
+    "signal_fire": {"true", "false"},
+    "has_candle_1": {"true", "false"},
+    "has_candle_2": {"true", "false"},
+    "has_candle_3": {"true", "false"},
+    "on_wall": {"true", "false"},
+    "lighting": {"none"},
 }
 
 
@@ -123,8 +138,8 @@ def main(path):
             problems += 1
             continue
         for k, v in p.items():
-            allowed = real.get(k) or NON_MODEL.get(k)
-            if allowed is None:
+            allowed = set(real.get(k) or ()) | set(NON_MODEL.get(k) or ())
+            if not allowed:
                 print(f"  ?? [{i}] {nm}: unknown property {k}={v}")
                 problems += 1
                 continue
