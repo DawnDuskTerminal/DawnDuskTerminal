@@ -207,6 +207,31 @@ Gradle 的下载才会经过代理；
 第三种原因是 Zig 工具链：`installZig` 与 `buildNative` 位于 `processResources` 的上游，
 它们的失败同样表现为「点 runClient 没有反应」。工具链位置见下文「native 网格内核」的说明。
 
+### 客户端被系统提交内存杀掉（不是 Java 异常）
+
+症状：玩一会儿（常常正好在「Saving and pausing game」那一刻）整局直接消失，没有崩溃报告，
+只在 `run/client/hs_err_pid*.log` 留下一份 JVM 原生崩溃：
+
+```
+There is insufficient memory for the Java Runtime Environment to continue.
+Native memory allocation (malloc) failed to allocate ... Error detail: Chunk::new
+```
+
+这不是模组抛的异常，是**系统提交内存（commit）用尽**：Windows 的提交上限是「物理内存 + 页面文件」。
+不给 `-Xmx` 时 JVM 按物理内存的 1/4 取堆（16G 的机器上约 3.9G），堆涨满之后 JVM 自己的原生分配
+（JIT arena、线程栈、mixin）就 `malloc` 失败，进程被直接杀掉。
+
+因此 `build.gradle` 的 `client` 运行显式给了 `-Xmx3G`、`-XX:MaxMetaspaceSize=1G`、
+`-XX:ReservedCodeCacheSize=256m` 与 `-XX:MaxDirectMemorySize=1G`：
+
+- 堆按物理内存的 1/4 走的默认值在 16G 机器上太大，钉住它才能给原生内存留余量；
+- 直接缓冲加上限是为了让泄漏变成 `OutOfMemoryError: Direct buffer memory`（有崩溃报告可看），
+  而不是吃干原生内存后静默消失。本模组的 `NativeMeshBatch` 是复用缓冲的，不在每帧新分配。
+
+内存更大的机器可以用 `-Pddt_client_heap=4G` 覆盖堆上限。
+真正根治还是把页面文件交回系统管理（或固定 8~16G）：页面文件只有 833M 时，提交上限只比物理内存高一点点，
+浏览器、Gradle daemon 与客户端三者叠在一起很容易顶到天花板。
+
 ### native 网格内核
 
 `src/main/native/ddt_native.cpp` 由纯 C++17 与 `std::thread` 实现，不含平台相关 API。
@@ -564,6 +589,29 @@ Windows DLL 只依赖 UCRT 与 `kernel32.dll`，不需要 `libwinpthread-1.dll` 
 `eachItemPlacesItsOwnPainting` 验证贴着墙面放置后，实体类型、朝向、变体与包围盒均正确，物品数量减一。
 十幅画轮流用同一处墙面各放一次，验完清掉再放下一幅。
 
+### StructureTemplateTests
+
+`everyPieceTemplateLoads` 验证 `data/dawnduskterminal/structure/` 下的每一件模板都读得出来。
+
+读不出来的件是静默的：`StructureTemplateManager.get` 把异常吞成空的 `Optional`，
+`GridStructure.place` 只记一行日志就跳过那一件，症状是某类件在世界里根本不出现。
+踩过的一次是 `air/notch.nbt` 存成了未压缩的 NBT：`readStructure` 走 `NbtIo.readCompressed`，
+于是抛 `ZipException: Not in GZIP format`，凹角的凹口再也没有被擦过。
+结构方块的 SAVE 写出来的本来就是 gzip，用脚本另存件时必须一样压缩。
+
+`notchIsAOneBySevenColumn` 钉住 `air/notch` 仍是 1×7×1 的纯空气：尺寸变了擦不到女儿墙顶，或者盖掉了楼面。
+
+`afterPlaceStaysInsideTheWritableArea` 钉住 `GridStructure.afterPlace` 只碰当前区块那一截。
+它把一件绳梯件摆到跨过区块边界的位置，再用一个只在可写区之内放行的动态代理包住真的 `level`：
+真扫到区块外，代理当场抛异常，测试失败，而不是等到玩家跑图时区块生成被打断。
+先把 `afterPlace` 改回扫整件包围盒跑一遍，这条测试确实会失败（代理报出越界的那一格），改完再通过。
+
+`bandProcessorDecaysAndWebs` 钉住破损：缺失率给满时每个实体方块都被处理掉、约四分之一变蜘蛛网；
+带 nbt 的宝箱不参与；缺失率为 0 时一块都不动。
+
+`everyGridStructureHasAChestRoom` 用固定种子直接调 `Structure#generate` 生成 12 座房子：每座至少有 `room/rect_furn_06`
+（宝箱房。箱子是那间房件里自带的方块，不是另外摆的件）。顺带钉住上下两段高度各自的落点窗口，以及两个结构 id
+都在 `StructureExclusions` 的白名单里——漏登记会让上层结构在晨昏线维度里一次都不生成。
 ### CampCarminiteFireTests
 
 `blockLooksAndLightsLikeACampfire` 验证三个状态位、点着时 15 级光、碰撞箱高 7 像素，

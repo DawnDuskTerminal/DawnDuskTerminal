@@ -1,0 +1,14 @@
+{
+  "placement": {
+    "type": "minecraft:random_spread",
+    "salt": 8417214,
+    "spacing": 32,
+    "separation": 8
+  },
+  "structures": [
+    {
+      "structure": "dawnduskterminal:grid_rooms_upper",
+      "weight": 1
+    }
+  ]
+}

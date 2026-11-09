@@ -485,6 +485,12 @@ forest、birch_forest、old_growth_birch_forest、flower_forest、dark_forest、
 件的来源是建造存档里的整件，导出时按上表的 y 段一段段另存（切分脚本是一次性的，不留在仓库里）。
 改件之后照上表重新截一段、拷回 `structure/` 即可；凹角那三处按本节说明处理。
 
+件文件必须是 **gzip 压缩的 NBT**。`StructureTemplateManager.readStructure` 走的是
+`NbtIo.readCompressed`，裸 NBT 会抛 `ZipException: Not in GZIP format`；而 `get` 把异常吞成空的
+`Optional`，`place` 只记一行日志就跳过那一件，症状是这类件在整个维度里都不出现，存档本身不报错。
+结构方块的 SAVE 写出来的本来就是 gzip（`save` 用 `NbtIo.writeCompressed`），用脚本另存时也要压缩。
+`StructureTemplateTests` 把所有件过一遍，见 `docs/development.md`。
+
 #### BandProcessor
 
 `structure/BandProcessor` 管三件事：
@@ -494,6 +500,13 @@ forest、birch_forest、old_growth_birch_forest、flower_forest、dark_forest、
    顺序反过来的话，后摆那件的空气会把前一件摆在框架线上的家具（树皮、栏杆、门）擦掉。
 3. 结构空位（`minecraft:structure_void`）一律不落笔。原版只在拼图里认这个块，
    本模组自己往 `StructurePiecesBuilder` 里塞件，所以在这里补上同一条语义。
+
+**这三个参数必须进编解码器。** 件是跟着结构 start 一起写进区块的，玩家分次探索时 start 从磁盘读回来再落笔；
+只写 `processor_type`、把 `min_y` / `max_y` / `phase` 丢掉的写法，读回来就全变成「无窗口 + ALL」——
+清空件会多写两行空气、把上一层的天花板擦掉，同一份种子在不同探索顺序下长出的房子就不一样
+（一次性生成与分次探索的结果对不上，找起来极其费劲）。`StructureTemplateTests`
+用原版 `StructureProcessorType.SINGLE_CODEC` 来回编解码钉住这条；旧存档缺这几个字段时按默认值读回，
+不会把整座结构丢掉。
 
 ### 装配
 
@@ -511,8 +524,20 @@ forest、birch_forest、old_growth_birch_forest、flower_forest、dark_forest、
 - 清空每格两段，各 `ROOF_CLEAR`（4）行：天花板上方 `+9..+12`、地板下方 `-4..-1`。
   提前做完就绝不会擦到已经摆好的东西，也不必给清空算「哪些列要放过」——下层自己的件随后会原样摆回来。
   地板下方那一段**每格都清**：挑空、离房间 3 格以内的格子不长地基与柱子，下面却照样塞着环境方块。
+  **只有两段落在房子外面，不清**：顶层天花板以上那一段、底层地板以下那一段。
+  清掉它们就是在地里给房子掏出一圈空腔；这栋房子是**埋在地里**的，顶上与底下都该是实心岩层。
+  其余各层两段清空都在室内（上一层的室内就是这一层的 `+9..+12`），照清。
 - 支撑柱与往下接的柱、绳梯在 `afterPlace` 里延伸到第一个实心方块；液体与绳梯自身也算可穿过
   （`passable`），否则悬空层的绳子只垂几格。
+  `afterPlace` 每覆盖一个区块就调一次，交进来的 `box` 只是当前区块那一块（整根柱高），
+  **所以每根柱子、每条绳梯由它自己所在的那个区块负责接**：整件包围盒会跨好几个区块，
+  照着扫就会读到区块外，而世界生成期手里的 `WorldGenRegion` 只认自己那一圈，
+  读到圈外直接抛 `Requested chunk unavailable during world generation`，整个区块的生成被打断，
+  单人游戏里表现为被集成服务端踢回主菜单。原版的 `WoodlandMansionStructure` 与
+  `DesertPyramidStructure` 同样只扫 `box`。
+- 这一段只是收尾，件本身早就落完了，所以 `afterPlace` 整体包在 `try/catch` 里：
+  真出意外就记一条 warn 并放弃这一遍，柱子短一截总好过让整个区块的生成作废
+  （作废的区块不但踢人，还会在崩溃/紧急保存那条路上留下半成品的结构）。
 - 同一件每遍都用同一个朝向，朝向在规划阶段算好存进 `Plan`。
 
 ### 上下楼
@@ -569,15 +594,42 @@ forest、birch_forest、old_growth_birch_forest、flower_forest、dark_forest、
 
 `grid_rooms.json` 的 `terrain_adaptation` 是 `none`：结构只摆自己的方块，不在底下或四周补地形。
 `beard_thin` 之类会让游戏在建筑轮廓下填一层环境方块，把一个悬空的房子垫成实心。
-需要往下接的东西由柱子与绳梯自己延伸（`afterPlace`）。
+需要往下接的东西由柱子与绳梯自己延伸（`afterPlace`，只在当前区块那一截里扫，见「装配」）。
 
 这栋房子是**地下**结构，不是地表建筑：设定里基岩层在 y=0，下面是地下区域（`docs/设定.md` 的「地下」一节）。
-`grid_rooms.json` 的 `y_min` / `y_max` 给出一段高度，每次生成在这段里随机取一层当地板高度，
-不读地表高度图。目前取 `-60 .. -30`：设定里 y<0 是“地下浮岛区域”，
-`noise_settings/chrono.json` 把洞穴项用两条 `y_clamped_gradient` 塑形
+高度用**两个结构**表达，各自一套结构集、各自的间距与盐，所以两段互不抢丰度：
+
+| 结构 | y 段 | 结构集 |
+|---|---|---|
+| `dawnduskterminal:grid_rooms` | `-60 .. -30`（y<0 的地下浮岛区） | `random_spread`，salt `8417213`，spacing 32 |
+| `dawnduskterminal:grid_rooms_upper` | `8 .. 40`（y>0 的地表以下） | `random_spread`，salt `8417214`，spacing 32 |
+
+两者共用同一份 `type`、同一张群系标签与同一套件；差别只在 `y_min` / `y_max`。
+不要把两段塞进同一个结构里掷硬币——那样每一段都只剩一半的结构，等于把丰度砍半。
+**新增结构 id 必须同时进 `StructureExclusions.ALLOWED`**：`StructureExclusionMixin` 会压制
+不在白名单里的每一个结构，漏登记的症状是该结构在晨昏线维度里一次都不生成。
+不读地表高度图。y<0 那一段里，`noise_settings/chrono.json` 把洞穴项用两条 `y_clamped_gradient` 塑形
 （`-4..4` 之间从 10 压到 0，`-64..-52` 之间从 0 抬到 1），所以那一段以成片的空腔与浮岛为主，
 房子多半悬在空处，最多背后贴着浮岛。世界生成阶段拿不到方块数据，查不到洞穴地板；
-地基往下接柱子只在 `afterPlace` 里扫地形。
+地基往下接柱子只在 `afterPlace` 里扫地形，而且只扫当前区块那一截。
+
+规模与层数（`grid_rooms.json` 的 `columns` / `rows` / `storeys`）：
+轮廓上限 `8×8` 格，层数上限 3，按权重一层最常见（6）、两层其次（3）、三层偶尔（1）。
+
+### 破损与宝箱
+
+- **破损**：每个实体方块按 `WEATHER_DECAY_PERMILLE`（35‰）的概率随机缺失；
+  每座房子再掷一次「要不要长蜘蛛网」（`WEBBED_CHANCE` = 一半），掷中时缺失位置的约四分之一换成蜘蛛网。
+  判定用「世界位置哈希 + 这一座房子的盐」，所以同一份存档里反复进出同一区块得到同一副面孔。
+  带 nbt 的方块（宝箱）不参与缺失。
+- **箱子是 `room/rect_furn_06` 这间「宝箱房」自带的方块**，不是另外摆的件：
+  它的 `LootTable` 写在件里（`dawnduskterminal:chests/grid_rooms`，暂时与晨昏矿井同款，转 `twilightforest:hill_3`）。
+  装配时房间是从 `room/<体型>_<角色>_<n>` 变体里随机挑的，格子少、层数少时可能一次都没挑中它，
+  于是整座房子一只箱子都没有——所以落笔之前有一道保底（`ensureChestRoom`）：
+  整座结构若没有一格用宝箱房，就把一格「rect 体型 + 家具房」换成它（同体型同角色、朝向不变）。
+  多层房子可能有多间宝箱房，不封顶；箱子带 nbt，所以也不参与破损。
+- **柱子只在安全的地方接**：照原版废弃矿井的做法「先探再落笔」——一路往下探到第一个实心方块为止，
+  中途遇到液体就整根不接，探到 24 格或基岩还没落地同样不接；绳梯同理（绳/梯自身算能走）。
 
 ### 改件流程
 

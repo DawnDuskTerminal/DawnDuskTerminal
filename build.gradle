@@ -36,6 +36,21 @@ neoForge {
         client {
             client()
             gameDirectory = project.file('run/client')
+            // 开发客户端的堆必须显式给：不给 -Xmx 时 JVM 按物理内存的 1/4 取（16G 的机器上约 3.9G），
+            // 而 Windows 的提交上限是「物理内存 + 页面文件」，本机页面文件只有 833M，上限约 16.6G。
+            // 堆一路涨满之后 JVM 自己的原生分配（JIT arena、线程栈、mixin）就 malloc 失败，
+            // hs_err 里是 "Native memory allocation (malloc) failed ... Chunk::new"，
+            // 表现为存盘或跑图时整局直接消失。钉住堆，给原生内存留出余量。
+            // 内存更大的机器可用 -Pddt_client_heap=4G 覆盖。
+            jvmArguments.addAll(
+                "-Xmx${project.findProperty('ddt_client_heap') ?: '3G'}".toString(),
+                '-XX:MaxMetaspaceSize=1G',
+                '-XX:ReservedCodeCacheSize=256m',
+                // 直接缓冲（native 网格内核与区块序列化都靠它）也给个上限：
+                // 真有泄漏时抛 OutOfMemoryError: Direct buffer memory，出一份能看的崩溃报告，
+                // 而不是把整个进程的原生内存吃干后静默消失
+                '-XX:MaxDirectMemorySize=1G'
+            )
         }
         server {
             server()

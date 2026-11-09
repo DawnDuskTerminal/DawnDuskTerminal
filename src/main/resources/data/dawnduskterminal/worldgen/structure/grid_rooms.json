@@ -4,9 +4,9 @@
   "spawn_overrides": {},
   "step": "surface_structures",
   "terrain_adaptation": "none",
-  "columns": 13,
-  "rows": 13,
-  "storeys": 4,
+  "columns": 8,
+  "rows": 8,
+  "storeys": 3,
   "y_min": -60,
   "y_max": -30
 }

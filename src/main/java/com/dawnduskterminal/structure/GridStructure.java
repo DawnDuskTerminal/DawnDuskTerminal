@@ -91,8 +91,17 @@ public class GridStructure extends Structure {
     /** 层高：地板 y=3、天花 y=8，上一层地板正好落在 y=8，两层共用这一层楼板 */
     private static final int STOREY_HEIGHT = 5;
 
-    /** 层数权重：下标是层数。2 层占一半、3 层占三分之一、4 层偶尔露一次面 */
-    private static final int[] STOREY_WEIGHTS = {0, 0, 3, 2, 1};
+    /** 层数权重：下标是层数。一层最常见，两层其次，三层偶尔露出一次 */
+    private static final int[] STOREY_WEIGHTS = {0, 6, 3, 1};
+
+    /** 随机缺失的比例（千分之几）：几百块里掉几块，够旧但不至于漏风 */
+    private static final int WEATHER_DECAY_PERMILLE = 35;
+
+    /** 每栋房子要不要在缺失处挂蜘蛛网：一半一半 */
+    private static final float WEBBED_CHANCE = 0.5f;
+
+    /** 带箱子的那间房件：箱子是件里自带的方块，`LootTable` 写在件里 */
+    private static final String CHEST_ROOM = "room/rect_furn_06";
 
     /** 上一层比下一层的列数/行数各偏多少：正态分布的标准差，取 1 就是大多数时候只差一格 */
     private static final double STOREY_SPREAD = 1.0;
@@ -144,12 +153,15 @@ public class GridStructure extends Structure {
 
     private final int columns;
     private final int rows;
-    /** 层数上限；实际层数按权重在 2..上限里挑 */
+    /** 层数上限；实际层数按权重在 1..上限里挑 */
     private final int storeys;
     /** 生成高度范围：这栋房子是地下的，y_min/y_max 之间随机取一层的地板高度 */
     private final int yMin;
 
     private final int yMax;
+
+    /** 每栋房子一颗：结构缺失率（千分之几）与蜘蛛网盐 */
+    private static final ThreadLocal<Weathering> WEATHERING = new ThreadLocal<>();
 
     public GridStructure(StructureSettings settings, int columns, int rows, int storeys, int yMin, int yMax) {
         super(settings);
@@ -160,18 +172,35 @@ public class GridStructure extends Structure {
         this.yMax = Math.max(yMin, yMax);
     }
 
+    /** 一栋房子的破损：缺失率与蜘蛛网盐，{@code webSeed == 0} 表示这栋不长蜘蛛网 */
+    private record Weathering(int decayPermille, long webSeed) {
+        static final Weathering NONE = new Weathering(0, 0L);
+    }
+
     @Override
     public Optional<Structure.GenerationStub> findGenerationPoint(Structure.GenerationContext context) {
+        RandomSource random = context.random();
         int x = context.chunkPos().getMiddleBlockX();
         int z = context.chunkPos().getMiddleBlockZ();
-        // 这栋房子在晨昏线的地下（设定里基岩层在 y=0，下面是地下区域），高度在 y_min..y_max 之间取
+        // 这一段高度只由本结构的 JSON 决定；y>0 那一段是另一个结构（grid_rooms_upper），
+        // 各自有自己的结构集与间距，所以两段互不抢丰度
         int span = this.yMax - this.yMin + 1;
-        int groundY = this.yMin + context.random().nextInt(Math.max(1, span));
-        int originY = groundY;
+        int originY = this.yMin + random.nextInt(Math.max(1, span));
         BlockPos origin = new BlockPos(x, originY, z);
         return Optional.of(new Structure.GenerationStub(origin, pieces -> build(context, pieces, origin)));
     }
 
+    /**
+     * 地基柱与绳梯往下接到第一个实心方块
+     *
+     * <p><b>只在当前区块那一截里做。</b>{@code afterPlace} 会在结构覆盖的每个区块上各跑一遍，
+     * 交进来的 {@code box} 只有当前区块那一块（{@code ChunkGenerator#getWritableArea}，整根柱高）。
+     * 世界生成期手里的 {@code level} 是 {@code WorldGenRegion}，它只认得自己那一圈区块：
+     * 读到圈外直接抛 {@code Requested chunk unavailable during world generation}，
+     * 那个异常会打断整个区块的生成，单人游戏里就是被集成服务端踢回主菜单。
+     * 原版的两种 {@code afterPlace}（{@code WoodlandMansionStructure}、{@code DesertPyramidStructure}）
+     * 也只扫 {@code box}，这里照做：每根柱子、每条绳梯由它自己所在的那个区块负责接。
+     */
     @Override
     public void afterPlace(
             WorldGenLevel level,
@@ -181,6 +210,22 @@ public class GridStructure extends Structure {
             BoundingBox box,
             ChunkPos chunkPos,
             PiecesContainer pieces) {
+        // 这里只做“把柱子与绳梯往下接到地面”这一件收尾事。件本身已经落完了，
+        // 所以它失败不该连累整个区块：本方法抛出的异常会让 `applyBiomeDecoration` 整步作废，
+        // 结果是玩家被集成服务端踢出去，而且（走崩溃/紧急保存那条路时）会留下半成品的结构区块。
+        // 真出了意料之外的事，记一笔并放弃这一遍，让房子照样立着、只是柱子短一截。
+        try {
+            extendSupports(level, box, pieces);
+        } catch (RuntimeException error) {
+            DawnDuskTerminal.LOGGER.warn(
+                    "DawnDuskTerminal grid structure failed to extend its supports at chunk {}, leaving them short",
+                    chunkPos,
+                    error);
+        }
+    }
+
+    /** 柱子与绳梯往下接：只看落在 {@code box}（当前区块）那一截里的件 */
+    private static void extendSupports(WorldGenLevel level, BoundingBox box, PiecesContainer pieces) {
         // 地基的柱子往下接到第一个实心方块为止（虚空就一直到底）
         BlockPos.MutableBlockPos column = new BlockPos.MutableBlockPos();
         for (StructurePiece piece : pieces.pieces()) {
@@ -188,59 +233,104 @@ public class GridStructure extends Structure {
                 continue;
             }
             String element = pool.getElement().toString();
+            BoundingBox pieceBox = piece.getBoundingBox();
+            // 这一件落在当前区块里的那一截，不相交就整件跳过
+            int minX = Math.max(pieceBox.minX(), box.minX());
+            int maxX = Math.min(pieceBox.maxX(), box.maxX());
+            int minZ = Math.max(pieceBox.minZ(), box.minZ());
+            int maxZ = Math.min(pieceBox.maxZ(), box.maxZ());
+            if (minX > maxX || minZ > maxZ) {
+                continue;
+            }
             // 绳梯件：盒子里那一列绳/梯往下铺到第一个实心方块，否则底层那根绳子吊不到地面
             if (element.contains("shaft/")) {
-                ropeDown(level, piece.getBoundingBox());
+                ropeDown(level, pieceBox, minX, maxX, minZ, maxZ);
                 continue;
             }
             // 柱子件往下接：绳梯的 climb/rope 也是 1x1，按几何判断会把它接成一根孤柱
             if (!element.contains("post/column")) {
                 continue;
             }
-            BoundingBox columnBox = piece.getBoundingBox();
-            if (columnBox.getXSpan() != 1 || columnBox.getZSpan() != 1) {
+            if (pieceBox.getXSpan() != 1 || pieceBox.getZSpan() != 1) {
                 continue;
             }
-            for (int y = columnBox.minY() - 1; y >= level.getMinBuildHeight(); y--) {
-                column.set(columnBox.minX(), y, columnBox.minZ());
-                if (!passable(level, column)) {
-                    break;
-                }
-                level.setBlock(column, TFBlocks.STRIPPED_TWILIGHT_OAK_LOG.get().defaultBlockState(), 2);
+            int x = pieceBox.minX();
+            int z = pieceBox.minZ();
+            // 柱子本身在这一截之外：交给它自己所在的那个区块
+            if (x < minX || x > maxX || z < minZ || z > maxZ) {
+                continue;
+            }
+            int top = Math.min(pieceBox.minY() - 1, box.maxY());
+            int landing = landingY(level, x, z, top);
+            if (landing == NO_LANDING) {
+                continue;
+            }
+            for (int y = top; y >= landing; y--) {
+                level.setBlock(
+                        column.set(x, y, z),
+                        TFBlocks.STRIPPED_TWILIGHT_OAK_LOG.get().defaultBlockState(),
+                        2);
             }
         }
     }
 
+    /** 探不到落脚点：液体挡路，或者一路探到上限/基岩都还是空气 */
+    private static final int NO_LANDING = Integer.MIN_VALUE;
+
+    /** 柱子最多往下接这么多格。再深就不是「接到地面」，而是往虚空里吊柱子 */
+    private static final int SUPPORT_MAX_DROP = 24;
+
     /**
-     * 这一格能不能让柱子 / 绳梯穿过去
+     * 先探再落笔：这根柱子应该铺到哪一格
      *
-     * <p>空气算，液体也算：这个维度的地下铺满含水层，绳梯与柱子一头撞在水面上就停住了，
-     * 悬空层的绳子于是只垂下去几格。水后来会被柱子挤掉，视觉上就是一根柱子扎进水里再接到底。
+     * <p>照原版废弃矿井的做法——先看下面是什么，再决定接不接：一路往下探到第一个实心方块为止，
+     * <b>中途遇到液体就整根不接</b>（不在水面上立柱子、也不往岩浆里吊），
+     * 探到 {@link #SUPPORT_MAX_DROP} 格或基岩还没落地同样不接。
+     * 只有「脚下确实是实地」时才把柱子接过去，悬空与液体上方都留给原本的样子。
+     *
+     * @return 柱子应该铺到的最低 y（含）；{@link #NO_LANDING} 表示这一根不接
      */
-    private static boolean passable(WorldGenLevel level, BlockPos pos) {
-        return level.getBlockState(pos).canBeReplaced()
-                || !level.getFluidState(pos).isEmpty();
+    private static int landingY(WorldGenLevel level, int x, int z, int top) {
+        BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos();
+        int limit = Math.max(level.getMinBuildHeight(), top - SUPPORT_MAX_DROP);
+        for (int y = top; y >= limit; y--) {
+            cursor.set(x, y, z);
+            BlockState state = level.getBlockState(cursor);
+            if (!state.getFluidState().isEmpty()) {
+                return NO_LANDING;
+            }
+            if (!state.canBeReplaced()) {
+                // 下面这一格已经是实心：柱子从它上面一格开始；已经贴着地就不用再接
+                return y >= top ? NO_LANDING : y + 1;
+            }
+        }
+        return NO_LANDING;
     }
 
-    /** 把绳梯那一列往下铺到第一个实心方块：盒子里已经是绳/梯的格就是那一列 */
-    private static void ropeDown(WorldGenLevel level, BoundingBox box) {
+    /**
+     * 把绳梯那一列往下铺到第一个实心方块：盒子里已经是绳/梯的格就是那一列
+     *
+     * <p>同样是「先探再落笔」：一路往下探到第一个实心方块为止，中途遇到液体就不接，
+     * 探到 {@link #SUPPORT_MAX_DROP} 格还没落地也不接——不往水里、岩浆里、虚空里吊绳子。
+     *
+     * <p>搜索范围收在 {@code minX..maxX} / {@code minZ..maxZ}（当前区块那一截）：读到区块外会抛异常，
+     * 见 {@link #afterPlace}。往下那一截与搜索格同列，整根柱都在当前区块里，不算越界。
+     */
+    private static void ropeDown(WorldGenLevel level, BoundingBox box, int minX, int maxX, int minZ, int maxZ) {
         BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos();
-        for (int x = box.minX(); x <= box.maxX(); x++) {
-            for (int z = box.minZ(); z <= box.maxZ(); z++) {
+        for (int x = minX; x <= maxX; x++) {
+            for (int z = minZ; z <= maxZ; z++) {
                 for (int y = box.minY(); y <= box.maxY(); y++) {
                     BlockState state = level.getBlockState(cursor.set(x, y, z));
                     if (!state.is(TFBlocks.ROPE.get()) && !state.is(Blocks.LADDER)) {
                         continue;
                     }
-                    for (int down = box.minY() - 1; down >= level.getMinBuildHeight(); down--) {
-                        cursor.set(x, down, z);
-                        BlockState below = level.getBlockState(cursor);
-                        // 绳梯自己也算能走：`placeShafts` 在绳梯件正下方补过一格 climb/rope，
-                        // 只认空气/液体的话，第一格就撞上它，绳子再也铺不下去
-                        if (!passable(level, cursor) && !below.is(TFBlocks.ROPE.get()) && !below.is(Blocks.LADDER)) {
-                            break;
+                    int top = Math.min(box.minY() - 1, box.maxY());
+                    int landing = ropeLandingY(level, x, z, top);
+                    if (landing != NO_LANDING) {
+                        for (int down = top; down >= landing; down--) {
+                            level.setBlock(cursor.set(x, down, z), state, 2);
                         }
-                        level.setBlock(cursor, state, 2);
                     }
                     return;
                 }
@@ -248,15 +338,40 @@ public class GridStructure extends Structure {
         }
     }
 
-    /** 按权重挑层数：下限 2（一层的房子没有上下楼），上限是配置里的 {@code storeys} */
+    /**
+     * 绳梯往下探到哪一格
+     *
+     * <p>绳/梯自身算能走：`placeShafts` 在绳梯件正下方补过一格 `climb/rope`，
+     * 只认空气的话，第一格就撞上它，绳子再也铺不下去。
+     */
+    private static int ropeLandingY(WorldGenLevel level, int x, int z, int top) {
+        BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos();
+        int limit = Math.max(level.getMinBuildHeight(), top - SUPPORT_MAX_DROP);
+        int landing = NO_LANDING;
+        for (int y = top; y >= limit; y--) {
+            cursor.set(x, y, z);
+            BlockState state = level.getBlockState(cursor);
+            if (state.is(TFBlocks.ROPE.get()) || state.is(Blocks.LADDER)) {
+                landing = y;
+                continue;
+            }
+            if (!state.getFluidState().isEmpty() || !state.canBeReplaced()) {
+                break;
+            }
+            landing = y;
+        }
+        return landing;
+    }
+
+    /** 按权重挑层数：下限 1，上限是配置里的 {@code storeys} */
     private int pickStoreys(RandomSource random) {
-        int cap = Math.min(Math.max(2, this.storeys), STOREY_WEIGHTS.length - 1);
+        int cap = Math.min(Math.max(1, this.storeys), STOREY_WEIGHTS.length - 1);
         int total = 0;
-        for (int k = 2; k <= cap; k++) {
+        for (int k = 1; k <= cap; k++) {
             total += STOREY_WEIGHTS[k];
         }
         int roll = random.nextInt(total);
-        for (int k = 2; k <= cap; k++) {
+        for (int k = 1; k <= cap; k++) {
             roll -= STOREY_WEIGHTS[k];
             if (roll < 0) {
                 return k;
@@ -269,6 +384,10 @@ public class GridStructure extends Structure {
         RandomSource random = context.random();
         long seed = random.nextLong();
         int storeys = pickStoreys(random);
+        // 破损：缺失率固定，蜘蛛网每栋独立掷一次（掷中才挂）
+        long webSeed = random.nextFloat() < WEBBED_CHANCE ? random.nextLong() : 0L;
+        Weathering previous = WEATHERING.get();
+        WEATHERING.set(new Weathering(WEATHER_DECAY_PERMILLE, webSeed));
         int maxColumns = Math.max(3, this.columns);
         int maxRows = Math.max(3, this.rows);
         // 底层在 [3, 配置上限] 里随机；往上每层只比下层多/少一点点：
@@ -308,10 +427,13 @@ public class GridStructure extends Structure {
         for (int k = 0; k < levels.size(); k++) {
             plans.add(plan(manager, levels, plans, noClimb, forceEmpty, k, random));
         }
+        // 宝箱房保底：整座结构至少一间 `room/rect_furn_06`（箱子是那间房自带的方块，这里不凭空造箱子）。
+        // 必须在落笔之前定，改了 `plan.rooms` 之后件才会按新的房间名摆
+        boolean forcedChestRoom = ensureChestRoom(manager, plans);
         // 先把每一层的清空做完，再落任何一件：清空是纯空气，全部提前做完就绝不会擦到已经摆好的东西，
         // 也不必给清空算「哪些列要放过」——下层自己的件在下面几遍里会重新摆回来
         for (int k = 0; k < plans.size(); k++) {
-            clearLevel(context, pieces, plans.get(k), k, origin);
+            clearLevel(context, pieces, plans.get(k), k, plans.size(), origin);
         }
         // 落笔分遍：先只落空气把地形挖开，再只落实体方块。
         // 顺序反过来的话，后摆那件的空气会把前一件摆在框架线上的家具（树皮、栏杆、门）擦掉
@@ -339,6 +461,76 @@ public class GridStructure extends Structure {
         for (int k = 0; k < plans.size(); k++) {
             placeNotches(context, pieces, plans.get(k), k, origin);
         }
+        if (previous == null) {
+            WEATHERING.remove();
+        } else {
+            WEATHERING.set(previous);
+        }
+        // 一行摘要：世界生成出的结构一旦"缺层"，先比这条日志与另一端的日志
+        // （层数、原点、包围盒），能立刻分清是「件表就不一样」还是「件一样但没落上」
+        DawnDuskTerminal.LOGGER.info(
+                "DawnDuskTerminal grid structure at chunk {}: {} level(s), origin y={}, bbox {}, decay={}‰, cobwebs={}, chestRoom={}",
+                context.chunkPos(),
+                plans.size(),
+                origin.getY(),
+                pieces.getBoundingBox(),
+                WEATHER_DECAY_PERMILLE,
+                webSeed == 0L ? "off" : "on",
+                forcedChestRoom ? "forced" : "planned");
+    }
+
+    /**
+     * 宝箱房保底：整座结构至少有一格用 `room/rect_furn_06`（那间房里带一只箱子）
+     *
+     * <p>箱子不是另外摆的：它是这间房件自带的方块，`LootTable` 写在件里。
+     * 装配时房间是从 `room/<体型>_<角色>_<n>` 变体里随机挑的，格子少、层数少的时候可能一次都没挑中它，
+     * 于是整座房子一只箱子也没有——这里在那之后再补一次：找一格「rect 体型 + 家具房」的，
+     * 把它换成宝箱房。同体型同角色、朝向不变，所以地板、天花板、墙与门都不受影响。
+     *
+     * @return 有没有真的动过（日志用）
+     */
+    private static boolean ensureChestRoom(StructureTemplateManager manager, List<Plan> plans) {
+        ResourceLocation chestRoom = DawnDuskTerminal.id(CHEST_ROOM);
+        if (manager.get(chestRoom).isEmpty()) {
+            if (MISSING.add(chestRoom)) {
+                DawnDuskTerminal.LOGGER.warn("DawnDuskTerminal grid structure is missing template {}", chestRoom);
+            }
+            return false;
+        }
+        for (Plan plan : plans) {
+            for (ResourceLocation room : plan.rooms.values()) {
+                if (chestRoom.equals(room)) {
+                    return false;
+                }
+            }
+        }
+        // 优先换一间「rect 家具房」；没有就换任意一间没被楼梯/门/跨层占用的 rect 房
+        for (int pass = 0; pass < 2; pass++) {
+            for (Plan plan : plans) {
+                for (GridFrame.Cell cell : plan.cells) {
+                    ResourceLocation room = plan.rooms.get(cell);
+                    if (room == null
+                            || cell.kind() != GridFrame.Kind.RECT
+                            || room.getPath().contains("_stair")
+                            || plan.climbs.containsKey(cell)
+                            || plan.stairs.contains(cell)
+                            || plan.doorCells.contains(cell)) {
+                        continue;
+                    }
+                    if (pass == 0 && !room.getPath().contains("_furn_")) {
+                        continue;
+                    }
+                    plan.rooms.put(cell, chestRoom);
+                    if (hasBorderFurniture(manager, chestRoom)) {
+                        plan.border.add(cell);
+                    } else {
+                        plan.border.remove(cell);
+                    }
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**
@@ -832,16 +1024,33 @@ public class GridStructure extends Structure {
      *
      * <p>这一遍在所有件的落笔之前跑，所以清到下层室内也无所谓——下层自己的件随后会摆回来。
      * 挑空、离房间很近的格子同样要清，它们的下面没有自己的地基与柱子。
+     *
+     * <p><b>只有两段清空落在房子外面，这里不清：</b>顶层天花板以上的那一段、底层地板以下的那一段。
+     * 清掉它们就是在地里给房子掏出一圈空腔；本意是要「埋在地里」的结构，顶上与底下都该是实心岩层。
+     * 其余各层的两段清空都在室内（上一层的地板上方就是这一层的室内），照清。
      */
     private static void clearLevel(
-            Structure.GenerationContext context, StructurePiecesBuilder pieces, Plan plan, int k, BlockPos origin) {
+            Structure.GenerationContext context,
+            StructurePiecesBuilder pieces,
+            Plan plan,
+            int k,
+            int storeys,
+            BlockPos origin) {
         BlockPos floor = origin.offset(0, k * STOREY_HEIGHT, 0);
+        boolean top = k >= storeys - 1;
+        boolean bottom = k <= 0;
         for (GridFrame.Cell cell : plan.cells) {
             BlockPos cellFloor = floor.offset(cell.x(), 0, cell.z());
             ResourceLocation air = DawnDuskTerminal.id("air/" + airKind(cell));
             Rotation airRotation = ROTATIONS[cell.turns()];
-            clearBand(context, pieces, air, airRotation, cellFloor, CEIL_Y + 1, CEIL_Y + ROOF_CLEAR);
-            clearBand(context, pieces, air, airRotation, cellFloor, FLOOR_Y - ROOF_CLEAR, FLOOR_Y - 1);
+            // 顶层天花板以上是室外：不清，房子埋在地里
+            if (!top) {
+                clearBand(context, pieces, air, airRotation, cellFloor, CEIL_Y + 1, CEIL_Y + ROOF_CLEAR);
+            }
+            // 底层地板以下是室外：同样不清
+            if (!bottom) {
+                clearBand(context, pieces, air, airRotation, cellFloor, FLOOR_Y - ROOF_CLEAR, FLOOR_Y - 1);
+            }
         }
     }
 
@@ -1518,13 +1727,22 @@ public class GridStructure extends Structure {
             return;
         }
         Holder<StructureProcessorList> processors =
-                Holder.direct(new StructureProcessorList(List.of(new BandProcessor(minY, maxY, phase))));
+                Holder.direct(new StructureProcessorList(List.of(weatheringProcessor(minY, maxY, phase))));
         StructurePoolElement element =
                 StructurePoolElement.single(id.toString(), processors).apply(StructureTemplatePool.Projection.RIGID);
         BoundingBox zero = element.getBoundingBox(manager, BlockPos.ZERO, rotation);
         BlockPos pos = min.offset(-zero.minX(), -zero.minY(), -zero.minZ());
         BoundingBox box = zero.moved(pos.getX(), pos.getY(), pos.getZ());
         pieces.addPiece(new PoolElementStructurePiece(manager, element, pos, 0, rotation, box, LIQUID));
+    }
+
+    /** 这一栋房子当前的破损参数；不在生成过程中（例如调试）就按「不破损」处理 */
+    private static BandProcessor weatheringProcessor(int minY, int maxY, BandProcessor.Phase phase) {
+        Weathering weathering = WEATHERING.get();
+        if (weathering == null) {
+            return new BandProcessor(minY, maxY, phase);
+        }
+        return new BandProcessor(minY, maxY, phase, weathering.decayPermille(), weathering.webSeed());
     }
 
     /** 件的落笔位置：旋转后包围盒的下角对齐到 {@code min} */
