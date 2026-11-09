@@ -591,15 +591,15 @@ Windows DLL 只依赖 UCRT 与 `kernel32.dll`，不需要 `libwinpthread-1.dll` 
 
 ### StructureTemplateTests
 
-`everyPieceTemplateLoads` 验证 `data/dawnduskterminal/structure/` 下的每一件模板都读得出来。
+`everyPieceTemplateLoads` 验证 `data/dawnduskterminal/structure/` 下的每一件模板都读得出来（含家族目录里的）。
 
 读不出来的件是静默的：`StructureTemplateManager.get` 把异常吞成空的 `Optional`，
 `GridStructure.place` 只记一行日志就跳过那一件，症状是某类件在世界里根本不出现。
-踩过的一次是 `air/notch.nbt` 存成了未压缩的 NBT：`readStructure` 走 `NbtIo.readCompressed`，
-于是抛 `ZipException: Not in GZIP format`，凹角的凹口再也没有被擦过。
+踩过的一次是 `air/notch.nbt`（现在是 `grid_rooms/air/notch.nbt`）存成了未压缩的 NBT：
+`readStructure` 走 `NbtIo.readCompressed`，于是抛 `ZipException: Not in GZIP format`，凹角的凹口再也没有被擦过。
 结构方块的 SAVE 写出来的本来就是 gzip，用脚本另存件时必须一样压缩。
 
-`notchIsAOneBySevenColumn` 钉住 `air/notch` 仍是 1×7×1 的纯空气：尺寸变了擦不到女儿墙顶，或者盖掉了楼面。
+`notchIsAOneBySevenColumn` 钉住 `grid_rooms/air/notch` 仍是 1×7×1 的纯空气：尺寸变了擦不到女儿墙顶，或者盖掉了楼面。
 
 `afterPlaceStaysInsideTheWritableArea` 钉住 `GridStructure.afterPlace` 只碰当前区块那一截。
 它把一件绳梯件摆到跨过区块边界的位置，再用一个只在可写区之内放行的动态代理包住真的 `level`：
@@ -609,9 +609,19 @@ Windows DLL 只依赖 UCRT 与 `kernel32.dll`，不需要 `libwinpthread-1.dll` 
 `bandProcessorDecaysAndWebs` 钉住破损：缺失率给满时每个实体方块都被处理掉、约四分之一变蜘蛛网；
 带 nbt 的宝箱不参与；缺失率为 0 时一块都不动。
 
-`everyGridStructureHasAChestRoom` 用固定种子直接调 `Structure#generate` 生成 12 座房子：每座至少有 `room/rect_furn_06`
-（宝箱房。箱子是那间房件里自带的方块，不是另外摆的件）。顺带钉住上下两段高度各自的落点窗口，以及两个结构 id
-都在 `StructureExclusions` 的白名单里——漏登记会让上层结构在晨昏线维度里一次都不生成。
+`everyGridStructureHasItsRoomRoles` 用固定种子直接调 `Structure#generate` 生成 12 座房子，断言宝箱房
+（`room/rect/chest`，箱子是件里自带的方块，不是另外摆的件）、空地房、家具房三种都出现过。
+宝箱房是按体型权重抽的普通角色，单座房子不保证有，所以这里数的是 12 座的总和。
+顺带钉住上下两段高度各自的落点窗口，以及两个结构 id 都在 `StructureExclusions` 的白名单里——
+漏登记会让上层结构在晨昏线维度里一次都不生成。
+
+`wallFamilyKeepsItsColumnCount` 钉住墙族件的列数（墙与女儿墙两列、外挑一列、墙脚三列），
+`wallPiecesSitOnTheFrameLine` 从房间件的包围盒取出框架线，要求每件墙的框列正好落在其中一条上——
+落笔角挪错一格时，偏得很像「本来就这样」，这条会先红。
+
+`catalogueStartsANewRowPerCategory` 钉住 `/ddt pieces` 的摆位：同一个分类排在同一段行里，换分类另起一行。
+`catalogueIdsFollowTheFamilyAndCategory` 钉住筛件：指定家族只出那个家族目录下的件，再指定目录只出那个目录的件，
+不认识的目录挑不出任何件。两条都只算坐标与路径，不往世界里摆方块——摆一整套要铺上千格，会污染隔壁用例的场地。
 ### CampCarminiteFireTests
 
 `blockLooksAndLightsLikeACampfire` 验证三个状态位、点着时 15 级光、碰撞箱高 7 像素，

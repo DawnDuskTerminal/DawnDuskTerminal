@@ -2,12 +2,16 @@ package com.dawnduskterminal.gametest;
 
 import com.dawnduskterminal.DawnDuskTerminal;
 import com.dawnduskterminal.structure.BandProcessor;
+import com.dawnduskterminal.structure.GridPlacer;
 import com.dawnduskterminal.structure.GridStructure;
 import com.dawnduskterminal.structure.StructureExclusions;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Proxy;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.SectionPos;
@@ -66,14 +70,17 @@ import twilightforest.init.TFBlocks;
 @GameTestHolder("dawnduskterminal")
 @PrefixGameTestTemplate(false)
 public final class StructureTemplateTests {
+    /** 件所在的家族目录：一个目录就是一整套件，结构 JSON 的 {@code templates} 指的也是它 */
+    private static final String FAMILY = "grid_rooms/";
+
     /** 这件是 1×7×1 的纯空气，凹口那一列靠它擦 */
-    private static final String NOTCH = "air/notch";
+    private static final String NOTCH = FAMILY + "air/notch";
 
     /** 宝箱测试的样本量与固定种子：定死才不会随测试世界的种子飘 */
-    private static final int CHEST_SAMPLES = 12;
+    private static final int CHEST_SAMPLES = 24;
 
-    /** 带箱子的那间房件：箱子是件里自带的方块 */
-    private static final String CHEST_ROOM = "room/rect_furn_06";
+    /** 带箱子的那间房件：箱子是件里自带的方块（按子串认，路径前缀在这里无关） */
+    private static final String CHEST_ROOM = "room/rect/chest";
 
     private static final long CHEST_SAMPLE_SEED = 0x5EEDC0DEL;
 
@@ -206,20 +213,23 @@ public final class StructureTemplateTests {
     }
 
     /**
-     * 宝箱房保底：任意一座网格屋都至少有一间 `room/rect_furn_06`（那间房自带一只箱子），层数落在 1..3
+     * 三种平层房间都抽得到：宝箱房、空地房、家具房，层数落在 1..3
      *
-     * <p>箱子不是另外摆的，是宝箱房件里原有的方块——这里只钉住"至少有一次挑中那间房"。
-     * 用固定种子直接生成 {@value #CHEST_SAMPLES} 座；生成走 {@code Structure#generate}，
-     * 不必真的铺区块，`biome -> true` 跳过群系检查。
+     * <p>箱子不是另外摆的，是宝箱房件里原有的方块。宝箱房现在是一个普通角色、按体型的权重抽，
+     * 所以单座房子不保证有；这里钉的是「{@value #CHEST_SAMPLES} 座里三种平层房间都出现过」。
+     * 生成走 {@code Structure#generate}，不必真的铺区块，`biome -> true` 跳过群系检查。
      */
     @GameTest(template = "ddt_empty")
-    public static void everyGridStructureHasAChestRoom(GameTestHelper helper) {
+    public static void everyGridStructureHasItsRoomRoles(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         Structure structure =
                 level.registryAccess().registryOrThrow(Registries.STRUCTURE).get(DawnDuskTerminal.id("grid_rooms"));
         ChunkGenerator generator = level.getChunkSource().getGenerator();
         int baseX = helper.absolutePos(BlockPos.ZERO).getX();
         int baseZ = helper.absolutePos(BlockPos.ZERO).getZ();
+        int chestTotal = 0;
+        int emptyTotal = 0;
+        int furnTotal = 0;
         for (int i = 0; i < CHEST_SAMPLES; i++) {
             ChunkPos chunkPos =
                     new ChunkPos(SectionPos.blockToSectionCoord(baseX) + i * 7, SectionPos.blockToSectionCoord(baseZ));
@@ -236,6 +246,8 @@ public final class StructureTemplateTests {
                     biome -> true);
             helper.assertTrue(start.isValid(), "第 " + i + " 座结构应当生成出来：" + chunkPos);
             int chestRooms = 0;
+            int emptyRooms = 0;
+            int furnRooms = 0;
             Set<Integer> roomHeights = new HashSet<>();
             for (StructurePiece piece : start.getPieces()) {
                 if (!(piece instanceof PoolElementStructurePiece pool)) {
@@ -249,12 +261,22 @@ public final class StructureTemplateTests {
                 // 而 `ceiling/*` 同时被当成地板件用，按它数会把每层数成两层
                 if (id.contains("room/")) {
                     roomHeights.add(piece.getBoundingBox().minY());
+                    if (id.contains("/empty")) {
+                        emptyRooms++;
+                    } else if (id.contains("/furn_")) {
+                        furnRooms++;
+                    }
                 }
             }
-            helper.assertTrue(chestRooms >= 1, "整座结构至少该有一间宝箱房，实际 " + chestRooms + "（" + chunkPos + "）");
+            chestTotal += chestRooms;
+            emptyTotal += emptyRooms;
+            furnTotal += furnRooms;
             int levels = roomHeights.size();
             helper.assertTrue(levels >= 1 && levels <= 3, "层数应当落在 1..3，实际 " + levels + "（" + chunkPos + "）");
         }
+        helper.assertTrue(
+                chestTotal > 0 && emptyTotal > 0 && furnTotal > 0,
+                "三种平层房间都该出现过，实际 宝箱=" + chestTotal + " 空地=" + emptyTotal + " 家具=" + furnTotal);
         // 上下两段高度是两个结构、两套结构集：它们互不抢丰度，各自都要在登记表里
         assertBand(helper, level, generator, helper.absolutePos(BlockPos.ZERO), "grid_rooms", -65, -25);
         assertBand(helper, level, generator, helper.absolutePos(BlockPos.ZERO), "grid_rooms_upper", 5, 45);
@@ -300,6 +322,365 @@ public final class StructureTemplateTests {
     }
 
     /**
+     * `/ddt pieces <结构> [目录]` 的摆位：同一个分类排在同一段行里，换分类另起一行
+     *
+     * <p>摆位只是坐标计算，这里拿假 id 直接问，不往世界里摆方块——摆一整套要在区块里铺满上千格，
+     * 那些方块会污染隔壁用例的场地
+     */
+    @GameTest(template = "ddt_empty")
+    public static void catalogueStartsANewRowPerCategory(GameTestHelper helper) {
+        List<ResourceLocation> ids = List.of(
+                DawnDuskTerminal.id(FAMILY + "ceiling/rect"),
+                DawnDuskTerminal.id(FAMILY + "floor/rect/stairtop"),
+                DawnDuskTerminal.id(FAMILY + "room/rect/furn_01"),
+                DawnDuskTerminal.id(FAMILY + "room/small/furn_01"),
+                DawnDuskTerminal.id(FAMILY + "room/small/empty"),
+                DawnDuskTerminal.id(FAMILY + "room/rect/chest"),
+                DawnDuskTerminal.id(FAMILY + "wall/small_plain_01"),
+                DawnDuskTerminal.id(FAMILY + "wall/large_plain_01"));
+        List<GridPlacer.Cell> cells = GridPlacer.layout(ids);
+        helper.assertTrue(cells.size() == ids.size(), "每个件都该有一个格子，实际 " + cells.size());
+        Map<ResourceLocation, GridPlacer.Cell> byId = new HashMap<>();
+        for (GridPlacer.Cell cell : cells) {
+            byId.put(cell.id(), cell);
+        }
+        // 天花板与楼板同组、同一行
+        GridPlacer.Cell ceiling = byId.get(DawnDuskTerminal.id(FAMILY + "ceiling/rect"));
+        GridPlacer.Cell floor = byId.get(DawnDuskTerminal.id(FAMILY + "floor/rect/stairtop"));
+        helper.assertTrue(
+                ceiling.group().equals("grid_rooms/ceiling+floor/rect")
+                        && floor.group().equals(ceiling.group())
+                        && ceiling.row() == floor.row(),
+                "天花板与楼板该在同一组同一行，实际 " + ceiling + " / " + floor);
+        // 家具房按体型分组，两组不同行
+        GridPlacer.Cell rectFurn = byId.get(DawnDuskTerminal.id(FAMILY + "room/rect/furn_01"));
+        GridPlacer.Cell smallFurn = byId.get(DawnDuskTerminal.id(FAMILY + "room/small/furn_01"));
+        helper.assertTrue(
+                rectFurn.group().equals("grid_rooms/room/rect")
+                        && smallFurn.group().equals("grid_rooms/room/small"),
+                "家具房该按体型分组，实际 " + rectFurn.group() + " / " + smallFurn.group());
+        helper.assertTrue(rectFurn.row() != smallFurn.row(), "两个体型该各占一行");
+        // 空地房与宝箱房不按体型
+        GridPlacer.Cell empty = byId.get(DawnDuskTerminal.id(FAMILY + "room/small/empty"));
+        GridPlacer.Cell chest = byId.get(DawnDuskTerminal.id(FAMILY + "room/rect/chest"));
+        helper.assertTrue(
+                empty.group().equals("grid_rooms/room/empty") && chest.group().equals("grid_rooms/room/chest"),
+                "空地房与宝箱房该各自一块，实际 " + empty.group() + " / " + chest.group());
+        // 墙按长边/短边
+        GridPlacer.Cell smallWall = byId.get(DawnDuskTerminal.id(FAMILY + "wall/small_plain_01"));
+        GridPlacer.Cell largeWall = byId.get(DawnDuskTerminal.id(FAMILY + "wall/large_plain_01"));
+        helper.assertTrue(
+                smallWall.group().equals("grid_rooms/wall/small")
+                        && largeWall.group().equals("grid_rooms/wall/large"),
+                "墙该按长边/短边分组，实际 " + smallWall.group() + " / " + largeWall.group());
+        // 每一组只能连续出现一段，否则同一个组会画成两块
+        String previous = null;
+        Set<String> seen = new HashSet<>();
+        for (GridPlacer.Cell cell : cells) {
+            if (!cell.group().equals(previous)) {
+                helper.assertTrue(seen.add(cell.group()), "组 " + cell.group() + " 被拆成了两段");
+                previous = cell.group();
+            }
+        }
+        helper.succeed();
+    }
+
+    /** 按结构筛件：指定家族只出这个家族的件，再指定目录只出那个目录的件 */
+    @GameTest(template = "ddt_empty")
+    public static void catalogueIdsFollowTheFamilyAndCategory(GameTestHelper helper) {
+        StructureTemplateManager manager = helper.getLevel().getStructureManager();
+        Structure structure = helper.getLevel()
+                .registryAccess()
+                .registryOrThrow(Registries.STRUCTURE)
+                .get(DawnDuskTerminal.id("grid_rooms"));
+        helper.assertTrue(structure instanceof GridStructure, "grid_rooms 应当还是 GridStructure");
+        GridStructure grid = (GridStructure) structure;
+        List<ResourceLocation> all = GridPlacer.catalogueIds(manager, grid, null);
+        helper.assertTrue(!all.isEmpty(), "按家族筛出来不该是空的");
+        helper.assertTrue(
+                all.stream().allMatch(id -> id.getPath().startsWith(FAMILY)), "筛选结果应当都在 " + FAMILY + " 下，实际 " + all);
+        List<ResourceLocation> rooms = GridPlacer.catalogueIds(manager, grid, "room");
+        helper.assertTrue(!rooms.isEmpty(), "room 目录不该是空的");
+        helper.assertTrue(
+                rooms.stream().allMatch(id -> id.getPath().startsWith(FAMILY + "room/")),
+                "指定 room 时只该出 room/ 下的件，实际 " + rooms);
+        helper.assertTrue(GridPlacer.catalogueIds(manager, grid, "nope").isEmpty(), "不认识的目录不该挑出任何件");
+        helper.succeed();
+    }
+
+    /**
+     * 派生件必须跟着房间件走：地板件的朝向 = 房间件的朝向，绳梯房间下面必须有梯井件
+     *
+     * <p>这两条都被「件按家族目录分层」那轮改坏过：`plane.getPath().startsWith("floor/")`
+     * 与 `contains("_rope_")` 都是按老路径写的，件前面多了家族与体型目录之后全部落空——
+     * 地板件改用格子自己的 `turns()` 转，跟楼梯件差出 180 度；梯井件干脆一件都不摆。
+     * 这里拿生成出来的件直接比对，不再靠肉眼。
+     */
+    @GameTest(template = "ddt_empty")
+    public static void derivedPiecesFollowTheirRoom(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        Structure structure =
+                level.registryAccess().registryOrThrow(Registries.STRUCTURE).get(DawnDuskTerminal.id("grid_rooms"));
+        ChunkGenerator generator = level.getChunkSource().getGenerator();
+        int floors = 0;
+        int shafts = 0;
+        for (int i = 0; i < 8; i++) {
+            ChunkPos chunkPos = new ChunkPos(i * 9 + 3, 11);
+            StructureStart start = structure.generate(
+                    level.registryAccess(),
+                    generator,
+                    generator.getBiomeSource(),
+                    level.getChunkSource().randomState(),
+                    level.getStructureManager(),
+                    9100L + i,
+                    chunkPos,
+                    0,
+                    level,
+                    biome -> true);
+            List<PoolElementStructurePiece> pools = new ArrayList<>();
+            for (StructurePiece piece : start.getPieces()) {
+                if (piece instanceof PoolElementStructurePiece pool) {
+                    pools.add(pool);
+                }
+            }
+            for (PoolElementStructurePiece floor : pools) {
+                String path = floor.getElement().toString();
+                if (!path.contains("/floor/")) {
+                    continue;
+                }
+                BoundingBox box = floor.getBoundingBox();
+                // 同一格、比它高一层的那件房间：地板的 +3 与房间的 +4 差一格
+                PoolElementStructurePiece room = null;
+                for (PoolElementStructurePiece other : pools) {
+                    if (other.getElement().toString().contains("/room/")
+                            && other.getBoundingBox().minX() == box.minX()
+                            && other.getBoundingBox().minZ() == box.minZ()
+                            && other.getBoundingBox().minY() == box.minY() + 1) {
+                        room = other;
+                        break;
+                    }
+                }
+                helper.assertTrue(room != null, "地板件 " + path + " 上面应当有同一格的房间件（" + box + "）");
+                helper.assertTrue(
+                        room.getRotation() == floor.getRotation(),
+                        "地板件 " + path + " 的朝向应当跟房间件一致，实际地板 " + floor.getRotation() + " / 房间 " + room.getRotation());
+                floors++;
+            }
+            for (PoolElementStructurePiece shaft : pools) {
+                if (!shaft.getElement().toString().contains("/shaft/")) {
+                    continue;
+                }
+                BoundingBox box = shaft.getBoundingBox();
+                // 梯井件落在格子地板上（+0），房间件在 +4
+                boolean hasRoom = pools.stream()
+                        .anyMatch(other -> other.getElement().toString().contains("/room/")
+                                && other.getBoundingBox().minX() == box.minX()
+                                && other.getBoundingBox().minZ() == box.minZ()
+                                && other.getBoundingBox().minY() == box.minY() + 4);
+                helper.assertTrue(hasRoom, "梯井件 " + shaft.getElement() + " 上面应当有绳梯房间（" + box + "）");
+                shafts++;
+            }
+        }
+        helper.assertTrue(floors > 0, "样本里一件带开口的地板都没有，这条用例证明不了什么");
+        helper.succeed();
+    }
+
+    /**
+     * 地基件带着外墙脚：尺寸比格子大一圈，而且不再摆 {@code foot/*}
+     *
+     * <p>脚并进 base 之后靠「base 与房间同一个朝向」对齐，露出边数是固定的
+     * （rect 1 条、small 2 条相邻、large 与内角件 0 条），这条用例钉住三件事：
+     * 件的尺寸、房间里出现过的 base 尺寸、以及再也不会有 {@code foot/} 件被摆出来。
+     */
+    @GameTest(template = "ddt_empty")
+    public static void baseCarriesTheFoot(GameTestHelper helper) {
+        StructureTemplateManager manager = helper.getLevel().getStructureManager();
+        Structure structure = helper.getLevel()
+                .registryAccess()
+                .registryOrThrow(Registries.STRUCTURE)
+                .get(DawnDuskTerminal.id("grid_rooms"));
+        GridStructure grid = (GridStructure) structure;
+        helper.assertTrue(
+                sizeOf(manager, grid, "base/rect").equals(new Vec3i(6, 3, 7)),
+                "base/rect 应当是 6x3x7，实际 " + sizeOf(manager, grid, "base/rect"));
+        helper.assertTrue(
+                sizeOf(manager, grid, "base/small").equals(new Vec3i(6, 3, 6)),
+                "base/small 应当是 6x3x6，实际 " + sizeOf(manager, grid, "base/small"));
+        helper.assertTrue(
+                sizeOf(manager, grid, "base/inner_corner").equals(new Vec3i(7, 3, 7)),
+                "base/inner_corner 没有露出边，应当还是 7x3x7");
+        helper.assertTrue(GridPlacer.catalogueIds(manager, grid, "foot").isEmpty(), "foot 目录应当已经空了（脚并进 base）");
+        // 生成一批，确认没有 foot 件被摆出来
+        ChunkGenerator generator = helper.getLevel().getChunkSource().getGenerator();
+        for (int i = 0; i < 6; i++) {
+            StructureStart start = structure.generate(
+                    helper.getLevel().registryAccess(),
+                    generator,
+                    generator.getBiomeSource(),
+                    helper.getLevel().getChunkSource().randomState(),
+                    manager,
+                    5100L + i,
+                    new ChunkPos(i * 9 + 1, 5),
+                    0,
+                    helper.getLevel(),
+                    biome -> true);
+            List<PoolElementStructurePiece> pools = new ArrayList<>();
+            for (StructurePiece piece : start.getPieces()) {
+                if (piece instanceof PoolElementStructurePiece pool) {
+                    pools.add(pool);
+                    helper.assertTrue(
+                            !pool.getElement().toString().contains("/foot/"), "不该再摆 foot 件，实际摆出了 " + pool.getElement());
+                }
+            }
+            // 地基要把同一格的房间整个包住，只在至多两个方向上各多出 1 格（那就是脚）
+            for (PoolElementStructurePiece base : pools) {
+                if (!base.getElement().toString().contains("/base/")) {
+                    continue;
+                }
+                BoundingBox box = base.getBoundingBox();
+                PoolElementStructurePiece room = null;
+                for (PoolElementStructurePiece other : pools) {
+                    BoundingBox inner = other.getBoundingBox();
+                    if (other.getElement().toString().contains("/room/")
+                            && inner.minY() == box.minY() + 4
+                            && inner.minX() >= box.minX()
+                            && inner.maxX() <= box.maxX()
+                            && inner.minZ() >= box.minZ()
+                            && inner.maxZ() <= box.maxZ()) {
+                        room = other;
+                        break;
+                    }
+                }
+                helper.assertTrue(room != null, "地基 " + base.getElement() + " 应当把同一格的房间包住（" + box + "）");
+                BoundingBox cells = room.getBoundingBox();
+                int lowX = cells.minX() - box.minX();
+                int highX = box.maxX() - cells.maxX();
+                int lowZ = cells.minZ() - box.minZ();
+                int highZ = box.maxZ() - cells.maxZ();
+                // 每一侧最多多 1 格，而且「多出来的一侧」总数必须等于 0/1/2（脚占几条边）
+                helper.assertTrue(
+                        lowX >= 0
+                                && lowX <= 1
+                                && highX >= 0
+                                && highX <= 1
+                                && lowZ >= 0
+                                && lowZ <= 1
+                                && highZ >= 0
+                                && highZ <= 1,
+                        "地基每侧最多比房间多 1 格，实际 x-" + lowX + " x+" + highX + " z-" + lowZ + " z+" + highZ + "（" + box + "）");
+                int sides = (lowX > 0 ? 1 : 0) + (highX > 0 ? 1 : 0) + (lowZ > 0 ? 1 : 0) + (highZ > 0 ? 1 : 0);
+                helper.assertTrue(sides <= 2, "地基最多带两条边的脚，实际 " + sides + " 条（" + box + " vs " + cells + "）");
+            }
+        }
+        helper.succeed();
+    }
+
+    private static Vec3i sizeOf(StructureTemplateManager manager, GridStructure grid, String relative) {
+        return manager.get(DawnDuskTerminal.id(grid.templates() + "/" + relative))
+                .orElseThrow(() -> new IllegalStateException(relative + " 不存在"))
+                .getSize();
+    }
+
+    /**
+     * 墙与女儿墙的框列必须压在框架线上
+     *
+     * <p>件的列数一改，落笔角就得跟着挪（`Side#forward` 那 0/1/2 格），挪错一格整面墙就偏一格，
+     * 而且偏得很像「本来就这样」。这里把框架线从房间件的包围盒里取出来（房间件就是整格，
+     * 两条边就是框架线），再要求每件墙的框列正好落在其中一条上。
+     */
+    @GameTest(template = "ddt_empty")
+    public static void wallPiecesSitOnTheFrameLine(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        Structure structure =
+                level.registryAccess().registryOrThrow(Registries.STRUCTURE).get(DawnDuskTerminal.id("grid_rooms"));
+        ChunkGenerator generator = level.getChunkSource().getGenerator();
+        int checked = 0;
+        for (int i = 0; i < 8; i++) {
+            ChunkPos chunkPos = new ChunkPos(i * 9, 3);
+            StructureStart start = structure.generate(
+                    level.registryAccess(),
+                    generator,
+                    generator.getBiomeSource(),
+                    level.getChunkSource().randomState(),
+                    level.getStructureManager(),
+                    7000L + i,
+                    chunkPos,
+                    0,
+                    level,
+                    biome -> true);
+            Set<Integer> frameX = new HashSet<>();
+            Set<Integer> frameZ = new HashSet<>();
+            List<BoundingBox> walls = new ArrayList<>();
+            for (StructurePiece piece : start.getPieces()) {
+                if (!(piece instanceof PoolElementStructurePiece pool)) {
+                    continue;
+                }
+                String path = pool.getElement().toString();
+                BoundingBox box = piece.getBoundingBox();
+                if (path.contains("/room/")) {
+                    frameX.add(box.minX());
+                    frameX.add(box.maxX());
+                    frameZ.add(box.minZ());
+                    frameZ.add(box.maxZ());
+                } else if (path.contains("/wall/") || (path.contains("/parapet/") && !path.contains("inner_corner"))) {
+                    walls.add(box);
+                }
+            }
+            for (BoundingBox box : walls) {
+                boolean alongZ = box.getZSpan() > box.getXSpan();
+                Set<Integer> frame = alongZ ? frameX : frameZ;
+                int low = alongZ ? box.minX() : box.minZ();
+                int high = alongZ ? box.maxX() : box.maxZ();
+                helper.assertTrue(
+                        frame.contains(low) != frame.contains(high),
+                        "墙 " + box + " 的框列应当正好压在框架线上（" + (alongZ ? "x" : "z") + " 方向：" + low + ".." + high + "）");
+                checked++;
+            }
+        }
+        helper.assertTrue(checked > 20, "样本太少，没检查到几面墙：" + checked);
+        helper.succeed();
+    }
+
+    /**
+     * 墙族件的列数：墙与女儿墙两列、外挑一列、墙脚三列
+     *
+     * <p>墙与女儿墙是沿边的局部 x 方向摆的，删掉一列就得同时改落笔角（`GridStructure#placeWall` 里
+     * 按 `Side#forward` 挪 0/1/2 格）。这里把列数钉住：件被重新导出回三列时，先红的是这条，
+     * 而不是等到世界里看见墙偏了一格。`foot` 那族已经并进 `base`，不在这里比。
+     */
+    @GameTest(template = "ddt_empty")
+    public static void wallFamilyKeepsItsColumnCount(GameTestHelper helper) {
+        StructureTemplateManager manager = helper.getLevel().getStructureManager();
+        Structure structure = helper.getLevel()
+                .registryAccess()
+                .registryOrThrow(Registries.STRUCTURE)
+                .get(DawnDuskTerminal.id("grid_rooms"));
+        GridStructure grid = (GridStructure) structure;
+        assertColumns(helper, manager, grid, "wall", 2);
+        assertColumns(helper, manager, grid, "edge", 1);
+        // 女儿墙除 inner_corner 那件（凹角整格 7×2×7，按格子摆，不跟边锚点）之外都是两列
+        for (ResourceLocation id : GridPlacer.catalogueIds(manager, grid, "parapet")) {
+            if (id.getPath().contains("inner_corner")) {
+                continue;
+            }
+            Vec3i size = manager.get(id).orElseThrow().getSize();
+            helper.assertTrue(size.getX() == 2, id + " 应当是两列，实际 " + size.getX() + " 列（" + size + "）");
+        }
+        helper.succeed();
+    }
+
+    private static void assertColumns(
+            GameTestHelper helper, StructureTemplateManager manager, GridStructure grid, String dir, int columns) {
+        List<ResourceLocation> ids = GridPlacer.catalogueIds(manager, grid, dir);
+        helper.assertTrue(!ids.isEmpty(), dir + " 目录不该是空的");
+        for (ResourceLocation id : ids) {
+            Vec3i size = manager.get(id).orElseThrow().getSize();
+            helper.assertTrue(
+                    size.getX() == columns, id + " 应当是 " + columns + " 列，实际 " + size.getX() + " 列（" + size + "）");
+        }
+    }
+
+    /**
      * 跨区块的绳梯件：`afterPlace` 只能碰当前区块那一截，绳照样要往下接
      *
      * <p>件整体往区块外挑出两格，绳那一列（局部 `2,*,2`）仍在区块里。真的 {@code afterPlace}
@@ -316,7 +697,7 @@ public final class StructureTemplateTests {
 
         int y = helper.absolutePos(new BlockPos(2, 4, 2)).getY();
         BlockPos min = new BlockPos(area.minX() - SHAFT_OVERHANG, y, area.minZ() + 1);
-        PoolElementStructurePiece shaft = piece(templates, DawnDuskTerminal.id("shaft/small_rope_03"), min);
+        PoolElementStructurePiece shaft = piece(templates, DawnDuskTerminal.id(FAMILY + "shaft/small/rope_01"), min);
         helper.assertTrue(shaft.getBoundingBox().minX() < area.minX(), "测试前提：这件要跨出区块边界，现在没有");
         BlockPos rope = min.offset(SHAFT_ROPE_X, 0, SHAFT_ROPE_Z);
         helper.assertTrue(area.isInside(rope), "测试前提：绳那一列要落在区块里，现在落在 " + rope + "，区块是 " + chunkPos);
