@@ -4,23 +4,54 @@ import com.dawnduskterminal.config.DdtConfig;
 import com.dawnduskterminal.entity.YsmPackUser;
 import com.dawnduskterminal.portal.PortalTeleporter;
 import com.dawnduskterminal.registry.ModDimensions;
+import com.dawnduskterminal.registry.ModStructures;
 import com.dawnduskterminal.structure.GridPlacer;
+import com.dawnduskterminal.structure.GridStructure;
 import com.dawnduskterminal.world.ChronoLine;
 import com.dawnduskterminal.world.ChronoLineState;
 import com.dawnduskterminal.world.ChronoSkyLight;
 import com.mojang.brigadier.arguments.DoubleArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
+import com.mojang.brigadier.context.CommandContext;
+import javax.annotation.Nullable;
+import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.EntityArgument;
+import net.minecraft.commands.arguments.ResourceLocationArgument;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Registry;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.phys.Vec3;
 
 public final class DdtCommands {
     private DdtCommands() {}
+
+    /**
+     * `/ddt pieces` 的公共收尾：摆完把消息发回去
+     *
+     * <p>{@code GridPlacer} 用「消息是否以 {@code catalogue:} 开头」区分成功与失败，
+     * 失败的几种（结构不存在、不是 grid 类型、目录名不认识）都带一句为什么
+     */
+    private static int catalogue(
+            CommandContext<CommandSourceStack> ctx,
+            ServerLevel level,
+            BlockPos origin,
+            @Nullable ResourceLocation structure,
+            @Nullable String dir) {
+        String result = GridPlacer.placeCatalogue(level, origin, structure, dir);
+        if (!result.startsWith("catalogue:")) {
+            ctx.getSource().sendFailure(Component.literal(result));
+            return 0;
+        }
+        ctx.getSource().sendSuccess(() -> Component.literal(result), false);
+        return 1;
+    }
 
     public static void register(net.neoforged.neoforge.event.RegisterCommandsEvent event) {
         event.getDispatcher()
@@ -139,14 +170,50 @@ public final class DdtCommands {
                             }
                             return 1;
                         }))
-                        .then(Commands.literal("pieces").executes(ctx -> {
-                            ServerLevel level = ctx.getSource().getLevel();
-                            BlockPos origin =
-                                    BlockPos.containing(ctx.getSource().getPosition());
-                            String result = GridPlacer.placeCatalogue(level, origin);
-                            ctx.getSource().sendSuccess(() -> Component.literal(result), false);
-                            return 1;
-                        }))
+                        .then(Commands.literal("pieces")
+                                .executes(ctx -> {
+                                    ServerLevel level = ctx.getSource().getLevel();
+                                    BlockPos origin =
+                                            BlockPos.containing(ctx.getSource().getPosition());
+                                    return catalogue(ctx, level, origin, null, null);
+                                })
+                                .then(Commands.argument("structure", ResourceLocationArgument.id())
+                                        .suggests((ctx, builder) -> {
+                                            Registry<Structure> registry = ctx.getSource()
+                                                    .getLevel()
+                                                    .registryAccess()
+                                                    .registryOrThrow(Registries.STRUCTURE);
+                                            registry.entrySet().stream()
+                                                    .filter(entry ->
+                                                            entry.getValue().type() == ModStructures.GRID.get())
+                                                    .forEach(entry -> builder.suggest(entry.getKey()
+                                                            .location()
+                                                            .toString()));
+                                            return builder.buildFuture();
+                                        })
+                                        .executes(ctx -> {
+                                            ServerLevel level = ctx.getSource().getLevel();
+                                            BlockPos origin = BlockPos.containing(
+                                                    ctx.getSource().getPosition());
+                                            ResourceLocation structure =
+                                                    ResourceLocationArgument.getId(ctx, "structure");
+                                            return catalogue(ctx, level, origin, structure, null);
+                                        })
+                                        .then(Commands.argument("dir", StringArgumentType.word())
+                                                .suggests((ctx, builder) -> {
+                                                    GridStructure.PIECE_DIRS.forEach(builder::suggest);
+                                                    return builder.buildFuture();
+                                                })
+                                                .executes(ctx -> {
+                                                    ServerLevel level =
+                                                            ctx.getSource().getLevel();
+                                                    BlockPos origin = BlockPos.containing(
+                                                            ctx.getSource().getPosition());
+                                                    ResourceLocation structure =
+                                                            ResourceLocationArgument.getId(ctx, "structure");
+                                                    String dir = StringArgumentType.getString(ctx, "dir");
+                                                    return catalogue(ctx, level, origin, structure, dir);
+                                                }))))
                         .then(Commands.literal("tp")
                                 .then(Commands.argument("param", DoubleArgumentType.doubleArg(-1.0D, 1.0D))
                                         .executes(ctx -> {

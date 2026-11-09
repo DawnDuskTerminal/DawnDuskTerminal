@@ -441,36 +441,81 @@ forest、birch_forest、old_growth_birch_forest、flower_forest、dark_forest、
 
 ### 件
 
+件按**家族目录**放：一个家族就是一整套件（分类目录齐全），件 id 是
+`dawnduskterminal:<家族>/<分类>/<件名>`，比如 `dawnduskterminal:grid_rooms/room/rect/furn_04`。
+家族名写在结构 JSON 的 `templates` 字段里（必填），由 `GridStructure#piece` 拼出来。
+
+```
+data/dawnduskterminal/structure/
+  ddt_empty.nbt                 测试共享模板，不属于任何结构家族
+  grid_rooms/                   家族：本结构这一套件
+    air/ base/ ceiling/ climb/ edge/ parapet/ post/ wall/
+    floor/  楼板，按房间件的相对路径镜像：floor/rect/stairtop、floor/small/rope_01
+    shaft/  梯井，同上：shaft/small/rope_01
+    room/   按体型分目录：large/ rect/ small/ inner_corner/
+```
+
+`room/` 再按体型分一层（`large` / `rect` / `small` / `inner_corner`），件名就是角色，
+**只有重名的角色才带序号**：`room/rect/furn_01..07`、`room/small/rope_01..02`，
+独一件的直接叫 `empty`、`stair`、`stairtop`、`chest`、`corner`。
+`floor/` 与 `shaft/` 的路径由房间件的相对路径派生（`room/rect/stairtop` → `floor/rect/stairtop`），
+所以三处必须同名。
+
+`grid_rooms` 与 `grid_rooms_upper` 是同一个家族的两段高度，共用这一套件；换材质的变体另开一个家族目录、
+只改 `templates` 字段。**家族目录名会跟着结构 start 存进区块**（件路径是字符串），改造目录等于改名，
+老存档里未探索区块的那些房子会掉件（`place` 只记一行 warn）。
+
 每个 y 段各成一件，件里不拖自己用不到的行走。落笔点相对**该楼层的地板行**（层高 5：地板 `+3`、天花 `+8`）。
+
+下表里的路径都省略了家族前缀。
+
+原来的 `foot/*`（墙脚）已经并进 `base/<体型>`：露出边数是确定的（`rect` 1 条、`small` 2 条相邻、
+`large` 与内角件 0 条），所以 `base` 用和房间同一个朝向摆放，本地东那一列（`small` 还有本地南）
+就是脚。`base/rect` 因此是 6×3×7、`base/small` 是 6×3×6。
 
 | 目录 | 内容 | 件高 | 落笔点 |
 |---|---|---|---|
-| `room/<体型>_<角色>_<n>` | 四角原木 + 家具（内空由模板的 air 清） | 5 | `+4` |
-| `room/inner_corner` | 凹角整件：两面墙、檐口、凹口 | 5 | `+4` |
-| `room/rect_stair_05`、`rect_stairtop_05` | 楼梯下段 / 上层的地板与楼梯口 | 5 | `+4` |
-| `room/small_rope_0x`、`small_ladder_02` | 绳梯房间（绳/梯本身在 `shaft/` 里） | 5 | `+4` |
-| `shaft/<房间件名>` | 绳梯接下去的那三格（只有绳/梯） | 3 | `+0` |
-| `base/<体型>` | 地基：四角原木柱 + `y=2` 一圈 | 3 | `+0`，只在下面没有房间时摆 |
+| `room/<体型>/<角色>` | 四角原木 + 家具（内空由模板的 air 清） | 5 | `+4` |
+| `room/inner_corner/corner` | 凹角整件：两面墙、檐口、凹口 | 5 | `+4` |
+| `room/rect/stair`、`room/rect/stairtop` | 楼梯下段 / 上层的地板与楼梯口 | 5 | `+4` |
+| `room/small/rope_01..02` | 绳梯房间（绳本身在 `shaft/` 里） | 5 | `+4` |
+| `shaft/<房间相对路径>` | 绳梯接下去的那三格（只有绳） | 3 | `+0` |
+| `base/<体型>` | 地基，外墙脚也画在这件里 | 3 | `+0`，只在下面没有房间时摆 |
 | `ceiling/<体型>`、`ceiling/inner_corner` | 天花板平面（含横梁），只有一行 | 1 | `+8` |
-| `floor/<房间件名>` | 带开口的地板：楼梯口、绳梯口、洞口 | 1 | `+3` |
+| `floor/<房间相对路径>` | 带开口的地板：楼梯口、绳梯口、洞口 | 1 | `+3` |
 | `air/<体型>` | 5×3×5 / 5×3×7 / 7×3×7 的纯空气，用来清天花板上面、地板下面 | 3 | 按世界 y 裁 |
 | `air/notch` | 1×7×1 的纯空气，最后一遍擦掉凹角凹口那一列 | 7 | `+4` |
-| `wall/<5 或 7>_<door 或 plain>_<n>` | 内 / 框 / 外三列墙身；内侧与外侧两列补空气 | 5 | `+4` |
-| `parapet/<5 或 7>` | 女儿墙，同长度的变体共用一份 | 2 | `+9` |
-| `edge/<5 或 7>` | 墙底下那一条地板外伸 | 1 | `+3` |
-| `foot/<5 或 7>` | 墙脚：两端「四块圆石墙围一根圆石柱」 | 2 | `+1`，只在下面没有房间时摆 |
-| `post/column_1..8` | 1×N×1 去皮原木柱，悬空处往下接 | — | — |
-| `climb/rope`、`climb/ladder` | 一格绳 / 一格梯，接在绳梯件底下一格 | 1 | — |
+| `wall/<large 或 small>_<door 或 plain>_<n>` | 两列：压在框架线上的墙身 / 外装饰 | 5 | `+4` |
+| `parapet/<5 或 7>` | 女儿墙，同长度的变体共用一份；两列（框列 + 外沿） | 2 | `+9` |
+| `edge/<5 或 7>` | 墙底下那一条地板外伸；只剩最外那一列 | 1 | `+3` |
+| `post/column` | 1×1×1 去皮原木柱的锚点，往下的部分由 `afterPlace` 接 | — | — |
+| `climb/rope` | 一格绳，接在绳梯件底下一格 | 1 | — |
 
 件名里的角色段是给装配看的，不需要解析模板内容：
 
-| 角色 | 含义 |
-|---|---|
-| `empty` | 空地，只有四角原木与地板 |
-| `furn` | 普通家具房间 |
-| `rope` / `ladder` | 绳 / 梯，从下层上到本层（占下层室内最上面三格） |
-| `drop` | 地板上有洞，直接掉到下层 |
-| `stair` | 楼梯下段：本层 `+4..+8` 斜上去 |
+| 角色 | 含义 | 受什么约束 |
+|---|---|---|
+| `empty` | 空地，只有四角原木与地板 | 门后、楼梯顶、楼梯两端必空；其余按权重 |
+| `furn` | 普通家具房间 | 按权重 |
+| `chest` | 宝箱房，箱子是件里自带的方块 | 按权重，只有 `rect` 有这件 |
+| `rope` | 绳梯，从下层上到本层（占下层室内最上面三格） | 下层重叠格必须全是空地房，或下方没有建筑 |
+| `drop` | 地板上有洞，直接掉到下层 | 有下层，且下层重叠格全是空地房 |
+| `stair` | 楼梯下段：本层 `+4..+8` 斜上去 | 有上一层，且能找到位置、体型、朝向都对得上的格 |
+
+**哪个体型能出哪个角色，只由「那个体型目录下有没有这个角色的件」决定**，代码里没有硬编码矩阵：
+每个角色都有 `roomsOf(体型, 角色).isEmpty()` 的守卫，放一件 `room/rect/rope_01`，`rect` 就立刻能出绳梯房。
+
+角色的抽取概率按体型各一套（`GridStructure.ROOM_WEIGHTS`），顺序是空地 / 家具 / 宝箱 / 掉落口 / 绳梯 / 楼梯：
+
+| 体型 | 空地 | 家具 | 宝箱 | 掉落口 | 绳梯 | 楼梯 |
+|---|---|---|---|---|---|---|
+| `large` | 45 | 42 | — | 6 | 3 | 4 |
+| `rect` | 15 | 70 | 3 | 3 | 4 | 5 |
+| `small` | 20 | 65 | — | 3 | 9 | 3 |
+
+宝箱房比三种跨层件更稀；空房间在 `large` 最多、`rect` 最少。
+每层仍有一部**强制**的上下楼（底层一部绳梯、有上一层时一部楼梯），否则多层房子会接不上；
+强制的那部不看权重，权重只管「额外还能不能再挂一部」
 
 **凹角件的凹口**（局部 `6,6`）分三处处理：
 
@@ -483,7 +528,7 @@ forest、birch_forest、old_growth_birch_forest、flower_forest、dark_forest、
 它排在件列表最后，同一个区块里谁后摆都一样。
 
 件的来源是建造存档里的整件，导出时按上表的 y 段一段段另存（切分脚本是一次性的，不留在仓库里）。
-改件之后照上表重新截一段、拷回 `structure/` 即可；凹角那三处按本节说明处理。
+改件之后照上表重新截一段、拷回 `structure/grid_rooms/` 即可；凹角那三处按本节说明处理。
 
 件文件必须是 **gzip 压缩的 NBT**。`StructureTemplateManager.readStructure` 走的是
 `NbtIo.readCompressed`，裸 NBT 会抛 `ZipException: Not in GZIP format`；而 `get` 把异常吞成空的
@@ -589,6 +634,23 @@ forest、birch_forest、old_growth_birch_forest、flower_forest、dark_forest、
 - **地基**：正下方连同外面 3 格的一圈里没有任何房间才长（`roomNear`，查所有更低层），
   柱子也用同一条判据，于是柱子不会贴着邻居的墙面。`large` 本来没有地基与角柱。
 - **女儿墙**：每个墙段都摆（`parapet/<长度>`），位置由墙段自己决定，不按「这一格上方有没有房间」判。
+
+**这几族件是按列摆的，列数决定了落笔角。** 一条边要摆四种件，它们的列数各不相同：
+
+| 件 | 列数 | 本地 x=0 是哪一列 |
+|---|---|---|
+| `wall/*` | 2 | 框架线（墙身） |
+| `parapet/*` | 2 | 框架线（框列） |
+| `edge/*` | 1 | 框架线外一格（外伸） |
+
+
+所以 `placeWall` 里给它们三个不同的落笔角，差在沿外侧方向挪 0/1/2 格；
+而且只有「本地 x 与世界坐标同向」的东、南两侧要挪（`Side#forward`），西、北两侧转过 180 度、正好不用挪。
+早先这三族件都是三列，最里那一列是纯空气，本来想把室内贴墙那一列的家具擦掉——实测擦不到：
+墙的 AIR 遍跑在同层房间的 SOLID 遍之前，而边框家具最后还有一遍 `placeBorder` 重摆。
+那一列于是全程是空的，删掉后 `wall` 与 `parapet` 收成两列、`edge` 收成一列。
+外墙脚随后并进了 `base/<体型>`（原来那族 `foot/*` 已删）：露出边数是确定的，
+`base` 用和房间同一个朝向摆放，本地东（`rect`）与本地南+东（`small`）那两列就是脚。
 - **往下接**：有地基的格子把四个角用 `post/column_N` 接到地面；差 3 格以内交给地形适配。
   凹角格的凹口那一角本来就没有地基柱，按件的旋转映射过去后跳过。同一根柱按方块坐标跨层去重。
 
@@ -607,16 +669,6 @@ forest、birch_forest、old_growth_birch_forest、flower_forest、dark_forest、
 | `dawnduskterminal:grid_rooms_upper` | `8 .. 40`（y>0 的地表以下） | `random_spread`，salt `8417214`，spacing 32 |
 
 两者共用同一份 `type`、同一张群系标签与同一套件；差别只在 `y_min` / `y_max`。
-不要把两段塞进同一个结构里掷硬币——那样每一段都只剩一半的结构，等于把丰度砍半。
-**新增结构 id 必须同时进 `StructureExclusions.ALLOWED`**：`StructureExclusionMixin` 会压制
-不在白名单里的每一个结构，漏登记的症状是该结构在晨昏线维度里一次都不生成。
-不读地表高度图。y<0 那一段里，`noise_settings/chrono.json` 把洞穴项用两条 `y_clamped_gradient` 塑形
-（`-4..4` 之间从 10 压到 0，`-64..-52` 之间从 0 抬到 1），所以那一段以成片的空腔与浮岛为主，
-房子多半悬在空处，最多背后贴着浮岛。世界生成阶段拿不到方块数据，查不到洞穴地板；
-地基往下接柱子只在 `afterPlace` 里扫地形，而且只扫当前区块那一截。
-
-规模与层数（`grid_rooms.json` 的 `columns` / `rows` / `storeys`）：
-轮廓上限 `8×8` 格，层数上限 3，按权重一层最常见（6）、两层其次（3）、三层偶尔（1）。
 
 ### 破损与宝箱
 
@@ -624,20 +676,45 @@ forest、birch_forest、old_growth_birch_forest、flower_forest、dark_forest、
   每座房子再掷一次「要不要长蜘蛛网」（`WEBBED_CHANCE` = 一半），掷中时缺失位置的约四分之一换成蜘蛛网。
   判定用「世界位置哈希 + 这一座房子的盐」，所以同一份存档里反复进出同一区块得到同一副面孔。
   带 nbt 的方块（宝箱）不参与缺失。
-- **箱子是 `room/rect_furn_06` 这间「宝箱房」自带的方块**，不是另外摆的件：
+- **箱子是 `room/rect/chest` 这间「宝箱房」自带的方块**，不是另外摆的件：
   它的 `LootTable` 写在件里（`dawnduskterminal:chests/grid_rooms`，暂时与晨昏矿井同款，转 `twilightforest:hill_3`）。
-  装配时房间是从 `room/<体型>_<角色>_<n>` 变体里随机挑的，格子少、层数少时可能一次都没挑中它，
-  于是整座房子一只箱子都没有——所以落笔之前有一道保底（`ensureChestRoom`）：
-  整座结构若没有一格用宝箱房，就把一格「rect 体型 + 家具房」换成它（同体型同角色、朝向不变）。
-  多层房子可能有多间宝箱房，不封顶；箱子带 nbt，所以也不参与破损。
+  宝箱房是一个普通角色，按 `rect` 那 3% 的权重抽，所以**单座房子不保证有箱子**，
+  也不再有任何「至少一间」的保底（上一版的 `ensureChestRoom` 已删）。
+  一层 8~13 个 `rect` 格，通常每层仍会出 1 间；多层、格子多的房子可能出多间，不封顶。
+  箱子带 nbt，所以不参与破损。
 - **柱子只在安全的地方接**：照原版废弃矿井的做法「先探再落笔」——一路往下探到第一个实心方块为止，
-  中途遇到液体就整根不接，探到 24 格或基岩还没落地同样不接；绳梯同理（绳/梯自身算能走）。
+  中途遇到液体就整根不接，探到 24 格或基岩还没落地同样不接。
+- **绳梯比柱子宽松**：液体算能走，一路铺到第一个实心方块或基岩。这个维度地下铺满含水层，
+  悬空房子的梯井下面十有八九先是水再是石；照柱子那套「遇水不接」的话，绳子会停在半空。
 
 ### 改件流程
 
-`/ddt pieces` 把所有件摆成一张网格：每件占一格 14，格子四周铺红羊毛框（画在原点**下面一格**，
-不压件最底那一层），旁边一块告示牌
-（目录 / 件名 / 尺寸）。**每件两个结构方块，躺在件对角线两端、各出格一格（y 也一样）**：
+`/ddt pieces` 把件摆成一张网格：每件占一格 14，格子底下铺满红羊毛（画在原点**下面一格**，
+不压件最底那一层），旁边一块告示牌（中文名 / 件路径 / 尺寸）。**同一组排在同一段行里，换组另起一行**。
+
+分块按「看的方便」而不是按目录：
+
+- `ceiling/*` 与 `floor/*` 合成一组（`ceiling+floor/<体型>`）——天花板和楼板本来就是同一层的两面；
+- `room/` 默认按**体型**分组（`room/rect`、`room/small`、`room/large`），家具房排在一起才好比；
+- 空地房、宝箱房、以及上下楼的几种房间（绳梯、楼梯、楼梯口、掉落口）件少，单独各占一块
+  （`room/empty`、`room/chest`、`room/rope`…），不再按体型细分；
+- `wall/…` 按**长边/短边**分组；`shaft/` 按角色；其余目录照旧。
+
+三种用法：
+
+| 命令 | 摆什么 |
+|---|---|
+| `/ddt pieces` | 整个命名空间的全部件（含测试模板 `ddt_empty`） |
+| `/ddt pieces <结构>` | 这个结构家族的那一套件，按分类分块 |
+| `/ddt pieces <结构> <目录>` | 只摆一个分类，例如 `/ddt pieces grid_rooms room` |
+
+`<结构>` 只接受 `dawnduskterminal:grid` 类型的结构（`grid_rooms`、`grid_rooms_upper`、
+`towerwood_rooms`、`towerwood_rooms_upper`），
+因为件是代码按目录取名的；jigsaw 结构要从模板池递归推导件，这里不做。
+`<目录>` 取 `GridStructure.PIECE_DIRS` 那 12 个名字，补全里有。
+摆位的行/列只是坐标计算（`GridPlacer.layout`），不碰世界，所以有两条用例直接问它。
+
+**每件两个结构方块，躺在件对角线两端、各出格一格（y 也一样）**：
 
 | 位置 | 模式 | 用途 |
 |---|---|---|
@@ -646,7 +723,7 @@ forest、birch_forest、old_growth_birch_forest、flower_forest、dark_forest、
 
 两个方块都在件的外面，不会被存进件里；结构方块里的原点与角点都是**相对自己**的坐标。
 点 SAVE 写到 `run/<端>/generated/dawnduskterminal/structures/<路径>.nbt`，
-拷回 `src/main/resources/data/dawnduskterminal/structure/` 即可。件的原点由结构方块的范围保持；
+拷回 `src/main/resources/data/dawnduskterminal/structure/<家族>/` 即可。件的原点由结构方块的范围保持；
 改动超出包围盒时先改大结构方块的范围。
 
 `GridFrame` 的不变量由 `src/test/java/.../GridFrameTest` 检查，跑 `./gradlew frameCheck`，
