@@ -670,6 +670,34 @@ data/dawnduskterminal/structure/
 
 两者共用同一份 `type`、同一张群系标签与同一套件；差别只在 `y_min` / `y_max`。
 
+### 塔木屋群
+
+恶魂支线那一套（设定里的「塔木风格的各种小屋、住房、研究室」）：
+
+| 结构 | y 段 | 群系 | 结构集 |
+|---|---|---|---|
+| `dawnduskterminal:towerwood_rooms` | `-60 .. -30` | `#has_structure/towerwood_rooms` | salt `8417215`，spacing 32 |
+| `dawnduskterminal:towerwood_rooms_upper` | `8 .. 40` | 同上 | salt `8417216`，spacing 32 |
+
+群系标签现在是 `dark_forest` 与 `old_growth_birch_forest`（设定里的「黑森林腹地」与「红草树林」还没实装，
+后者暂用现在占位的原始白桦树林）。同一份 `type`、同一套装配逻辑，只是 `templates` 指向
+`towerwood_rooms` 那一族件（`structure/towerwood_rooms/`）。
+
+这一族与 `grid_rooms` 的差别：房间 4 行高（`grid_rooms` 是 5 行）、女儿墙 1 行、地基带自己的脚。
+`room/large/*`、`room/*/empty`、`edge/*`、`climb/rope`、`post/column`、`ceiling/inner_corner`、
+`parapet/inner_corner` 暂时借用 `grid_rooms` 的同名件，等塔木自己的素材补齐。
+
+不要把两段塞进同一个结构里掷硬币——那样每一段都只剩一半的结构，等于把丰度砍半。
+**新增结构 id 必须同时进 `StructureExclusions.ALLOWED`**：`StructureExclusionMixin` 会压制
+不在白名单里的每一个结构，漏登记的症状是该结构在晨昏线维度里一次都不生成。
+不读地表高度图。y<0 那一段里，`noise_settings/chrono.json` 把洞穴项用两条 `y_clamped_gradient` 塑形
+（`-4..4` 之间从 10 压到 0，`-64..-52` 之间从 0 抬到 1），所以那一段以成片的空腔与浮岛为主，
+房子多半悬在空处，最多背后贴着浮岛。世界生成阶段拿不到方块数据，查不到洞穴地板；
+地基往下接柱子只在 `afterPlace` 里扫地形，而且只扫当前区块那一截。
+
+规模与层数（`grid_rooms.json` 的 `columns` / `rows` / `storeys`）：
+轮廓上限 `8×8` 格，层数上限 3，按权重一层最常见（6）、两层其次（3）、三层偶尔（1）。
+
 ### 破损与宝箱
 
 - **破损**：每个实体方块按 `WEATHER_DECAY_PERMILLE`（35‰）的概率随机缺失；

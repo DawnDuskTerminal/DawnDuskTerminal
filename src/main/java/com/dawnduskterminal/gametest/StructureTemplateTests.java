@@ -486,6 +486,54 @@ public final class StructureTemplateTests {
     }
 
     /**
+     * 塔木那套能真的拼出房子：房间、墙、地基都有，楼梯房配得上它的楼梯口
+     *
+     * <p>这套件是手导的，缺件不会报错、只会让房子少一块，所以在这里钉一遍：
+     * 每座至少有一件 room、一件 wall，摆出了楼梯就必须有配套的 stairtop 与带洞的楼板。
+     */
+    @GameTest(template = "ddt_empty")
+    public static void towerwoodRoomsAssemble(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        Structure structure = level.registryAccess()
+                .registryOrThrow(Registries.STRUCTURE)
+                .get(DawnDuskTerminal.id("towerwood_rooms"));
+        helper.assertTrue(structure instanceof GridStructure, "towerwood_rooms 应当是 GridStructure");
+        ChunkGenerator generator = level.getChunkSource().getGenerator();
+        for (int i = 0; i < 6; i++) {
+            StructureStart start = structure.generate(
+                    level.registryAccess(),
+                    generator,
+                    generator.getBiomeSource(),
+                    level.getChunkSource().randomState(),
+                    level.getStructureManager(),
+                    8800L + i,
+                    new ChunkPos(i * 11 + 2, 7),
+                    0,
+                    level,
+                    biome -> true);
+            helper.assertTrue(start.isValid(), "第 " + i + " 座塔木屋群应当生成出来");
+            boolean room = false;
+            boolean wall = false;
+            boolean stair = false;
+            boolean stairTop = false;
+            for (StructurePiece piece : start.getPieces()) {
+                if (!(piece instanceof PoolElementStructurePiece pool)) {
+                    continue;
+                }
+                String path = pool.getElement().toString();
+                room |= path.contains("/room/");
+                wall |= path.contains("/wall/");
+                stair |= path.contains("room/rect/stair");
+                stairTop |= path.contains("room/rect/stairtop");
+            }
+            helper.assertTrue(room, "第 " + i + " 座应当摆出房间件");
+            helper.assertTrue(wall, "第 " + i + " 座应当摆出墙件");
+            helper.assertTrue(!stair || stairTop, "摆了楼梯房就必须有配套的 stairtop 件");
+        }
+        helper.succeed();
+    }
+
+    /**
      * 地基件带着外墙脚：尺寸比格子大一圈，而且不再摆 {@code foot/*}
      *
      * <p>脚并进 base 之后靠「base 与房间同一个朝向」对齐，露出边数是固定的

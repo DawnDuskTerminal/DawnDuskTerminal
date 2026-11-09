@@ -47,6 +47,8 @@ public final class StructureExclusions {
         ALLOWED.put("废弃矿井 平顶山", ResourceLocation.withDefaultNamespace("mineshaft_mesa"));
         ALLOWED.put("网格塔群", DawnDuskTerminal.id("grid_rooms"));
         ALLOWED.put("网格塔群 上层", DawnDuskTerminal.id("grid_rooms_upper"));
+        ALLOWED.put("塔木屋群", DawnDuskTerminal.id("towerwood_rooms"));
+        ALLOWED.put("塔木屋群 上层", DawnDuskTerminal.id("towerwood_rooms_upper"));
         ALLOWED.put("树洞", TFStructures.HOLLOW_TREE.location());
         ALLOWED.put("倒下的空心木头", TFStructures.FALLEN_TRUNK.location());
         ALLOWED.put("蘑菇城堡", TFStructures.MUSHROOM_TOWER.location());

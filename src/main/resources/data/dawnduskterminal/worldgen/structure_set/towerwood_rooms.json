@@ -1,0 +1,14 @@
+{
+  "placement": {
+    "type": "minecraft:random_spread",
+    "salt": 8417215,
+    "spacing": 32,
+    "separation": 8
+  },
+  "structures": [
+    {
+      "structure": "dawnduskterminal:towerwood_rooms",
+      "weight": 1
+    }
+  ]
+}

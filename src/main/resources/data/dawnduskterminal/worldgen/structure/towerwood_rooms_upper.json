@@ -1,0 +1,13 @@
+{
+  "templates": "towerwood_rooms",
+  "type": "dawnduskterminal:grid",
+  "biomes": "#dawnduskterminal:has_structure/towerwood_rooms",
+  "spawn_overrides": {},
+  "step": "surface_structures",
+  "terrain_adaptation": "none",
+  "columns": 8,
+  "rows": 8,
+  "storeys": 3,
+  "y_min": 8,
+  "y_max": 40
+}
