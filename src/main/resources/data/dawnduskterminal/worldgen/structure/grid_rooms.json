@@ -1,4 +1,5 @@
 {
+  "templates": "grid_rooms",
   "type": "dawnduskterminal:grid",
   "biomes": "#dawnduskterminal:has_structure/grid_rooms",
   "spawn_overrides": {},
