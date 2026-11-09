@@ -211,66 +211,75 @@ public class GridStructure extends Structure {
             ChunkPos chunkPos,
             PiecesContainer pieces) {
         // 这里只做“把柱子与绳梯往下接到地面”这一件收尾事。件本身已经落完了，
-        // 所以它失败不该连累整个区块：本方法抛出的异常会让 `applyBiomeDecoration` 整步作废，
-        // 结果是玩家被集成服务端踢出去，而且（走崩溃/紧急保存那条路时）会留下半成品的结构区块。
-        // 真出了意料之外的事，记一笔并放弃这一遍，让房子照样立着、只是柱子短一截。
-        try {
-            extendSupports(level, box, pieces);
-        } catch (RuntimeException error) {
-            DawnDuskTerminal.LOGGER.warn(
-                    "DawnDuskTerminal grid structure failed to extend its supports at chunk {}, leaving them short",
-                    chunkPos,
-                    error);
-        }
+        // 本方法抛出的异常却会让 `applyBiomeDecoration` 整步作废：玩家被集成服务端踢出去，
+        // 而且（走崩溃/紧急保存那条路时）会留下半成品的结构区块。所以每个件在
+        // `extendSupports` 里各包一层 try/catch，真出意外就让那一根短一截。
+        extendSupports(level, box, pieces, chunkPos);
     }
 
     /** 柱子与绳梯往下接：只看落在 {@code box}（当前区块）那一截里的件 */
-    private static void extendSupports(WorldGenLevel level, BoundingBox box, PiecesContainer pieces) {
-        // 地基的柱子往下接到第一个实心方块为止（虚空就一直到底）
-        BlockPos.MutableBlockPos column = new BlockPos.MutableBlockPos();
+    private static void extendSupports(
+            WorldGenLevel level, BoundingBox box, PiecesContainer pieces, ChunkPos chunkPos) {
         for (StructurePiece piece : pieces.pieces()) {
             if (!(piece instanceof PoolElementStructurePiece pool)) {
                 continue;
             }
-            String element = pool.getElement().toString();
-            BoundingBox pieceBox = piece.getBoundingBox();
-            // 这一件落在当前区块里的那一截，不相交就整件跳过
-            int minX = Math.max(pieceBox.minX(), box.minX());
-            int maxX = Math.min(pieceBox.maxX(), box.maxX());
-            int minZ = Math.max(pieceBox.minZ(), box.minZ());
-            int maxZ = Math.min(pieceBox.maxZ(), box.maxZ());
-            if (minX > maxX || minZ > maxZ) {
-                continue;
+            // 一个件出意外只让它自己短一截：整段收尾抛出去会让 `applyBiomeDecoration` 整步作废，
+            // 结果是玩家被集成服务端踢出去，还要留下半成品的结构区块
+            try {
+                extendSupport(level, box, piece, pool);
+            } catch (RuntimeException error) {
+                DawnDuskTerminal.LOGGER.warn(
+                        "DawnDuskTerminal grid structure failed to extend {} at chunk {}, leaving it short",
+                        pool.getElement(),
+                        chunkPos,
+                        error);
             }
-            // 绳梯件：盒子里那一列绳/梯往下铺到第一个实心方块，否则底层那根绳子吊不到地面
-            if (element.contains("shaft/")) {
-                ropeDown(level, pieceBox, minX, maxX, minZ, maxZ);
-                continue;
-            }
-            // 柱子件往下接：绳梯的 climb/rope 也是 1x1，按几何判断会把它接成一根孤柱
-            if (!element.contains("post/column")) {
-                continue;
-            }
-            if (pieceBox.getXSpan() != 1 || pieceBox.getZSpan() != 1) {
-                continue;
-            }
-            int x = pieceBox.minX();
-            int z = pieceBox.minZ();
-            // 柱子本身在这一截之外：交给它自己所在的那个区块
-            if (x < minX || x > maxX || z < minZ || z > maxZ) {
-                continue;
-            }
-            int top = Math.min(pieceBox.minY() - 1, box.maxY());
-            int landing = landingY(level, x, z, top);
-            if (landing == NO_LANDING) {
-                continue;
-            }
-            for (int y = top; y >= landing; y--) {
-                level.setBlock(
-                        column.set(x, y, z),
-                        TFBlocks.STRIPPED_TWILIGHT_OAK_LOG.get().defaultBlockState(),
-                        2);
-            }
+        }
+    }
+
+    /** 一件：绳梯件把那一列绳/梯铺下去，柱子件往下接到地面 */
+    private static void extendSupport(
+            WorldGenLevel level, BoundingBox box, StructurePiece piece, PoolElementStructurePiece pool) {
+        BlockPos.MutableBlockPos column = new BlockPos.MutableBlockPos();
+        String element = pool.getElement().toString();
+        BoundingBox pieceBox = piece.getBoundingBox();
+        // 这一件落在当前区块里的那一截，不相交就整件跳过
+        int minX = Math.max(pieceBox.minX(), box.minX());
+        int maxX = Math.min(pieceBox.maxX(), box.maxX());
+        int minZ = Math.max(pieceBox.minZ(), box.minZ());
+        int maxZ = Math.min(pieceBox.maxZ(), box.maxZ());
+        if (minX > maxX || minZ > maxZ) {
+            return;
+        }
+        // 绳梯件：盒子里那一列绳/梯往下铺到第一个实心方块，否则底层那根绳子吊不到地面
+        if (element.contains("shaft/")) {
+            ropeDown(level, pieceBox, minX, maxX, minZ, maxZ);
+            return;
+        }
+        // 柱子件往下接：绳梯的 climb/rope 也是 1x1，按几何判断会把它接成一根孤柱
+        if (!element.contains("post/column")) {
+            return;
+        }
+        if (pieceBox.getXSpan() != 1 || pieceBox.getZSpan() != 1) {
+            return;
+        }
+        int x = pieceBox.minX();
+        int z = pieceBox.minZ();
+        // 柱子本身在这一截之外：交给它自己所在的那个区块
+        if (x < minX || x > maxX || z < minZ || z > maxZ) {
+            return;
+        }
+        int top = Math.min(pieceBox.minY() - 1, box.maxY());
+        int landing = landingY(level, x, z, top);
+        if (landing == NO_LANDING) {
+            return;
+        }
+        for (int y = top; y >= landing; y--) {
+            level.setBlock(
+                    column.set(x, y, z),
+                    TFBlocks.STRIPPED_TWILIGHT_OAK_LOG.get().defaultBlockState(),
+                    2);
         }
     }
 
@@ -339,28 +348,30 @@ public class GridStructure extends Structure {
     }
 
     /**
-     * 绳梯往下探到哪一格
+     * 绳梯往下探到哪一格，规则与 {@link #landingY} 同：探到实心才算落地
      *
      * <p>绳/梯自身算能走：`placeShafts` 在绳梯件正下方补过一格 `climb/rope`，
      * 只认空气的话，第一格就撞上它，绳子再也铺不下去。
+     *
+     * @return 绳梯应该铺到的最低 y（含）；{@link #NO_LANDING} 表示这一条不接
      */
     private static int ropeLandingY(WorldGenLevel level, int x, int z, int top) {
         BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos();
         int limit = Math.max(level.getMinBuildHeight(), top - SUPPORT_MAX_DROP);
-        int landing = NO_LANDING;
         for (int y = top; y >= limit; y--) {
             cursor.set(x, y, z);
             BlockState state = level.getBlockState(cursor);
             if (state.is(TFBlocks.ROPE.get()) || state.is(Blocks.LADDER)) {
-                landing = y;
                 continue;
             }
-            if (!state.getFluidState().isEmpty() || !state.canBeReplaced()) {
-                break;
+            if (!state.getFluidState().isEmpty()) {
+                return NO_LANDING;
             }
-            landing = y;
+            if (!state.canBeReplaced()) {
+                return y >= top ? NO_LANDING : y + 1;
+            }
         }
-        return landing;
+        return NO_LANDING;
     }
 
     /** 按权重挑层数：下限 1，上限是配置里的 {@code storeys} */
@@ -388,6 +399,28 @@ public class GridStructure extends Structure {
         long webSeed = random.nextFloat() < WEBBED_CHANCE ? random.nextLong() : 0L;
         Weathering previous = WEATHERING.get();
         WEATHERING.set(new Weathering(WEATHER_DECAY_PERMILLE, webSeed));
+        // worldgen 的工作线程是复用的：件规划中途抛出去也要把这颗盐收回来，
+        // 否则下一次在这条线程上生成的房子会读到上一座的那一颗
+        try {
+            buildPieces(context, pieces, origin, random, seed, storeys, webSeed);
+        } finally {
+            if (previous == null) {
+                WEATHERING.remove();
+            } else {
+                WEATHERING.set(previous);
+            }
+        }
+    }
+
+    /** {@link #build} 的主体：规划与落笔。破损参数由调用方放进 {@link #WEATHERING} */
+    private void buildPieces(
+            Structure.GenerationContext context,
+            StructurePiecesBuilder pieces,
+            BlockPos origin,
+            RandomSource random,
+            long seed,
+            int storeys,
+            long webSeed) {
         int maxColumns = Math.max(3, this.columns);
         int maxRows = Math.max(3, this.rows);
         // 底层在 [3, 配置上限] 里随机；往上每层只比下层多/少一点点：
@@ -460,11 +493,6 @@ public class GridStructure extends Structure {
         // 比房间件落笔晚，会把凹角件里存的空气盖回去
         for (int k = 0; k < plans.size(); k++) {
             placeNotches(context, pieces, plans.get(k), k, origin);
-        }
-        if (previous == null) {
-            WEATHERING.remove();
-        } else {
-            WEATHERING.set(previous);
         }
         // 一行摘要：世界生成出的结构一旦"缺层"，先比这条日志与另一端的日志
         // （层数、原点、包围盒），能立刻分清是「件表就不一样」还是「件一样但没落上」
