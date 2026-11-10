@@ -9,9 +9,9 @@ import net.minecraft.util.Mth;
 import twilightforest.util.ColorUtil;
 
 /**
- * 晨昏线维度的植物着色：草方块与树叶两套 tint
+ * 晨昏线维度的植物着色：草方块与树叶两套按群系的 tint，再加蓝色沙漠三种植物的按坐标蓝绿色相
  *
- * <p>规则按群系 ID 的<b>路径 + 命名空间</b>判：只有 {@code dawnduskterminal:*} 下的副本会变，
+ * <p>群系那两套规则按群系 ID 的<b>路径 + 命名空间</b>判：只有 {@code dawnduskterminal:*} 下的副本会变，
  * 主世界那些同名群系（{@code minecraft:sparse_jungle}、{@code minecraft:river} …）一律原样交回
  *
  * <ul>
@@ -23,8 +23,11 @@ import twilightforest.util.ColorUtil;
  *   <li>其余群系原样返回，交给群系自己的 {@code grass_color} / {@code foliage_color}</li>
  * </ul>
  *
- * <p>这里全是纯函数，客户端取色器（{@code client/ChronoFoliageColors}）只负责把群系换成 ID。
- * 计算放在公共包里是为了能在游戏测试里直接断言：客户端类在专用服上根本不加载
+ * <p>{@link #fairyDianthusBand} 是另一套：不吃群系，只看坐标。仙灵石竹两种方块与夜光灌木共用它，
+ * 返回的是贴图里那条烘好的色相带（{@code tools/generate_hue_sheets.py}），不是乘数。
+ *
+ * <p>这里全是纯函数，客户端取色器（{@code client/ChronoFoliageColors}、{@code client/DdtClient}）只负责把
+ * 群系换成 ID、把方块接到坐标上。计算放在公共包里是为了能在游戏测试里直接断言：客户端类在专用服上根本不加载
  */
 public final class ChronoPlantTints {
     /** 河海类的植物着色：{@code portal_fluid} 的浸没雾色 {@code 0x7F159E}（127, 21, 158） */
@@ -32,6 +35,29 @@ public final class ChronoPlantTints {
 
     /** 黑森林腹地的树叶色，暮色森林 {@code darkForestCenterFoliage} 的常量结果 */
     public static final int DARK_FOREST_FOLIAGE = 0xE94E14;
+
+    /**
+     * 仙灵石竹蓝绿色相的噪声尺度，单位是格
+     *
+     * <p>比彩虹色那块 48 格密一档：彩虹是整片丛林一起变色，仙灵石竹一丛只有十几格宽，
+     * 一丛里能看出两三种蓝色才算是「按坐标偏移」。整根柱子上下共用一个值（见 {@link #fairyDianthus}）
+     */
+    private static final double DIANTHUS_SCALE = 20.0D;
+
+    /**
+     * 色相带的档数
+     *
+     * <p>与 {@code tools/generate_hue_sheets.py} 的 {@code BANDS} 必须一致：那边把偏移量烘成
+     * 25 条竖直排列的色相带，这边只负责按坐标挑其中一条。25 档 × 5° 刚好覆盖 −60°~+60°，
+     * 相邻档差 5°，不会有看得出来的台阶
+     */
+    public static final int DIANTHUS_BANDS = 25;
+
+    /** 每档的色相步长，单位度 */
+    public static final float DIANTHUS_HUE_STEP = 5.0F;
+
+    /** 偏移 0° 的那一档（正中青色，也就是底图原样） */
+    public static final int DIANTHUS_NEUTRAL_BAND = DIANTHUS_BANDS / 2;
 
     private static final String SPARSE_JUNGLE = "sparse_jungle";
     private static final String JUNGLE = "jungle";
@@ -138,13 +164,41 @@ public final class ChronoPlantTints {
         return ColorUtil.hsvToRGB((float) hue, 0.9F, 1.0F) & 0xFFFFFF;
     }
 
-    /** 三层值噪声，返回 0~1 */
+    /**
+     * 蓝色沙漠三种植物的色相偏移：同一张图在不同坐标上偏蓝一点或偏绿一点
+     *
+     * <p>只吃 x、z，不吃 y：整根柱子（4~12 格）上下同一个色相，站在地上不会看到一节一节的分界。
+     * 取值是坐标的纯函数（三层值噪声），区块网格重建、重进存档算出来的都是同一档
+     *
+     * <p><b>色相是转出来的，不是乘出来的</b>：偏移在贴图里烘好（{@code tools/generate_hue_sheets.py}），
+     * 每个像素只换 HSV 的 h，明度 V 与饱和度 S 原样带回——所以一个通道到 255 之后会被固定住，
+     * 色相继续转只能去压其余通道，亮度不掉。这里返回的就是该用哪一档
+     *
+     * <p>档位与色相：{@link #DIANTHUS_NEUTRAL_BAND} 是 0°（底图原样），两端各 60°，
+     * 也就是色相 180° 的青色分别转到 120° 与 240°。取值范围是 0~{@link #DIANTHUS_BANDS}−1
+     */
+    public static int fairyDianthusBand(int x, int z) {
+        double t = Mth.clamp(fbm(x, z, DIANTHUS_SCALE), 0.0D, 1.0D);
+        return Mth.clamp((int) Math.round(t * (DIANTHUS_BANDS - 1)), 0, DIANTHUS_BANDS - 1);
+    }
+
+    /** 某一档的色相偏移量：低档偏蓝、高档偏绿，{@link #DIANTHUS_NEUTRAL_BAND} 是 0°，两端各 {@code 60°} */
+    public static float fairyDianthusHueShift(int band) {
+        return (DIANTHUS_NEUTRAL_BAND - Mth.clamp(band, 0, DIANTHUS_BANDS - 1)) * DIANTHUS_HUE_STEP;
+    }
+
+    /** 三层值噪声，按彩虹色那一档的尺度，返回 0~1 */
     private static double fbm(double x, double z) {
+        return fbm(x, z, RAINBOW_SCALE);
+    }
+
+    /** 三层值噪声，返回 0~1；{@code scale} 是最粗那一层的格数 */
+    private static double fbm(double x, double z, double scale) {
         double sum = 0.0D;
         double amplitude = 1.0D;
         double norm = 0.0D;
-        double fx = x / RAINBOW_SCALE;
-        double fz = z / RAINBOW_SCALE;
+        double fx = x / scale;
+        double fz = z / scale;
         for (int octave = 0; octave < 3; octave++) {
             sum += amplitude * sample(fx, fz);
             norm += amplitude;

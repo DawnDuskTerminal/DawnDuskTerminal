@@ -41,6 +41,9 @@ public abstract class AbstractFairyDianthusBlock extends Block {
     /** 转向件的柱子：从格底抬 4 像素，底下一截是空的（与模型一致） */
     protected static final VoxelShape TURN_STEM = Block.box(4.0D, 4.0D, 4.0D, 12.0D, 16.0D, 12.0D);
 
+    /** 向下拐角的柱子：转向件在竖直方向上的镜像，格底到连接柱顶端（12 像素），底下那根柱子接着往下挂 */
+    protected static final VoxelShape DROP_STEM = Block.box(4.0D, 0.0D, 4.0D, 12.0D, 12.0D, 12.0D);
+
     /** 连接柱：8×8×4，纵向 4~12，贴着方块边界 */
     protected static final Map<Direction, VoxelShape> CONNECTORS = Map.of(
             Direction.NORTH, Block.box(4.0D, 4.0D, 0.0D, 12.0D, 12.0D, 4.0D),

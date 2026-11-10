@@ -11,7 +11,9 @@ import com.dawnduskterminal.block.VerticalHollowLogBlock;
 import com.dawnduskterminal.block.WroughtIronGlassBlock;
 import com.dawnduskterminal.block.WroughtIronGlassTrapdoorBlock;
 import com.dawnduskterminal.item.FairyDianthusItem;
+import com.dawnduskterminal.item.FairyHaniwaItem;
 import com.dawnduskterminal.item.HollowLogItem;
+import com.dawnduskterminal.item.StellariaVegesItem;
 import com.dawnduskterminal.world.CanopyFrostLayerBlock;
 import java.util.List;
 import java.util.Optional;
@@ -19,6 +21,7 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.food.FoodProperties;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -350,6 +353,27 @@ public final class ModTerrainBlocks {
     // 这个物品会接管「点在侧面就接一根分支」的放置，所以不是普通的 BlockItem
     public static final DeferredItem<FairyDianthusItem> FAIRY_DIANTHUS_ITEM =
             ITEMS.register("fairy_dianthus", () -> new FairyDianthusItem(FAIRY_DIANTHUS.get(), new Item.Properties()));
+
+    /**
+     * 繁缕菜的食用属性：饥饿 2、饱和度 2
+     *
+     * <p>{@code saturationModifier} 存的不是饱和度点数，实际点数按
+     * {@code 饥饿 × 系数 × 2} 算（{@code FoodData#eat}），所以 0.5 配 2 点饥饿正好给 2 点饱和度
+     */
+    public static final FoodProperties STELLARIA_VEGES_FOOD =
+            new FoodProperties.Builder().nutrition(2).saturationModifier(0.5F).build();
+
+    /** 繁缕菜：仙灵石竹的产物，能吃（2 饥饿 / 2 饱和），也能当燃料（{@link StellariaVegesItem#BURN_TICKS}） */
+    public static final DeferredItem<StellariaVegesItem> STELLARIA_VEGES_ITEM = ITEMS.register(
+            "stellaria_veges", () -> new StellariaVegesItem(new Item.Properties().food(STELLARIA_VEGES_FOOD)));
+
+    /**
+     * 仙灵埴轮：挖断仙灵石竹向下的那一整列分支时掉的那一件；创造模式手持对着侧面右键可以挂一根向下的分支
+     *
+     * <p>掉落不走战利品表（一整列只产出一件），见 {@code FairyDianthusBlock#playerDestroy}
+     */
+    public static final DeferredItem<FairyHaniwaItem> FAIRY_HANIWA_ITEM =
+            ITEMS.register("fairy_haniwa", () -> new FairyHaniwaItem(new Item.Properties()));
 
     // 夜光灌木：贴图是枯死的灌木调成仙灵石竹的配色，光照 7、满亮度渲染，摆放条件与原版枯死的灌木同一套
     public static final DeferredBlock<NightGlowBushBlock> NIGHT_GLOW_BUSH =

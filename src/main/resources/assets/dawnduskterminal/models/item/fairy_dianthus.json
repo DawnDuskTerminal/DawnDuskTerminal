@@ -1,3 +1,7 @@
 {
-  "parent": "dawnduskterminal:block/fairy_dianthus/fairy_dianthus_stem_0000"
+  "parent": "dawnduskterminal:block/fairy_dianthus/fairy_dianthus_stem_0000",
+  "textures": {
+    "0": "dawnduskterminal:block/fairy_dianthus",
+    "particle": "dawnduskterminal:block/fairy_dianthus"
+  }
 }

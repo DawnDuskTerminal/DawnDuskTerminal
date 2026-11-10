@@ -14,6 +14,10 @@
 「左右」按站在方块外面看这个面算：北面的左边是东、南面的左边是西，依此类推。
 每个面取哪一条，取决于该面左右两侧有没有分支连接；转向件则看主柱在它哪一侧。
 
+模型贴的是色相带图 `fairy_dianthus_hues.png`（由 `tools/generate_hue_sheets.py` 生成，纵向 25 条），
+`particle` 仍指原图 `fairy_dianthus.png`，破坏粒子才不会被压成带图里的一条。
+面上不再写 `tintindex`：色相偏移烘在带图里，顶点色是乘数，这里一格都不用。
+
 用法：`python tools/generate_fairy_dianthus_models.py`
 """
 
@@ -28,7 +32,8 @@ MODEL_DIR = os.path.join(
 BLOCKSTATE = os.path.join(
     ROOT, "src", "main", "resources", "assets", "dawnduskterminal", "blockstates", "fairy_dianthus.json"
 )
-TEXTURE = "dawnduskterminal:block/fairy_dianthus"
+TEXTURE = "dawnduskterminal:block/fairy_dianthus_hues"
+PARTICLE = "dawnduskterminal:block/fairy_dianthus"
 CONNECTOR = "dawnduskterminal:block/fairy_dianthus_connector"
 
 # 连接纹理的六条：名字 -> (x1, y1, x2, y2)，像素坐标
@@ -52,6 +57,31 @@ SIDES = {
 HORIZONTAL = ["north", "east", "south", "west"]
 FACES = ["north", "east", "south", "west", "up", "down"]
 
+# 竖柱的上端：整张图里唯一一块 8x8 的方形截面
+CROSS_SECTION = (24, 0, 32, 8)
+
+# 转向件的底面：示例里就是「无分支」那条的上半截，是刻意的底面视图，不是截面。
+# 它「朝世界固定方向」的正解是整份模型跟着连接做 y 旋转，不是换贴图
+UNDERSIDE = (0, 0, 8, 8)
+
+# 竖直镜像（y -> 16 - y）下面怎么走：四个侧面留在原方向，上下互换
+Y_MIRROR_FACE = {
+    "north": "north",
+    "east": "east",
+    "south": "south",
+    "west": "west",
+    "up": "down",
+    "down": "up",
+}
+
+# 拐角只写一份「主柱在南」的模型，其余三个方向靠 blockstate 的 y 旋转转过去：
+# 这样截面图案与侧面贴图一起跟着连接方向走，不会像四份变体那样把截面钉死在世界北方。
+# 角度与连接柱那份示例同一套（南 0 / 西 90 / 北 180 / 东 270）
+CORNER_ROTATION = {"south": 0, "west": 90, "north": 180, "east": 270}
+
+# 拐角模型的「标准朝向」：连接朝南
+CANONICAL_STUBS = {"north": False, "east": False, "south": True, "west": False}
+
 
 def uv(rect, height_px):
     """把像素矩形换成 0~16 的 uv，并按面高裁到前 height_px 行"""
@@ -63,9 +93,9 @@ def uv(rect, height_px):
 def tile_for(face, stubs, part):
     """这个面用哪一条连接纹理"""
     left, right = SIDES[face]
-    if part == "turn":
-        # 转向件只有一个朝向：主柱在那一侧。
-        # 十二格高的那两条贴图是十六格那两条的镜像，用在这里左右要反过来
+    if part in ("turn", "drop"):
+        # 拐角只有一个朝向：主柱在那一侧。向下拐角与转向件在这一点上完全一样，
+        # 差的只是柱子占格子的上半截还是下半截（几何在 build_model 里换）
         stub_dirs = [direction for direction in HORIZONTAL if stubs[direction]]
         if len(stub_dirs) == 1:
             main = stub_dirs[0]
@@ -85,34 +115,70 @@ def tile_for(face, stubs, part):
     return "none"
 
 
+def corner_faces(stubs):
+    """转向件的六个面（标准朝向：连接朝南）
+
+    侧面按连接挑 12 像素高的那条；上端是那块 8x8 截面，下端是示例里的底面视图。
+    """
+    faces = {}
+    for face_name in HORIZONTAL:
+        faces[face_name] = {"uv": uv(TILES[tile_for(face_name, stubs, "turn")], 12), "texture": "#0"}
+    faces["up"] = {"uv": uv(CROSS_SECTION, 8), "texture": "#0"}
+    faces["down"] = {"uv": uv(UNDERSIDE, 8), "texture": "#0"}
+    return faces
+
+
+def mirror_faces(faces):
+    """把一份拐角的面整份做竖直镜像
+
+    y -> 16 - y 之下：四个侧面留在原方向、uv 上下对调；上下面**互换**再各自对调。
+    只对调不管互换的话，上端会拿到本该在底下的那块贴图。
+    """
+    mirrored = {}
+    for face, data in faces.items():
+        u1, v1, u2, v2 = data["uv"]
+        mirrored[Y_MIRROR_FACE[face]] = {"uv": [u1, v2, u2, v1], "texture": data["texture"]}
+    return mirrored
+
+
 def build_model(part, stubs):
-    """一份竖柱模型：几何固定，六个面按连接挑贴图"""
+    """一份柱子模型：几何固定，六个面按角色定
+
+    贴的是色相带图，`particle` 单指原图；面上不带 `tintindex`，色相不经过顶点色。
+
+    - `stem` / `branch` / `hang`：整根柱子，上下两端都用截面，侧面按连接挑
+    - `turn`：转向件，柱子抬 4 像素、十二格高，上端截面、下端底面视图
+    - `drop`：转向件的竖直镜像——几何换到格底（0~12），六个面按 {@link #mirror_faces} 推导
+    """
     if part == "turn":
         element_from = [4, 4, 4]
-        height_px = 12
+        element_to = [12, 16, 12]
+    elif part == "drop":
+        element_from = [4, 0, 4]
+        element_to = [12, 12, 12]
     else:
         element_from = [4, 0, 4]
-        height_px = 16
+        element_to = [12, 16, 12]
 
-    faces = {}
-    for face in ["north", "east", "south", "west"]:
-        faces[face] = {"uv": uv(TILES[tile_for(face, stubs, part)], height_px), "texture": "#0"}
-    if part == "turn":
-        # 示例里转向件的上下面与竖柱不同：up 取 24,0~32,8，down 取 0,0~8,8
-        faces["up"] = {"uv": uv((24, 0, 32, 8), 8), "texture": "#0"}
-        faces["down"] = {"uv": uv((0, 0, 8, 8), 8), "texture": "#0"}
+    if part == "drop":
+        faces = mirror_faces(corner_faces(stubs))
+    elif part == "turn":
+        faces = corner_faces(stubs)
     else:
-        faces["up"] = {"uv": uv((24, 0, 32, 8), 8), "texture": "#0"}
-        faces["down"] = {"uv": uv((24, 0, 32, 8), 8), "texture": "#0"}
+        faces = {}
+        for face_name in HORIZONTAL:
+            faces[face_name] = {"uv": uv(TILES[tile_for(face_name, stubs, part)], 16), "texture": "#0"}
+        faces["up"] = {"uv": uv(CROSS_SECTION, 8), "texture": "#0"}
+        faces["down"] = {"uv": uv(CROSS_SECTION, 8), "texture": "#0"}
 
     return {
         "parent": "minecraft:block/block",
         "render_type": "minecraft:cutout",
-        "textures": {"0": TEXTURE, "particle": TEXTURE},
+        "textures": {"0": TEXTURE, "particle": PARTICLE},
         "elements": [
             {
                 "from": element_from,
-                "to": [12, 16, 12],
+                "to": element_to,
                 "faces": {face: faces[face] for face in FACES},
             }
         ],
@@ -156,29 +222,46 @@ def main():
     entries = []
     written = 0
 
-    def emit(part, stubs):
+    def write(part, stubs, name):
         nonlocal written
-        name = "fairy_dianthus_" + part + "_" + "".join("1" if stubs[d] else "0" for d in HORIZONTAL)
         model_path = os.path.join(MODEL_DIR, name + ".json")
         with open(model_path, "w", encoding="utf-8", newline="\n") as handle:
             handle.write(dump_model(build_model(part, stubs)))
         written += 1
+        return f"dawnduskterminal:block/fairy_dianthus/{name}"
+
+    def emit(part, stubs):
+        name = "fairy_dianthus_" + part + "_" + "".join("1" if stubs[d] else "0" for d in HORIZONTAL)
+        model = write(part, stubs, name)
         entries.append(
             {
                 "when": {key: value for key, value in [("part", part)]
                          + [(d, "true" if stubs[d] else "false") for d in HORIZONTAL]},
-                "apply": {"model": f"dawnduskterminal:block/fairy_dianthus/{name}"},
+                "apply": {"model": model},
             }
         )
+
+    def emit_corner(part):
+        """拐角：只写一份「连接朝南」的模型，四个方向靠 blockstate 的 y 旋转"""
+        name = "fairy_dianthus_" + part
+        model = write(part, CANONICAL_STUBS, name)
+        for direction in HORIZONTAL:
+            entries.append(
+                {
+                    "when": {"part": part, **{d: "true" if d == direction else "false" for d in HORIZONTAL}},
+                    "apply": {"model": model, "y": CORNER_ROTATION[direction]},
+                }
+            )
 
     emit("stem", {d: False for d in HORIZONTAL})
     for mask in itertools.product([False, True], repeat=4):
         stubs = dict(zip(HORIZONTAL, mask))
         if any(mask):
             emit("branch", stubs)
-    for direction in HORIZONTAL:
-        stubs = {d: d == direction for d in HORIZONTAL}
-        emit("turn", stubs)
+    emit_corner("turn")
+    # 向下拐角是转向件的竖直镜像：几何换到格底，六个面按镜像规则推导
+    emit_corner("drop")
+    emit("hang", {d: False for d in HORIZONTAL})
 
     # 连接柱：示例里是绕 X 轴转 90° 的盒子，模型按旋转前写，方向交给 blockstate 的 x / y
     rotations = {

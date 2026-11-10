@@ -55,6 +55,14 @@ public class FairyDianthusFeature extends Feature<FairyDianthusFeature.Configura
 
     private static final int MAIN_MAX_HEIGHT = 12;
 
+    /** 只抽到一根分支时，在那个分支点的对向再挂一根向下的分支的概率 */
+    public static final float DOWNWARD_CHANCE = 0.05F;
+
+    /** 向下分支的长度：拐角下面 1~3 格下垂柱 */
+    private static final int DOWN_MIN_HEIGHT = 1;
+
+    private static final int DOWN_MAX_HEIGHT = 3;
+
     @Override
     public boolean place(FeaturePlaceContext<Configuration> context) {
         WorldGenLevel level = context.level();
@@ -119,6 +127,9 @@ public class FairyDianthusFeature extends Feature<FairyDianthusFeature.Configura
         }
 
         int branches = random.nextInt(3);
+        int placedBranches = 0;
+        int lastY = -1;
+        Direction lastDirection = null;
         for (int branch = 0; branch < branches; branch++) {
             // 中下部：y 只取主柱下半段（1 ~ mainHeight/2），分支柱从下半截伸出去
             int highest = Math.max(1, mainHeight / 2);
@@ -147,6 +158,55 @@ public class FairyDianthusFeature extends Feature<FairyDianthusFeature.Configura
             for (int i = 1; i < branchHeight; i++) {
                 level.setBlock(branchBase.above(i), plain, Block.UPDATE_CLIENTS);
             }
+            placedBranches++;
+            lastY = y;
+            lastDirection = direction;
+        }
+        // 只抽到一根分支：有 5% 的概率在同一个分支点的对向再挂一根向下的
+        if (placedBranches == 1 && random.nextFloat() < DOWNWARD_CHANCE) {
+            placeDownward(level, random, base, lastY, lastDirection);
+        }
+        return true;
+    }
+
+    /**
+     * 在分支点的对向挂一根向下的分支
+     *
+     * <p>几何：主柱那一格补一个朝外的连接，相邻那格摆一个朝回主柱的<b>向下拐角</b>
+     * （柱子只占下半截），再从拐角往下接 1~3 格下垂柱。往下不是空气的地方挂不起来，
+     * 这时连拐角也不摆——免得留下孤零零一个拐角
+     *
+     * @param base 主柱的底格
+     * @param y 分支点相对底格的高度
+     * @param branchDirection 已有那根向上分支的方向；向下的这根挂在它的对向
+     * @return 有没有摆成
+     */
+    public static boolean placeDownward(
+            WorldGenLevel level, RandomSource random, BlockPos base, int y, Direction branchDirection) {
+        BlockPos joint = base.above(y);
+        Direction direction = branchDirection.getOpposite();
+        BlockPos dropPos = joint.relative(direction);
+        if (!level.getBlockState(dropPos).canBeReplaced()) {
+            return false;
+        }
+        int wanted = DOWN_MIN_HEIGHT + random.nextInt(DOWN_MAX_HEIGHT - DOWN_MIN_HEIGHT + 1);
+        int fitted = 0;
+        while (fitted < wanted && level.getBlockState(dropPos.below(fitted + 1)).canBeReplaced()) {
+            fitted++;
+        }
+        if (fitted < DOWN_MIN_HEIGHT) {
+            return false;
+        }
+        level.setBlock(joint, FairyDianthusBlock.withStub(level.getBlockState(joint), direction), Block.UPDATE_CLIENTS);
+        level.setBlock(
+                dropPos,
+                FairyDianthusBlock.dropBase(ModTerrainBlocks.FAIRY_DIANTHUS.get(), direction.getOpposite()),
+                Block.UPDATE_CLIENTS);
+        for (int i = 1; i <= fitted; i++) {
+            level.setBlock(
+                    dropPos.below(i),
+                    FairyDianthusBlock.hang(ModTerrainBlocks.FAIRY_DIANTHUS.get()),
+                    Block.UPDATE_CLIENTS);
         }
         return true;
     }

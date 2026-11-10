@@ -201,7 +201,8 @@
         "west": "false"
       },
       "apply": {
-        "model": "dawnduskterminal:block/fairy_dianthus/fairy_dianthus_turn_1000"
+        "model": "dawnduskterminal:block/fairy_dianthus/fairy_dianthus_turn",
+        "y": 180
       }
     },
     {
@@ -213,7 +214,8 @@
         "west": "false"
       },
       "apply": {
-        "model": "dawnduskterminal:block/fairy_dianthus/fairy_dianthus_turn_0100"
+        "model": "dawnduskterminal:block/fairy_dianthus/fairy_dianthus_turn",
+        "y": 270
       }
     },
     {
@@ -225,7 +227,8 @@
         "west": "false"
       },
       "apply": {
-        "model": "dawnduskterminal:block/fairy_dianthus/fairy_dianthus_turn_0010"
+        "model": "dawnduskterminal:block/fairy_dianthus/fairy_dianthus_turn",
+        "y": 0
       }
     },
     {
@@ -237,7 +240,72 @@
         "west": "true"
       },
       "apply": {
-        "model": "dawnduskterminal:block/fairy_dianthus/fairy_dianthus_turn_0001"
+        "model": "dawnduskterminal:block/fairy_dianthus/fairy_dianthus_turn",
+        "y": 90
+      }
+    },
+    {
+      "when": {
+        "part": "drop",
+        "north": "true",
+        "east": "false",
+        "south": "false",
+        "west": "false"
+      },
+      "apply": {
+        "model": "dawnduskterminal:block/fairy_dianthus/fairy_dianthus_drop",
+        "y": 180
+      }
+    },
+    {
+      "when": {
+        "part": "drop",
+        "north": "false",
+        "east": "true",
+        "south": "false",
+        "west": "false"
+      },
+      "apply": {
+        "model": "dawnduskterminal:block/fairy_dianthus/fairy_dianthus_drop",
+        "y": 270
+      }
+    },
+    {
+      "when": {
+        "part": "drop",
+        "north": "false",
+        "east": "false",
+        "south": "true",
+        "west": "false"
+      },
+      "apply": {
+        "model": "dawnduskterminal:block/fairy_dianthus/fairy_dianthus_drop",
+        "y": 0
+      }
+    },
+    {
+      "when": {
+        "part": "drop",
+        "north": "false",
+        "east": "false",
+        "south": "false",
+        "west": "true"
+      },
+      "apply": {
+        "model": "dawnduskterminal:block/fairy_dianthus/fairy_dianthus_drop",
+        "y": 90
+      }
+    },
+    {
+      "when": {
+        "part": "hang",
+        "north": "false",
+        "east": "false",
+        "south": "false",
+        "west": "false"
+      },
+      "apply": {
+        "model": "dawnduskterminal:block/fairy_dianthus/fairy_dianthus_hang_0000"
       }
     },
     {

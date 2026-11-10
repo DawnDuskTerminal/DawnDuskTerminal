@@ -2223,13 +2223,21 @@ thirdperson 为 [-80,260,-40] / [-80,-280,40] 与 -1,-2,2.5 的位移，firstper
 
 `world/ChronoPlantTints` 是植物着色的纯函数：稀疏丛林用世界坐标上的三层值噪声取彩虹色（不用暮色森林那个
 32 格一平铺的线性公式），河海类固定 `portal_fluid` 的雾色 `0x7F159E`，`jungle` 与 `dark_forest` 沿用原有的
-树叶染色，其余群系原样。仙灵石竹不参与群系着色：贴图自带颜色，模型上也没有 `tintindex`。
+树叶染色，其余群系原样。蓝色沙漠那三种植物（两种仙灵石竹与夜光灌木）不参与群系着色：
+它们的色相按坐标算（`fairyDianthusBand`，返回烘好的色相带档号），由 `client/model/HueBandModel`
+在区块网格里按坐标缩 UV 选带——不走顶点色，因为顶点色是乘数。
 规则与彩虹的算法见 `worldgen.md` 的「植物着色」。
 
 `block/AbstractFairyDianthusBlock` 是仙灵石竹的共用底座（沙土支撑、断开、形状）；
-`block/FairyDianthusBlock` 额外带四向连接状态与 `turn`（分支柱底格，柱子抬起 4 像素），`block/FairyDianthusSmallBlock` 只靠模型变体做偏移。
+`block/FairyDianthusBlock` 额外带四向连接状态与五个 `Part`：`stem` / `branch` / `turn`（分支柱底格，柱子抬起 4 像素）/
+`drop`（向下拐角，柱子占 0~12 像素）/ `hang`（下垂柱，吊在上面那一格上），
+`block/FairyDianthusSmallBlock` 只靠模型变体做偏移。
 `item/FairyDianthusItem` 只在点到侧面时接分支。两种植物由 `world/FairyDianthusFeature` 一簇摆完，
 落在蓝色沙漠，几何与参数见 `worldgen.md` 的「仙灵石竹」。
+`item/StellariaVegesItem` 是挖掉这两种植物得到的繁缕菜（食物 2 饥饿 / 2 饱和，燃料 800 tick），
+掉落规则见同一节。
+`world/FairyDianthusFeature#placeDownward` 摆出的向下分支（拐角 + 下垂柱）挖任意一格整列一起拆，
+掉一件 `dawnduskterminal:fairy_haniwa`。
 
 `world/ChronoFreezeFeature` 负责铺 `canopy_frost` 与 `frozen_canopy`，蓝色沙漠那一格是例外（不铺霜片）。
 

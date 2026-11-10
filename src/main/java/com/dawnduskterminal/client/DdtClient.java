@@ -5,6 +5,7 @@ import com.dawnduskterminal.block.Experiment059Block;
 import com.dawnduskterminal.client.animation.YsmEntityReload;
 import com.dawnduskterminal.client.model.CountertopModel;
 import com.dawnduskterminal.client.model.ExperimentArmorModel;
+import com.dawnduskterminal.client.model.HueBandModel;
 import com.dawnduskterminal.client.model.LoopTileModel;
 import com.dawnduskterminal.client.model.MountedTowerWoodModel;
 import com.dawnduskterminal.client.model.ScarletMolybdenumArmorModel;
@@ -20,6 +21,7 @@ import com.dawnduskterminal.registry.ModParticles;
 import com.dawnduskterminal.registry.ModScorchingTwilight;
 import com.dawnduskterminal.registry.ModTerrainBlocks;
 import com.dawnduskterminal.world.ChronoLineState;
+import com.dawnduskterminal.world.ChronoPlantTints;
 import java.util.function.ToIntBiFunction;
 import net.minecraft.client.model.HumanoidModel;
 import net.minecraft.client.renderer.BiomeColors;
@@ -231,6 +233,28 @@ public final class DdtClient {
         wrapGlassCtm(event, "wrought_iron_glass");
         wrapGlassTrapdoorCtm(event, "wrought_iron_glass_trapdoor");
         wrapLoopTile(event, "experiment_059", Experiment059Block::tileAt);
+        wrapHueBands(event);
+    }
+
+    /**
+     * 蓝色沙漠三种植物的色相带：把带图的 UV 按坐标收到其中一条
+     *
+     * <p>{@code fairy_dianthus} 是一个 multipart（20 份竖柱 + 1 份连接柱，键形如
+     * {@code dawnduskterminal:block/fairy_dianthus/fairy_dianthus_stem_0000}），矮的那一种是四份变体模型，
+     * 夜光灌木是一份 cutout 交叉面——按 id 前缀一次全包住，不逐个列。
+     * 两种仙灵石竹的物品图标父在方块模型上，也在这一条里：物品那一侧拿不到坐标，落到原色那一档
+     */
+    private static void wrapHueBands(ModelEvent.ModifyBakingResult event) {
+        event.getModels()
+                .replaceAll((location, model) ->
+                        isHueBanded(location) ? new HueBandModel(model, ChronoPlantTints::fairyDianthusBand) : model);
+    }
+
+    /** 哪些模型贴的是色相带图：按模型名的最后一段认，方块模型与物品模型都认得到 */
+    private static boolean isHueBanded(ModelResourceLocation location) {
+        String path = location.id().getPath();
+        String name = path.substring(path.lastIndexOf('/') + 1);
+        return name.startsWith("fairy_dianthus") || name.equals("night_glow_bush");
     }
 
     private static void wrapCtm(ModelEvent.ModifyBakingResult event, String name) {
@@ -343,6 +367,8 @@ public final class DdtClient {
                             : GrassColor.getDefaultColor();
                 },
                 ModTerrainBlocks.ROSY_GRASS.get());
+        // 蓝色沙漠三种植物的色相不走取色器：顶点色是乘数，会把亮度压下去，也会把高光推到品红与黄。
+        // 它们的色相偏移烘在贴图的色相带里，按坐标选带，见 onModifyBakingResult 的 wrapHueBands
     }
 
     private static void registerItemColors(RegisterColorHandlersEvent.Item event) {

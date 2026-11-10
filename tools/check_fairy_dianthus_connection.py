@@ -26,21 +26,31 @@ TILES = {
     "main_right": (16, 16, 24, 28),
 }
 
+# 柱子两头的 8x8 截面（整张图里唯一一块方形截面）
 TILE_EXTRA = {
-    "up": (24, 0, 32, 8),
-    "down_turn": (0, 0, 8, 8),
+    "cross_section": (24, 0, 32, 8),
+    "down_view": (0, 0, 8, 8),
 }
 
 
 def tile_of(uv):
-    """把 0~16 的 uv 反查成贴图区名字（允许被裁短）"""
-    x1, y1, x2, y2 = [value * 2 for value in uv]
-    for name, (tx1, ty1, tx2, ty2) in TILES.items():
-        if abs(x1 - tx1) < 1e-6 and abs(x2 - tx2) < 1e-6 and abs(y1 - ty1) < 1e-6 and y2 <= ty2 + 1e-6:
-            return name
+    """把 0~16 的 uv 反查成贴图区名字（允许被裁短）
+
+    向下拐角整份模型是转向件的竖直镜像，uv 上下对调过，所以先把颠倒的 v 摆正再查；
+    查到以后加 `~mirror` 后缀，这样表里一眼能看出哪几份是镜像版。
+    """
+    u1, v1, u2, v2 = uv
+    mirrored = v1 > v2
+    if mirrored:
+        v1, v2 = v2, v1
+    x1, y1, x2, y2 = [value * 2 for value in (u1, v1, u2, v2)]
+    suffix = "~mirror" if mirrored else ""
     for name, (tx1, ty1, tx2, ty2) in TILE_EXTRA.items():
         if abs(x1 - tx1) < 1e-6 and abs(x2 - tx2) < 1e-6 and abs(y1 - ty1) < 1e-6 and abs(y2 - ty2) < 1e-6:
-            return name
+            return name + suffix
+    for name, (tx1, ty1, tx2, ty2) in TILES.items():
+        if abs(x1 - tx1) < 1e-6 and abs(x2 - tx2) < 1e-6 and abs(y1 - ty1) < 1e-6 and y2 <= ty2 + 1e-6:
+            return name + suffix
     return f"?{[x1, y1, x2, y2]}"
 
 
@@ -49,7 +59,7 @@ def main():
     problems = 0
 
     print("== 贴图区是否整块不透明")
-    for name, (x1, y1, x2, y2) in TILES.items():
+    for name, (x1, y1, x2, y2) in list(TILES.items()) + list(TILE_EXTRA.items()):
         transparent = 0
         for y in range(y1, y2):
             for x in range(x1, x2):

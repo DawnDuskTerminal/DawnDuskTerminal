@@ -2,7 +2,7 @@
   "parent": "minecraft:block/block",
   "render_type": "minecraft:cutout",
   "textures": {
-    "0": "dawnduskterminal:block/fairy_dianthus_small",
+    "0": "dawnduskterminal:block/fairy_dianthus_small_hues",
     "particle": "dawnduskterminal:block/fairy_dianthus_small"
   },
   "elements": [
