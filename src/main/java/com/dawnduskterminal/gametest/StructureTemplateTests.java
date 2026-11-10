@@ -5,7 +5,10 @@ import com.dawnduskterminal.structure.BandProcessor;
 import com.dawnduskterminal.structure.GridPlacer;
 import com.dawnduskterminal.structure.GridStructure;
 import com.dawnduskterminal.structure.StructureExclusions;
+import java.io.IOException;
+import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -20,6 +23,9 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.NbtAccounter;
+import net.minecraft.nbt.NbtIo;
 import net.minecraft.nbt.NbtOps;
 import net.minecraft.nbt.Tag;
 import net.minecraft.resources.ResourceLocation;
@@ -486,10 +492,48 @@ public final class StructureTemplateTests {
     }
 
     /**
+     * 边框家具只看件里那几行
+     *
+     * <p>{@code hasBorderFurniture} 决定这一格要不要在墙之后把房间件再落一遍实体方块：
+     * 家具正贴着框架线时，墙件的空气会把它们擦掉。房间件只有 4 行，
+     * 查到件外那一行会把每件都判成带边框家具——件外那几格不在空气集合里，于是“非空”。
+     *
+     * <p>两个样本：空地房只有四角原木（那几格本来就被跳过），边框上摆着木头的 {@code furn_04}
+     * 该判成有。改件之后这两条跟着改，否则这里会先报出来。
+     */
+    @GameTest(template = "ddt_empty")
+    public static void borderFurnitureIsJudgedInsideThePiece(GameTestHelper helper) {
+        StructureTemplateManager manager = helper.getLevel().getStructureManager();
+        helper.assertFalse(
+                hasBorderFurniture(manager, DawnDuskTerminal.id(FAMILY + "room/rect/empty")),
+                "空地房只有四角原木，不该判成带边框家具（件外那一行被当真了）");
+        helper.assertTrue(
+                hasBorderFurniture(manager, DawnDuskTerminal.id(FAMILY + "room/rect/furn_04")),
+                "furn_04 的边框上摆着木头，该判成带边框家具");
+        helper.succeed();
+    }
+
+    /** {@code GridStructure#hasBorderFurniture} 是私有的，缓存也在里面，只能反射调 */
+    private static boolean hasBorderFurniture(StructureTemplateManager manager, ResourceLocation id) {
+        try {
+            Method method = GridStructure.class.getDeclaredMethod(
+                    "hasBorderFurniture", StructureTemplateManager.class, ResourceLocation.class);
+            method.setAccessible(true);
+            return (boolean) method.invoke(null, manager, id);
+        } catch (ReflectiveOperationException error) {
+            throw new AssertionError("GridStructure#hasBorderFurniture 调不到", error);
+        }
+    }
+
+    /**
      * 塔木那套能真的拼出房子：房间、墙、地基都有，楼梯房配得上它的楼梯口
      *
      * <p>这套件是手导的，缺件不会报错、只会让房子少一块，所以在这里钉一遍：
-     * 每座至少有一件 room、一件 wall，摆出了楼梯就必须有配套的 stairtop 与带洞的楼板。
+     * 每座至少有一件 room、一件 wall，摆出了楼梯就必须有配套的带洞楼板——
+     * 整间 stairtop 或者只有那一层楼板的 `floor/rect/stairtop` 都算。
+     *
+     * <p>另钉一件塔木那族自己的事：它是浮空的，不该出现往下接的柱子（`"posts": false`）。
+     * 宝箱房是两族的共同约定，钉在 {@link #everyBuildingHasAChestRoom}。
      */
     @GameTest(template = "ddt_empty")
     public static void towerwoodRoomsAssemble(GameTestHelper helper) {
@@ -524,11 +568,76 @@ public final class StructureTemplateTests {
                 room |= path.contains("/room/");
                 wall |= path.contains("/wall/");
                 stair |= path.contains("room/rect/stair");
-                stairTop |= path.contains("room/rect/stairtop");
+                stairTop |= path.contains("room/rect/stairtop") || path.contains("floor/rect/stairtop");
+                helper.assertFalse(path.contains("/post/column"), "塔木那族是浮空的，不该摆柱子（结构 JSON 的 posts 应当是 false）");
             }
             helper.assertTrue(room, "第 " + i + " 座应当摆出房间件");
             helper.assertTrue(wall, "第 " + i + " 座应当摆出墙件");
-            helper.assertTrue(!stair || stairTop, "摆了楼梯房就必须有配套的 stairtop 件");
+            helper.assertTrue(!stair || stairTop, "摆了楼梯房就必须有配套的带洞楼板");
+        }
+        helper.succeed();
+    }
+
+    /** 宝箱房里自带两辆宝箱矿车：哪次重新导出漏掉实体，这条会先报出来 */
+    @GameTest(template = "ddt_empty")
+    public static void chestRoomKeepsItsMinecarts(GameTestHelper helper) {
+        String path = "/data/dawnduskterminal/structure/towerwood_rooms/room/rect/chest_01.nbt";
+        try (InputStream in = StructureTemplateTests.class.getResourceAsStream(path)) {
+            helper.assertTrue(in != null, "找不到宝箱房件 " + path);
+            CompoundTag root = NbtIo.readCompressed(in, NbtAccounter.unlimitedHeap());
+            ListTag entities = root.getList("entities", Tag.TAG_COMPOUND);
+            helper.assertTrue(entities.size() == 2, "宝箱房应当带两辆矿车，实际 " + entities.size() + " 个实体");
+            for (int i = 0; i < entities.size(); i++) {
+                // 件里的实体是 {pos, blockPos, nbt} 三件套，id 在内层 nbt 里
+                CompoundTag nbt = entities.getCompound(i).getCompound("nbt");
+                helper.assertTrue(
+                        "minecraft:chest_minecart".equals(nbt.getString("id")),
+                        "实体 " + i + " 应当是宝箱矿车，实际 " + nbt.getString("id"));
+                // 存档里带出来的 UUID 与开发期模组的附着数据不该跟着件走
+                helper.assertFalse(nbt.contains("UUID"), "矿车不该带存档里的 UUID");
+                helper.assertFalse(nbt.contains("neoforge:attachments"), "矿车不该带开发期模组的附着数据");
+            }
+        } catch (IOException error) {
+            throw new AssertionError("宝箱房件读不出来", error);
+        }
+        helper.succeed();
+    }
+
+    /**
+     * 每座房子保底一间宝箱房：`grid_rooms` 与 `towerwood_rooms` 都一样
+     *
+     * <p>宝箱房只是个权重（rect 每格 3/88），抽不到时由 `ensureChestRoom` 拿一间 rect 空地房换掉，
+     * 所以这里可以断言「每一座都有」，而不是「样本里算是有」。两族结构各自跑六座。
+     */
+    @GameTest(template = "ddt_empty")
+    public static void everyBuildingHasAChestRoom(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        ChunkGenerator generator = level.getChunkSource().getGenerator();
+        for (String name : List.of("grid_rooms", "towerwood_rooms")) {
+            Structure structure =
+                    level.registryAccess().registryOrThrow(Registries.STRUCTURE).get(DawnDuskTerminal.id(name));
+            helper.assertTrue(structure instanceof GridStructure, name + " 应当是 GridStructure");
+            for (int i = 0; i < 6; i++) {
+                StructureStart start = structure.generate(
+                        level.registryAccess(),
+                        generator,
+                        generator.getBiomeSource(),
+                        level.getChunkSource().randomState(),
+                        level.getStructureManager(),
+                        9300L + i,
+                        new ChunkPos(i * 13 + 4, 23),
+                        0,
+                        level,
+                        biome -> true);
+                helper.assertTrue(start.isValid(), name + " 第 " + i + " 座应当生成出来");
+                boolean chest = false;
+                for (StructurePiece piece : start.getPieces()) {
+                    if (piece instanceof PoolElementStructurePiece pool) {
+                        chest |= pool.getElement().toString().contains("/room/rect/chest");
+                    }
+                }
+                helper.assertTrue(chest, name + " 第 " + i + " 座应当有一间宝箱房");
+            }
         }
         helper.succeed();
     }

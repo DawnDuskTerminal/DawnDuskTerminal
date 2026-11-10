@@ -9,5 +9,6 @@
   "rows": 8,
   "storeys": 3,
   "y_min": 8,
-  "y_max": 40
+  "y_max": 40,
+  "posts": false
 }

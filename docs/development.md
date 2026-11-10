@@ -610,10 +610,25 @@ Windows DLL 只依赖 UCRT 与 `kernel32.dll`，不需要 `libwinpthread-1.dll` 
 带 nbt 的宝箱不参与；缺失率为 0 时一块都不动。
 
 `everyGridStructureHasItsRoomRoles` 用固定种子直接调 `Structure#generate` 生成 12 座房子，断言宝箱房
-（`room/rect/chest`，箱子是件里自带的方块，不是另外摆的件）、空地房、家具房三种都出现过。
-宝箱房是按体型权重抽的普通角色，单座房子不保证有，所以这里数的是 12 座的总和。
+（`room/rect/chest`，箱子是件里自带的方块，不是另外摆的件）、空地房、家具房三种都出现过——
+这里数的是 12 座的总和，「每座都有宝箱房」由 `everyBuildingHasAChestRoom` 逐座钉。
 顺带钉住上下两段高度各自的落点窗口，以及两个结构 id 都在 `StructureExclusions` 的白名单里——
 漏登记会让上层结构在晨昏线维度里一次都不生成。
+
+`everyBuildingHasAChestRoom` 对 `grid_rooms` 与 `towerwood_rooms` 各生成 6 座，逐座要求至少一间宝箱房。
+宝箱房按权重只占 `rect` 的 3/88，保底靠挑格子的次序：一层里先挑宝箱房（`pickChest`），
+再挑楼梯，最后挑门；一座只占一次，全楼都没挑到时 `ensureChestRoom` 再拿一间房换掉。
+
+`towerwoodRoomsAssemble` 生成 6 座塔木屋群，要求每座都有房间件与墙件、楼梯房配得上带洞的楼板，
+且不出现 `post/column`（塔木那族写的是 `"posts": false`，悬空的格子不往下接柱子）。
+
+`borderFurnitureIsJudgedInsideThePiece` 钉住 `hasBorderFurniture` 只查到件顶：
+房间件 4 行，查到件外那一行会把这件当成「边框上有家具」，`placeBorder` 就把整套房件重落一遍。
+拿 `grid_rooms/room/rect/empty`（应当没有）与 `room/rect/furn_04`（应当有）当样本。
+
+`chestRoomKeepsItsMinecarts` 直接读件文件，要求塔木宝箱房里那两辆宝箱矿车还在，
+且不带存档里的 `UUID` 与开发期模组的 `neoforge:attachments`——结构方块重新导出时实体会跟着丢，
+丢了不会报错，只表现为机件上空一片。
 
 `wallFamilyKeepsItsColumnCount` 钉住墙族件的列数（墙与女儿墙两列、外挑一列、墙脚三列），
 `wallPiecesSitOnTheFrameLine` 从房间件的包围盒取出框架线，要求每件墙的框列正好落在其中一条上——

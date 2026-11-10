@@ -75,7 +75,8 @@ public class GridStructure extends Structure {
                     Codec.intRange(3, 16).fieldOf("rows").forGetter(s -> s.rows),
                     Codec.intRange(1, 4).fieldOf("storeys").forGetter(s -> s.storeys),
                     Codec.intRange(-128, 320).fieldOf("y_min").forGetter(s -> s.yMin),
-                    Codec.intRange(-128, 320).fieldOf("y_max").forGetter(s -> s.yMax))
+                    Codec.intRange(-128, 320).fieldOf("y_max").forGetter(s -> s.yMax),
+                    Codec.BOOL.optionalFieldOf("posts", true).forGetter(s -> s.posts))
             .apply(instance, GridStructure::new));
 
     /** 件的局部 y：地板平面 */
@@ -185,11 +186,21 @@ public class GridStructure extends Structure {
 
     private final int yMax;
 
+    /** 悬空格子要不要往下接柱子到地面：浮空的建筑（塔木那族）关掉它 */
+    private final boolean posts;
+
     /** 每栋房子一颗：结构缺失率（千分之几）与蜘蛛网盐 */
     private static final ThreadLocal<Weathering> WEATHERING = new ThreadLocal<>();
 
     public GridStructure(
-            StructureSettings settings, String templates, int columns, int rows, int storeys, int yMin, int yMax) {
+            StructureSettings settings,
+            String templates,
+            int columns,
+            int rows,
+            int storeys,
+            int yMin,
+            int yMax,
+            boolean posts) {
         super(settings);
         this.templates = templates.endsWith("/") ? templates.substring(0, templates.length() - 1) : templates;
         this.columns = columns;
@@ -197,6 +208,7 @@ public class GridStructure extends Structure {
         this.storeys = storeys;
         this.yMin = Math.min(yMin, yMax);
         this.yMax = Math.max(yMin, yMax);
+        this.posts = posts;
     }
 
     /** 件 id：家族目录下的相对路径，{@code piece("room/rect/furn_04")} */
@@ -262,10 +274,13 @@ public class GridStructure extends Structure {
     }
 
     /** 柱子与绳梯往下接：只看落在 {@code box}（当前区块）那一截里的件 */
-    private static void extendSupports(
-            WorldGenLevel level, BoundingBox box, PiecesContainer pieces, ChunkPos chunkPos) {
+    private void extendSupports(WorldGenLevel level, BoundingBox box, PiecesContainer pieces, ChunkPos chunkPos) {
         for (StructurePiece piece : pieces.pieces()) {
             if (!(piece instanceof PoolElementStructurePiece pool)) {
+                continue;
+            }
+            // 浮空建筑不往下接柱子；绳子照接，不然底层那根吊不到地面
+            if (!this.posts && pool.getElement().toString().contains("post/column")) {
                 continue;
             }
             // 一个件出意外只让它自己短一截：整段收尾抛出去会让 `applyBiomeDecoration` 整步作废，
@@ -504,6 +519,7 @@ public class GridStructure extends Structure {
         for (int k = 0; k < levels.size(); k++) {
             plans.add(plan(manager, levels, plans, noClimb, forceEmpty, k, random));
         }
+        ensureChestRoom(manager, plans, random);
         // 先把每一层的清空做完，再落任何一件：清空是纯空气，全部提前做完就绝不会擦到已经摆好的东西，
         // 也不必给清空算「哪些列要放过」——下层自己的件在下面几遍里会重新摆回来
         for (int k = 0; k < plans.size(); k++) {
@@ -575,12 +591,19 @@ public class GridStructure extends Structure {
             for (GridFrame.Cell stair : plans.get(k - 1).stairs) {
                 GridFrame.Cell above = aligned(cells, levels, k, stair);
                 if (above != null) {
-                    ResourceLocation top =
-                            stairTop(manager, plans.get(k - 1).rooms.get(stair));
+                    ResourceLocation stairRoom = plans.get(k - 1).rooms.get(stair);
+                    ResourceLocation top = stairTop(manager, stairRoom);
+                    // 朝向沿用楼梯那一格：上下两格可能一个横向一个竖向，各转各的洞口就对不上
+                    Rotation facing = plans.get(k - 1).rotations.get(stair);
+                    ResourceLocation floor = stairFloor(manager, stairRoom);
                     if (top != null) {
                         arrivals.put(above, top);
-                        // 朝向沿用楼梯那一格：上下两格可能一个横向一个竖向，各转各的洞口就对不上
-                        arrivalRotations.put(above, plans.get(k - 1).rotations.get(stair));
+                        arrivalRotations.put(above, facing);
+                    } else if (floor != null) {
+                        // 那一族没有整间 stairtop 件：只用它带洞的楼板，格子本身当空地
+                        plan.arrivalFloors.put(above, floor);
+                        plan.forcedEmpty.add(above);
+                        arrivalRotations.put(above, facing);
                     }
                     continue;
                 }
@@ -589,10 +612,18 @@ public class GridStructure extends Structure {
             }
         }
 
+        // 挑格子的先后：宝箱房 → 楼梯 → 门。宝箱房先占一格 rect，楼梯与门再绕开它，
+        // 免得后面几轮把它挤到边角或者挤没。一座房子只要一间，所以前面的层挑到了就不再挑
+        if (plans.stream().noneMatch(previous -> previous.chest != null)) {
+            pickChest(manager, plan, arrivals.keySet(), random);
+        }
         // 上下楼：必修项先放——最下面那个上层至少一条绳/梯，顶层以外的每层至少一部楼梯。
         // 其余名额只补楼梯与洞口：绳子和梯子只出现在最下面那个上层，再往上都用楼梯
         List<GridFrame.Cell> order2 = new ArrayList<>(cells);
         shuffle(order2, random);
+        if (plan.chest != null) {
+            order2.remove(plan.chest);
+        }
         int climbs = clamp(Math.round(cells.size() / (float) CLIMB_PER_CELLS), 1, cells.size());
         boolean up = k + 1 < levels.size();
         // 先摆楼梯再摆绳梯：stairs 是唯一「往上走」的路，而且它必须落在和上一层对齐的那格 rect 上；
@@ -614,6 +645,7 @@ public class GridStructure extends Structure {
             }
             GridFrame.Cell cell = run.cell();
             if (cell.kind() == GridFrame.Kind.INNER_CORNER
+                    || cell.equals(plan.chest)
                     || plan.climbs.containsKey(cell)
                     || arrivals.containsKey(cell)) {
                 continue;
@@ -700,6 +732,10 @@ public class GridStructure extends Structure {
             RandomSource random) {
         for (GridFrame.Cell cell : candidates) {
             if (plan.doorCells.contains(cell)) {
+                continue;
+            }
+            // 楼梯两端的格子要留空走路，宝箱房占着的那格不能让楼梯压上来
+            if (allowed.contains(Role.STAIR) && stairHitsChest(levels, k, cell, plan)) {
                 continue;
             }
             if (placeClimb(manager, levels, plans, noClimb, forceEmpty, k, cell, plan, allowed, random)) {
@@ -977,11 +1013,23 @@ public class GridStructure extends Structure {
         return null;
     }
 
-    /** 一格的房间件：门后与楼梯顶上必须是空地，剩下的格子按体型的权重抽角色 */
+    /**
+     * 一格的房间件：门后与楼梯顶上必须是空地，剩下的格子按体型的权重抽角色
+     *
+     * <p>凹角件是整间（两面墙、檐口、凹口），有就整格用它；那一族没摆这件时退回普通抽法。
+     *
+     * <p>宝箱房不靠权重保证：整栋一间都没抽到时由 {@link #ensureChestRoom} 补。
+     */
     private ResourceLocation pickRoom(
             StructureTemplateManager manager, Plan plan, GridFrame.Cell cell, RandomSource random) {
+        if (cell.equals(plan.chest)) {
+            return plan.chestRoom;
+        }
         if (cell.kind() == GridFrame.Kind.INNER_CORNER) {
-            return piece("room/inner_corner/corner");
+            ResourceLocation corner = piece("room/inner_corner/corner");
+            if (manager.get(corner).isPresent()) {
+                return corner;
+            }
         }
         ResourceLocation climbing = plan.rooms.get(cell);
         if (climbing != null) {
@@ -1011,6 +1059,118 @@ public class GridStructure extends Structure {
     }
 
     /**
+     * 这一层先挑一格当宝箱房
+     *
+     * <p>挑格子的顺序是宝箱房 → 楼梯 → 门：宝箱房先占一格 rect，后面两轮绕开它。
+     * 下层已经定好的楼梯两端（{@code forcedEmpty}）与上一层的楼梯口（{@code arrivals}）
+     * 都不能放宝箱房，那几格得留空走路。
+     */
+    private void pickChest(
+            StructureTemplateManager manager, Plan plan, Set<GridFrame.Cell> arrivals, RandomSource random) {
+        List<GridFrame.Cell> free = new ArrayList<>();
+        for (GridFrame.Cell cell : plan.cells) {
+            if (cell.kind() != GridFrame.Kind.RECT
+                    || plan.forcedEmpty.contains(cell)
+                    || arrivals.contains(cell)
+                    || roomsOf(manager, cell, Role.CHEST).isEmpty()) {
+                continue;
+            }
+            free.add(cell);
+        }
+        if (free.isEmpty()) {
+            return;
+        }
+        GridFrame.Cell cell = free.get(random.nextInt(free.size()));
+        List<ResourceLocation> chests = roomsOf(manager, cell, Role.CHEST);
+        plan.chest = cell;
+        plan.chestRoom = chests.get(random.nextInt(chests.size()));
+        if (hasBorderFurniture(manager, plan.chestRoom)) {
+            plan.border.add(cell);
+        }
+    }
+
+    /** 这一部楼梯的两端会不会压到宝箱房：本层与上一层各两个进出口 */
+    private static boolean stairHitsChest(List<List<GridFrame.Cell>> levels, int k, GridFrame.Cell cell, Plan plan) {
+        if (plan.chest == null) {
+            return false;
+        }
+        boolean alongZ = cell.d() == GridFrame.L;
+        for (int sign = -1; sign <= 1; sign += 2) {
+            if (plan.chest.equals(neighbour(levels.get(k), cell, alongZ ? 0 : sign, alongZ ? sign : 0))) {
+                return true;
+            }
+            if (k + 1 < levels.size()
+                    && plan.chest.equals(neighbour(levels.get(k + 1), cell, alongZ ? 0 : sign, alongZ ? sign : 0))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 每座房子至少一间宝箱房
+     *
+     * <p>权重表里宝箱只占 rect 的 3/88，一座房子十几间房也可能一间都抽不到，所以规划完再补：
+     * 整栋一间都没有时，拿一间 rect 房换掉（先找空地房，没空地房再拿家具房）。门后、楼梯两端、
+     * 上下楼那几格换成宝箱房会堵住通路，不碰。
+     */
+    private void ensureChestRoom(StructureTemplateManager manager, List<Plan> plans, RandomSource random) {
+        for (Plan plan : plans) {
+            for (ResourceLocation id : plan.rooms.values()) {
+                if (isRole(id, Role.CHEST)) {
+                    return;
+                }
+            }
+        }
+        // 优先拿空地房换，没空地房了再拿家具房换
+        List<Slot> empties = new ArrayList<>();
+        List<Slot> others = new ArrayList<>();
+        for (Plan plan : plans) {
+            for (GridFrame.Cell cell : plan.cells) {
+                if (chestSlot(manager, plan, cell)) {
+                    boolean empty = isRole(plan.rooms.get(cell), Role.EMPTY);
+                    (empty ? empties : others).add(new Slot(plan, cell));
+                }
+            }
+        }
+        List<Slot> pool = empties.isEmpty() ? others : empties;
+        if (pool.isEmpty()) {
+            DawnDuskTerminal.LOGGER.warn(
+                    "DawnDuskTerminal grid structure has no rect room left to turn into a chest room");
+            return;
+        }
+        Slot slot = pool.get(random.nextInt(pool.size()));
+        List<ResourceLocation> chests = roomsOf(manager, slot.cell(), Role.CHEST);
+        ResourceLocation id = chests.get(random.nextInt(chests.size()));
+        slot.plan().rooms.put(slot.cell(), id);
+        if (hasBorderFurniture(manager, id)) {
+            slot.plan().border.add(slot.cell());
+        } else {
+            slot.plan().border.remove(slot.cell());
+        }
+    }
+
+    /** 一个能换成宝箱房的格子 */
+    private record Slot(Plan plan, GridFrame.Cell cell) {}
+
+    /**
+     * 能换成宝箱房的格子：`rect` 房，且不是门后、楼梯两端、上下楼那几格
+     *
+     * <p>楼梯口那格换成宝箱房会把带洞的楼板一起换掉（楼板是按房间件名派生的），也排除。
+     */
+    private boolean chestSlot(StructureTemplateManager manager, Plan plan, GridFrame.Cell cell) {
+        if (cell.kind() != GridFrame.Kind.RECT
+                || plan.doorCells.contains(cell)
+                || plan.forcedEmpty.contains(cell)
+                || plan.climbs.containsKey(cell)
+                || plan.arrivalFloors.containsKey(cell)) {
+            return false;
+        }
+        return plan.rooms.get(cell) != null
+                && !roomsOf(manager, cell, Role.CHEST).isEmpty();
+    }
+
+    /**
      * 某个体型的某个角色的件
      *
      * <p>角色写在件名里（{@code room/small_rope_03}）：体型、角色、序号三段。
@@ -1020,9 +1180,7 @@ public class GridStructure extends Structure {
         String prefix = this.templates + "/room/" + cell.kind().path() + "/";
         List<ResourceLocation> out = new ArrayList<>();
         for (ResourceLocation id : variants(manager, prefix)) {
-            // 件名就是角色，重名的才带序号：furn_04、rope_01，独一件的直接叫 stair
-            String name = id.getPath().substring(prefix.length());
-            if (name.equals(role.tag()) || name.startsWith(role.tag() + "_")) {
+            if (isRole(id, role)) {
                 out.add(id);
             }
         }
@@ -1051,7 +1209,7 @@ public class GridStructure extends Structure {
             String path = relative(id).substring("room/".length());
             BlockPos cellFloor = floor.offset(cell.x(), 0, cell.z());
             // 地板与天花板共用 plane（ceiling/<体型>）；带开口的格子换成卡口件
-            ResourceLocation plane = planeOf(manager, cell, id);
+            ResourceLocation plane = planeOf(manager, plan, cell, id);
             // 共用的地板/天花板件按格子自己的朝向转：rect 是 5 宽 7 深，7 宽 5 深的格子不转就只盖住一半。
             // 自己的卡口地板要跟着房间转，洞口才对得上
             Rotation planeRotation = relative(plane).startsWith("floor/") ? rotation : ROTATIONS[cell.turns()];
@@ -1185,8 +1343,16 @@ public class GridStructure extends Structure {
         }
     }
 
-    /** 地板件：有 floor/<房间件名> 就用它（卡口、楼梯口、凹角），否则用与天花板共用的 plane */
-    private ResourceLocation planeOf(StructureTemplateManager manager, GridFrame.Cell cell, ResourceLocation room) {
+    /**
+     * 地板件：楼梯口先用登记过的卡口件，其次有 floor/<房间件名> 就用它（卡口、凹角），
+     * 都没有就用与天花板共用的 plane
+     */
+    private ResourceLocation planeOf(
+            StructureTemplateManager manager, Plan plan, GridFrame.Cell cell, ResourceLocation room) {
+        ResourceLocation arrival = plan.arrivalFloors.get(cell);
+        if (arrival != null) {
+            return arrival;
+        }
         ResourceLocation own = piece("floor/" + relative(room).substring("room/".length()));
         return manager.get(own).isPresent() ? own : ceiling(cell);
     }
@@ -1277,6 +1443,12 @@ public class GridStructure extends Structure {
         return name.equals(Role.STAIR.tag()) || name.equals(Role.STAIR.tag() + "top");
     }
 
+    /** 件名最后一段是不是这个角色：{@code chest}、{@code chest_01}、{@code furn_04} */
+    private boolean isRole(ResourceLocation id, Role role) {
+        String name = lastName(id);
+        return name.equals(role.tag()) || name.startsWith(role.tag() + "_");
+    }
+
     /** 绳梯房间：y=0..2 是绳接下去的那三格 */
     private boolean shaft(ResourceLocation id) {
         String name = lastName(id);
@@ -1332,6 +1504,9 @@ public class GridStructure extends Structure {
             int k,
             BlockPos origin,
             Set<Long> posts) {
+        if (!this.posts) {
+            return;
+        }
         BlockPos floor = origin.offset(0, k * STOREY_HEIGHT, 0);
         for (GridFrame.Cell cell : plan.cells) {
             if (plan.rooms.get(cell) == null || cell.kind() == GridFrame.Kind.LARGE) {
@@ -1379,9 +1554,12 @@ public class GridStructure extends Structure {
     /**
      * 这件在框架线上有没有家具
      *
-     * <p>框架线是格子最外那一圈，四角是原木框架、下面还有地板，只查地板以上五行、贴着墙那几列的边上：
+     * <p>框架线是格子最外那一圈，四角是原木框架、下面还有地板，只查地板以上那几行、贴着墙那几列的边上：
      * 那里出现非空方块就是摆在边框上的家具。模板里的空气能数出来，
      * 所以“非空”= 不在空气集合里；房间件把整格都存满了，这个判断成立。
+     *
+     * <p>查到件顶为止。房间件只有 4 行，写死查到第 4 行的话，越界那几格
+     * 不在空气集合里，会被当成“这儿有家具”，整件都白白重落一遍。
      */
     private static boolean hasBorderFurniture(StructureTemplateManager manager, ResourceLocation id) {
         return BORDER.computeIfAbsent(id, key -> {
@@ -1395,7 +1573,8 @@ public class GridStructure extends Structure {
                 air.add(info.pos());
             }
             Vec3i size = template.getSize();
-            for (int y = 1; y <= 4; y++) {
+            int top = Math.min(4, size.getY() - 1);
+            for (int y = 1; y <= top; y++) {
                 for (int x = 0; x < size.getX(); x++) {
                     for (int z = 0; z < size.getZ(); z++) {
                         boolean edgeX = x == 0 || x == size.getX() - 1;
@@ -1644,6 +1823,18 @@ public class GridStructure extends Structure {
 
     /** 楼梯件在上一层的那一半：路径末尾的 {@code /stair} 换成 {@code /stairtop} */
     private ResourceLocation stairTop(StructureTemplateManager manager, ResourceLocation stair) {
+        ResourceLocation top = stairVariant(stair, "");
+        return top != null && manager.get(top).isPresent() ? top : null;
+    }
+
+    /** 楼梯口那块带洞的楼板：{@code room/rect/stair} → {@code floor/rect/stairtop} */
+    private ResourceLocation stairFloor(StructureTemplateManager manager, ResourceLocation stair) {
+        ResourceLocation floor = stairVariant(stair, "floor/");
+        return floor != null && manager.get(floor).isPresent() ? floor : null;
+    }
+
+    /** 楼梯件在上一层的那个名字：{@code room/rect/stair} 加 {@code top}，也可以换成 floor 那一族 */
+    private ResourceLocation stairVariant(ResourceLocation stair, String directory) {
         if (stair == null) {
             return null;
         }
@@ -1651,8 +1842,10 @@ public class GridStructure extends Structure {
         if (!relative.endsWith("/" + Role.STAIR.tag())) {
             return null;
         }
-        ResourceLocation top = piece(relative + "top");
-        return manager.get(top).isPresent() ? top : null;
+        if (!directory.isEmpty()) {
+            relative = directory + relative.substring("room/".length());
+        }
+        return piece(relative + "top");
     }
 
     /** 某一层里所有与 {@code cell} 重叠的格子 */
@@ -1731,6 +1924,13 @@ public class GridStructure extends Structure {
         private final Set<WallRun> doorRuns = new HashSet<>();
         private final Map<GridFrame.Cell, Role> climbs = new LinkedHashMap<>();
         private final Set<GridFrame.Cell> stairs = new HashSet<>();
+        /** 楼梯口那一格换掉的楼板：整间 stairtop 件不在时只摆这一件 */
+        private final Map<GridFrame.Cell, ResourceLocation> arrivalFloors = new HashMap<>();
+
+        /** 先挑好的宝箱房：这一格用 {@link #chestRoom}，楼梯与门都绕开它 */
+        private GridFrame.Cell chest;
+
+        private ResourceLocation chestRoom;
 
         private Plan(List<GridFrame.Cell> cells) {
             this.cells = cells;
