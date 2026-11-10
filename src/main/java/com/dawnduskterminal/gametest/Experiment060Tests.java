@@ -26,7 +26,7 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
  * 试验物品 060 金探针的规格：256 点耐久，以及 {@link Experiment060Item#probe} 那条扫描
  *
  * <p>几条用例分别是：先无视石头以上的东西找到第一块石头类方块、再跳过一路的石头与沙土停在第一块别的东西上、
- * 一路只有石头与沙土时扫到世界底部也不报、基岩与粉砂岩算地形所以不报。空气算结果这件事单列一条，
+ * 一路只有石头与沙土时扫到世界底部也不报、基岩算地形所以越过它照常往上报。空气算结果这件事单列一条，
  * 因为它既是「跳过」的反例，也是洞穴里最常撞见的那一格
  *
  * <p>本模组那套地形方块单列一条：石头与沙土是按原版标签分的，本模组的六种岩石与霞土、路之沙都挂在
@@ -137,24 +137,26 @@ public final class Experiment060Tests {
      * 基岩算石头类，所以探针跳过它继续往下
      *
      * <p>本维度底下有一整层基岩（见 {@code noise_settings/chrono.json} 的 surface_rule），
-     * 要是把它当成「石头与沙土之外的东西」，往下探就只有这一个答案了
+     * 要是把它当成「石头与沙土之外的东西」，往下探就只有这一个答案了。
      *
-     * <p>断言「跳过基岩之后落在下方那块玻璃上」，而不是「什么都没找到」：测试平台底下是真实地形，
-     * 那里有什么取决于测试点落在哪个区块，断言「空」会时灵时不灵
+     * <p>所以把基岩夹在中间、下面垫一块矿石：探针得越过基岩报出矿石才算对。
+     * 不去动平台下方的世界——那里是不是实心岩层由测试世界决定，依赖它就是另一条用例
+     * （{@link #stoneAndSoilAllTheWayDownReportsNothing}）里显式补实再还原的做法。
      */
     @GameTest(template = "ddt_empty")
     public static void bedrockCountsAsStone(GameTestHelper helper) {
         BlockPos origin = new BlockPos(11, 6, 11);
-        for (int y = 0; y <= 5; y++) {
-            helper.setBlock(11, y, 11, y == 0 ? Blocks.BEDROCK : Blocks.STONE);
-        }
-        // 玻璃既不是石头类也不是沙土类：探针应该穿过基岩停在这一格
-        helper.setBlock(11, -1, 11, Blocks.GLASS);
+        helper.setBlock(11, 5, 11, Blocks.STONE);
+        helper.setBlock(11, 4, 11, Blocks.BEDROCK);
+        helper.setBlock(11, 3, 11, Blocks.STONE);
+        helper.setBlock(11, 2, 11, Blocks.IRON_ORE);
 
         Optional<BlockPos> found = Experiment060Item.probe(helper.getLevel(), helper.absolutePos(origin));
         helper.assertTrue(
-                found.isPresent() && found.get().equals(helper.absolutePos(new BlockPos(11, -1, 11))),
-                SUBJECT + " must treat bedrock as stone and reach the glass below, got " + found);
+                found.isPresent(), SUBJECT + " must look past the bedrock and report the ore below it, got nothing");
+        helper.assertTrue(
+                found.get().equals(helper.absolutePos(new BlockPos(11, 2, 11))),
+                SUBJECT + " must report the iron ore under the bedrock at (11,2,11), got " + found.get());
         helper.succeed();
     }
 
