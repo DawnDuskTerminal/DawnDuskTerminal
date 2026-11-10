@@ -134,10 +134,13 @@ public final class Experiment060Tests {
     }
 
     /**
-     * 基岩算石头类，所以永远不是结果
+     * 基岩算石头类，所以探针跳过它继续往下
      *
      * <p>本维度底下有一整层基岩（见 {@code noise_settings/chrono.json} 的 surface_rule），
      * 要是把它当成「石头与沙土之外的东西」，往下探就只有这一个答案了
+     *
+     * <p>断言「跳过基岩之后落在下方那块玻璃上」，而不是「什么都没找到」：测试平台底下是真实地形，
+     * 那里有什么取决于测试点落在哪个区块，断言「空」会时灵时不灵
      */
     @GameTest(template = "ddt_empty")
     public static void bedrockCountsAsStone(GameTestHelper helper) {
@@ -145,9 +148,13 @@ public final class Experiment060Tests {
         for (int y = 0; y <= 5; y++) {
             helper.setBlock(11, y, 11, y == 0 ? Blocks.BEDROCK : Blocks.STONE);
         }
+        // 玻璃既不是石头类也不是沙土类：探针应该穿过基岩停在这一格
+        helper.setBlock(11, -1, 11, Blocks.GLASS);
 
         Optional<BlockPos> found = Experiment060Item.probe(helper.getLevel(), helper.absolutePos(origin));
-        helper.assertTrue(found.isEmpty(), SUBJECT + " must treat bedrock as stone, got " + found);
+        helper.assertTrue(
+                found.isPresent() && found.get().equals(helper.absolutePos(new BlockPos(11, -1, 11))),
+                SUBJECT + " must treat bedrock as stone and reach the glass below, got " + found);
         helper.succeed();
     }
 

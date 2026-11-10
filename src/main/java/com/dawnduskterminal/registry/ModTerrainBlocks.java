@@ -3,10 +3,14 @@ package com.dawnduskterminal.registry;
 import com.dawnduskterminal.DawnDuskTerminal;
 import com.dawnduskterminal.block.ClimbableHollowLogBlock;
 import com.dawnduskterminal.block.CountertopBlock;
+import com.dawnduskterminal.block.FairyDianthusBlock;
+import com.dawnduskterminal.block.FairyDianthusSmallBlock;
 import com.dawnduskterminal.block.HorizontalHollowLogBlock;
+import com.dawnduskterminal.block.NightGlowBushBlock;
 import com.dawnduskterminal.block.VerticalHollowLogBlock;
 import com.dawnduskterminal.block.WroughtIronGlassBlock;
 import com.dawnduskterminal.block.WroughtIronGlassTrapdoorBlock;
+import com.dawnduskterminal.item.FairyDianthusItem;
 import com.dawnduskterminal.item.HollowLogItem;
 import com.dawnduskterminal.world.CanopyFrostLayerBlock;
 import java.util.List;
@@ -332,6 +336,27 @@ public final class ModTerrainBlocks {
     public static final DeferredItem<BlockItem> SKYGATE_PINE_SAPLING_ITEM =
             ITEMS.registerSimpleBlockItem(SKYGATE_PINE_SAPLING);
 
+    // 仙灵石竹：两种多方块植物，长在蓝色沙漠的路之沙上。不会生长（没有 randomTicks，也不可骨粉），
+    // 自带光照，所以属性里带 lightLevel；方块本身不遮挡，渲染层在模型里写成 cutout
+    public static final DeferredBlock<FairyDianthusSmallBlock> FAIRY_DIANTHUS_SMALL =
+            BLOCKS.registerBlock("fairy_dianthus_small", FairyDianthusSmallBlock::new, fairyDianthus(10, false));
+
+    public static final DeferredBlock<FairyDianthusBlock> FAIRY_DIANTHUS =
+            BLOCKS.registerBlock("fairy_dianthus", FairyDianthusBlock::new, fairyDianthus(10, true));
+
+    public static final DeferredItem<BlockItem> FAIRY_DIANTHUS_SMALL_ITEM =
+            ITEMS.registerSimpleBlockItem(FAIRY_DIANTHUS_SMALL);
+
+    // 这个物品会接管「点在侧面就接一根分支」的放置，所以不是普通的 BlockItem
+    public static final DeferredItem<FairyDianthusItem> FAIRY_DIANTHUS_ITEM =
+            ITEMS.register("fairy_dianthus", () -> new FairyDianthusItem(FAIRY_DIANTHUS.get(), new Item.Properties()));
+
+    // 夜光灌木：贴图是枯死的灌木调成仙灵石竹的配色，光照 7、满亮度渲染，摆放条件与原版枯死的灌木同一套
+    public static final DeferredBlock<NightGlowBushBlock> NIGHT_GLOW_BUSH =
+            BLOCKS.registerBlock("night_glow_bush", NightGlowBushBlock::new, nightGlowBush());
+
+    public static final DeferredItem<BlockItem> NIGHT_GLOW_BUSH_ITEM = ITEMS.registerSimpleBlockItem(NIGHT_GLOW_BUSH);
+
     private ModTerrainBlocks() {}
 
     /**
@@ -374,6 +399,37 @@ public final class ModTerrainBlocks {
                 .sound(SoundType.GRASS)
                 .noOcclusion()
                 .ignitedByLava()
+                .pushReaction(PushReaction.DESTROY);
+    }
+
+    // 仙灵石竹的公共部分：一碰即碎、仙人掌的音效（原版仙人掌用 WOOL）、可被活塞推到就毁、自带光照、不遮挡。
+    // 只有高的那一种有碰撞箱（见 FairyDianthusBlock#getCollisionShape），矮的那一种没有
+    private static BlockBehaviour.Properties fairyDianthus(int light, boolean collide) {
+        BlockBehaviour.Properties properties = BlockBehaviour.Properties.of()
+                // 满亮度渲染：NeoForge 的 emissiveRendering 让区块网格把这两块方块的顶点光照钉在 15，
+                // 贴图不再随环境光变暗
+                .emissiveRendering((state, level, pos) -> true)
+                .mapColor(MapColor.PLANT)
+                .instabreak()
+                .lightLevel(state -> light)
+                .sound(SoundType.WOOL)
+                .noOcclusion()
+                .pushReaction(PushReaction.DESTROY);
+        return collide ? properties : properties.noCollission();
+    }
+
+    // 原版 Blocks.DEAD_BUSH 的属性：可被替换、无碰撞、一碰即碎、草类音效、随机 XZ 偏移；
+    // 这里再加上光照 7 与满亮度渲染
+    private static BlockBehaviour.Properties nightGlowBush() {
+        return BlockBehaviour.Properties.of()
+                .mapColor(MapColor.PLANT)
+                .replaceable()
+                .noCollission()
+                .instabreak()
+                .sound(SoundType.GRASS)
+                .lightLevel(state -> NightGlowBushBlock.LIGHT)
+                .emissiveRendering((state, level, pos) -> true)
+                .offsetType(BlockBehaviour.OffsetType.XZ)
                 .pushReaction(PushReaction.DESTROY);
     }
 

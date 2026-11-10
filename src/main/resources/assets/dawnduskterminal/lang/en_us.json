@@ -136,6 +136,9 @@
   "block.dawnduskterminal.hollow_skygate_pine_log_climbable": "Hollow Skygate Pine Log",
   "block.dawnduskterminal.skygate_pine_leaves": "Skygate Pine Leaves",
   "block.dawnduskterminal.skygate_pine_sapling": "Skygate Pine Sapling",
+  "block.dawnduskterminal.fairy_dianthus": "Greater Fairy Dianthus",
+  "block.dawnduskterminal.night_glow_bush": "Night Glow Bush",
+  "block.dawnduskterminal.fairy_dianthus_small": "Lesser Fairy Dianthus",
   "biome.dawnduskterminal.floatrees": "Floating Trees",
   "block.dawnduskterminal.carid_ore": "Carid Ore",
   "item.dawnduskterminal.carid": "Carid",
@@ -400,3 +403,5 @@
   "subtitles.dawnduskterminal.expowheel_shoot": "Fleshbook fires",
   "subtitles.dawnduskterminal.expowheel_ambient": "Fleshbook whirls"
 }
+
+

@@ -1,0 +1,283 @@
+{
+  "multipart": [
+    {
+      "when": {
+        "part": "stem",
+        "north": "false",
+        "east": "false",
+        "south": "false",
+        "west": "false"
+      },
+      "apply": {
+        "model": "dawnduskterminal:block/fairy_dianthus/fairy_dianthus_stem_0000"
+      }
+    },
+    {
+      "when": {
+        "part": "branch",
+        "north": "false",
+        "east": "false",
+        "south": "false",
+        "west": "true"
+      },
+      "apply": {
+        "model": "dawnduskterminal:block/fairy_dianthus/fairy_dianthus_branch_0001"
+      }
+    },
+    {
+      "when": {
+        "part": "branch",
+        "north": "false",
+        "east": "false",
+        "south": "true",
+        "west": "false"
+      },
+      "apply": {
+        "model": "dawnduskterminal:block/fairy_dianthus/fairy_dianthus_branch_0010"
+      }
+    },
+    {
+      "when": {
+        "part": "branch",
+        "north": "false",
+        "east": "false",
+        "south": "true",
+        "west": "true"
+      },
+      "apply": {
+        "model": "dawnduskterminal:block/fairy_dianthus/fairy_dianthus_branch_0011"
+      }
+    },
+    {
+      "when": {
+        "part": "branch",
+        "north": "false",
+        "east": "true",
+        "south": "false",
+        "west": "false"
+      },
+      "apply": {
+        "model": "dawnduskterminal:block/fairy_dianthus/fairy_dianthus_branch_0100"
+      }
+    },
+    {
+      "when": {
+        "part": "branch",
+        "north": "false",
+        "east": "true",
+        "south": "false",
+        "west": "true"
+      },
+      "apply": {
+        "model": "dawnduskterminal:block/fairy_dianthus/fairy_dianthus_branch_0101"
+      }
+    },
+    {
+      "when": {
+        "part": "branch",
+        "north": "false",
+        "east": "true",
+        "south": "true",
+        "west": "false"
+      },
+      "apply": {
+        "model": "dawnduskterminal:block/fairy_dianthus/fairy_dianthus_branch_0110"
+      }
+    },
+    {
+      "when": {
+        "part": "branch",
+        "north": "false",
+        "east": "true",
+        "south": "true",
+        "west": "true"
+      },
+      "apply": {
+        "model": "dawnduskterminal:block/fairy_dianthus/fairy_dianthus_branch_0111"
+      }
+    },
+    {
+      "when": {
+        "part": "branch",
+        "north": "true",
+        "east": "false",
+        "south": "false",
+        "west": "false"
+      },
+      "apply": {
+        "model": "dawnduskterminal:block/fairy_dianthus/fairy_dianthus_branch_1000"
+      }
+    },
+    {
+      "when": {
+        "part": "branch",
+        "north": "true",
+        "east": "false",
+        "south": "false",
+        "west": "true"
+      },
+      "apply": {
+        "model": "dawnduskterminal:block/fairy_dianthus/fairy_dianthus_branch_1001"
+      }
+    },
+    {
+      "when": {
+        "part": "branch",
+        "north": "true",
+        "east": "false",
+        "south": "true",
+        "west": "false"
+      },
+      "apply": {
+        "model": "dawnduskterminal:block/fairy_dianthus/fairy_dianthus_branch_1010"
+      }
+    },
+    {
+      "when": {
+        "part": "branch",
+        "north": "true",
+        "east": "false",
+        "south": "true",
+        "west": "true"
+      },
+      "apply": {
+        "model": "dawnduskterminal:block/fairy_dianthus/fairy_dianthus_branch_1011"
+      }
+    },
+    {
+      "when": {
+        "part": "branch",
+        "north": "true",
+        "east": "true",
+        "south": "false",
+        "west": "false"
+      },
+      "apply": {
+        "model": "dawnduskterminal:block/fairy_dianthus/fairy_dianthus_branch_1100"
+      }
+    },
+    {
+      "when": {
+        "part": "branch",
+        "north": "true",
+        "east": "true",
+        "south": "false",
+        "west": "true"
+      },
+      "apply": {
+        "model": "dawnduskterminal:block/fairy_dianthus/fairy_dianthus_branch_1101"
+      }
+    },
+    {
+      "when": {
+        "part": "branch",
+        "north": "true",
+        "east": "true",
+        "south": "true",
+        "west": "false"
+      },
+      "apply": {
+        "model": "dawnduskterminal:block/fairy_dianthus/fairy_dianthus_branch_1110"
+      }
+    },
+    {
+      "when": {
+        "part": "branch",
+        "north": "true",
+        "east": "true",
+        "south": "true",
+        "west": "true"
+      },
+      "apply": {
+        "model": "dawnduskterminal:block/fairy_dianthus/fairy_dianthus_branch_1111"
+      }
+    },
+    {
+      "when": {
+        "part": "turn",
+        "north": "true",
+        "east": "false",
+        "south": "false",
+        "west": "false"
+      },
+      "apply": {
+        "model": "dawnduskterminal:block/fairy_dianthus/fairy_dianthus_turn_1000"
+      }
+    },
+    {
+      "when": {
+        "part": "turn",
+        "north": "false",
+        "east": "true",
+        "south": "false",
+        "west": "false"
+      },
+      "apply": {
+        "model": "dawnduskterminal:block/fairy_dianthus/fairy_dianthus_turn_0100"
+      }
+    },
+    {
+      "when": {
+        "part": "turn",
+        "north": "false",
+        "east": "false",
+        "south": "true",
+        "west": "false"
+      },
+      "apply": {
+        "model": "dawnduskterminal:block/fairy_dianthus/fairy_dianthus_turn_0010"
+      }
+    },
+    {
+      "when": {
+        "part": "turn",
+        "north": "false",
+        "east": "false",
+        "south": "false",
+        "west": "true"
+      },
+      "apply": {
+        "model": "dawnduskterminal:block/fairy_dianthus/fairy_dianthus_turn_0001"
+      }
+    },
+    {
+      "when": {
+        "north": "true"
+      },
+      "apply": {
+        "model": "dawnduskterminal:block/fairy_dianthus_connector",
+        "x": 90,
+        "y": 180
+      }
+    },
+    {
+      "when": {
+        "east": "true"
+      },
+      "apply": {
+        "model": "dawnduskterminal:block/fairy_dianthus_connector",
+        "x": 90,
+        "y": 270
+      }
+    },
+    {
+      "when": {
+        "south": "true"
+      },
+      "apply": {
+        "model": "dawnduskterminal:block/fairy_dianthus_connector",
+        "x": 90
+      }
+    },
+    {
+      "when": {
+        "west": "true"
+      },
+      "apply": {
+        "model": "dawnduskterminal:block/fairy_dianthus_connector",
+        "x": 90,
+        "y": 90
+      }
+    }
+  ]
+}

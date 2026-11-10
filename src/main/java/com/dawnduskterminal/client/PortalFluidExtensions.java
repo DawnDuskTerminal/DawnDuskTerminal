@@ -1,6 +1,7 @@
 package com.dawnduskterminal.client;
 
 import com.dawnduskterminal.DawnDuskTerminal;
+import com.dawnduskterminal.world.ChronoPlantTints;
 import com.mojang.blaze3d.shaders.FogShape;
 import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.Camera;
@@ -21,10 +22,20 @@ public final class PortalFluidExtensions implements IClientFluidTypeExtensions {
     private static final ResourceLocation UNDERWATER =
             ResourceLocation.withDefaultNamespace("textures/misc/underwater.png");
 
-    /** 浸没时的雾色 {@code 0x7F159E} */
-    private static final Vector3f SUBMERSION_FOG = new Vector3f(127.0F / 255.0F, 21.0F / 255.0F, 158.0F / 255.0F);
+    /**
+     * 浸没时的雾色 {@code 0x7F159E}
+     *
+     * <p>与河海类群系的植物着色同一个颜色（{@link ChronoPlantTints#PURPLE}），两边共用一个常量，
+     * 免得改了雾色之后水边的草还是旧的紫
+     */
+    private static final Vector3f SUBMERSION_FOG = rgb(ChronoPlantTints.PURPLE);
 
     private PortalFluidExtensions() {}
+
+    /** 0xRRGGBB 拆成 0~1 的三个分量 */
+    private static Vector3f rgb(int color) {
+        return new Vector3f(((color >> 16) & 0xFF) / 255.0F, ((color >> 8) & 0xFF) / 255.0F, (color & 0xFF) / 255.0F);
+    }
 
     @Override
     public ResourceLocation getStillTexture() {

@@ -2150,9 +2150,7 @@ thirdperson 为 [-80,260,-40] / [-80,-280,40] 与 -1,-2,2.5 的位移，firstper
 
 温度的晨昏线偏移不在此处实现，而是由 `world/PaletteBiomeSource` 与 `world/ChronoTemperature` 负责，见「世界生成补丁」。
 
-`MineshaftHeightMixin` 把废弃矿井的高度范围限制在 y -64 到 -10。
-
-`MineshaftChestLootMixin` 把矿井箱车战利品替换为 `dawnduskterminal:chests/chrono_mineshaft`。
+废弃矿井不在这里，它是复制出来的结构，见「结构与废弃矿井」。
 
 识别维度统一依靠噪声设置的 `default_fluid` 是否为 `portal_fluid`。
 
@@ -2221,7 +2219,19 @@ thirdperson 为 [-80,260,-40] / [-80,-280,40] 与 -1,-2,2.5 的位移，firstper
 
 `client/DdtClient` 是客户端入口，负责注册模型、颜色、渲染层与事件。
 
-`client/ChronoFoliageColors` 复刻暮色森林的树叶染色算法。
+`client/ChronoFoliageColors` 把群系副本解析成 ID，交给 `world/ChronoPlantTints` 算色。
+
+`world/ChronoPlantTints` 是植物着色的纯函数：稀疏丛林用世界坐标上的三层值噪声取彩虹色（不用暮色森林那个
+32 格一平铺的线性公式），河海类固定 `portal_fluid` 的雾色 `0x7F159E`，`jungle` 与 `dark_forest` 沿用原有的
+树叶染色，其余群系原样。仙灵石竹不参与群系着色：贴图自带颜色，模型上也没有 `tintindex`。
+规则与彩虹的算法见 `worldgen.md` 的「植物着色」。
+
+`block/AbstractFairyDianthusBlock` 是仙灵石竹的共用底座（沙土支撑、断开、形状）；
+`block/FairyDianthusBlock` 额外带四向连接状态与 `turn`（分支柱底格，柱子抬起 4 像素），`block/FairyDianthusSmallBlock` 只靠模型变体做偏移。
+`item/FairyDianthusItem` 只在点到侧面时接分支。两种植物由 `world/FairyDianthusFeature` 一簇摆完，
+落在蓝色沙漠，几何与参数见 `worldgen.md` 的「仙灵石竹」。
+
+`world/ChronoFreezeFeature` 负责铺 `canopy_frost` 与 `frozen_canopy`，蓝色沙漠那一格是例外（不铺霜片）。
 
 `client/model/MountedTowerWoodModel` 负责镶边塔木、封装塔木梁、錾制塔木梁与警示塔木的连接模型。
 「47 格」索引公式位于 `client/model/ConnectedTexture47`。
@@ -2245,7 +2255,7 @@ thirdperson 为 [-80,260,-40] / [-80,-280,40] 与 -1,-2,2.5 的位移，firstper
 
 `NoiseChunkVeinPaletteMixin` 见「世界生成补丁」。
 
-`MineshaftHeightMixin` 与 `MineshaftChestLootMixin` 见「世界生成补丁」。
+废弃矿井没有 mixin：原版那三条（高度、战利品、木材）都改成了复制出来的结构，见「结构与废弃矿井」。
 
 `FeatureSorterMixin` 把原版特征排序替换为可容忍环的实现，受配置项 `tolerate_feature_cycles` 控制。
 
@@ -2253,7 +2263,7 @@ thirdperson 为 [-80,260,-40] / [-80,-280,40] 与 -1,-2,2.5 的位移，firstper
 
 `StructureExclusionMixin` 在晨昏线维度只放行结构白名单中的结构。
 
-`BiomeColorsFoliageMixin` 是客户端 mixin，把树叶染色接入 `ChronoFoliageColors`。
+`BiomeColorsPlantMixin` 是客户端 mixin，把 `BiomeColors` 的草与树叶两个取色器接到 `ChronoFoliageColors`。
 
 `ClientLevelTimeOfDayMixin` 与 `LevelRendererSkyAlignMixin` 是客户端 mixin，见「天空」。
 
@@ -2299,13 +2309,25 @@ thirdperson 为 [-80,260,-40] / [-80,-280,40] 与 -1,-2,2.5 的位移，firstper
 
 `onRightClickItem` 拦截原版桶，禁止舀取两种模组流体。
 
-## 结构
+## 结构与废弃矿井
 
 `structure/StructureExclusions` 是唯一白名单，`StructureExclusionMixin` 排除不在其中的结构。
 
 `structure/StructureExclusions` 中的 `UNMAPPED` 与 `LANDMARKS` 记录未放行项与地标，仅用于日志。
 
 服务端启动时校验这几张表，缺失时只记录日志。
+
+`registry/ModStructures` 注册两个结构类型（`dawnduskterminal:grid` 与 `dawnduskterminal:mineshaft`）
+以及矿井那四个件类型（`mineshaft_room`、`mineshaft_corridor`、`mineshaft_crossing`、`mineshaft_stairs`）。
+件类型必须注册，否则从磁盘读回来的件认不出自己。
+
+`structure/GridStructure` 是网格屋群的生成器，`structure/GridFrame` 负责布局规划。
+
+`structure/ChronoMineshaftStructure` 与 `structure/ChronoMineshaftPieces` 是复制出来的废弃矿井，
+逐段对应 1.21.1 的 `MineshaftStructure` 与 `MineshaftPieces`，只改了木材套组、竖向带与战利品表。
+
+`structure/ChronoMineshaftWoods` 是那四套暮色森林木头与「按地表群系挑一套」的规则。
+细节见 `worldgen.md` 的「废弃矿井」。
 
 ## 已知遗留
 

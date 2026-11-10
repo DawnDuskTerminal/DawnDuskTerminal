@@ -119,6 +119,141 @@
 
 `getTemperature` 只在 y>80 时继续变冷，不会把 `-0.45` 抬升回 `0.15` 以上。
 
+原版会在这片蓝沙上铺霜：气温 `-0.45` 且降水为真，`shouldSnow` 成立。
+所以 `ChronoFreezeFeature` 对这一个群系单开一条：**裸沙的那片沙漠不铺 `canopy_frost`**（`BARE_SAND_DESERT`），
+冰照冻，霜片跳过，于是地表保持一片路之沙。
+其余群系不受影响，判定用的仍然是群系自己那一套温度与流体条件。
+
+### 仙灵石竹
+
+蓝色沙漠的表面长两种新的多方块植物：`dawnduskterminal:fairy_dianthus_small`（小仙灵石竹，1~3 格）与
+`dawnduskterminal:fairy_dianthus`（大仙灵石竹，主柱 4~12 格，中下部 0~2 根分支柱）。
+
+两者都不生长：方块没有 `randomTicks()`，也不实现 `BonemealableBlock`。
+两者都发光：光照 10（`lightLevel`），并且贴图**满亮度渲染**——`Properties#emissiveRendering`，
+NeoForge 的区块网格会把这两块方块的顶点光照钉在 15。
+放置规则与其他植物一样：脚下是沙类或土类，或者**同一种**仙灵石竹的下一格；脚下被挖掉时整根断开。
+两种植物互不相认——矮的立在高的上、高的立在矮的上都不成立（`AbstractFairyDianthusBlock#canSurvive` 比的是 `== this`）。
+**只有高的那一种有碰撞箱**；矮的是可以走过去的。
+
+**稀疏度**按原版沙漠来：`placed_feature/fairy_dianthus.json` 是 `count` 1 + `rarity_filter` 12，
+也就是平均每 12 个区块只掷一次点（原版沙漠仙人掌是 6 / 13）。
+每次掷出的点长成一簇，簇的参数在 `configured_feature/fairy_dianthus.json`：`radius` 5、`small_count` 12、`large_count` 2，
+所以平均每 12 个区块一簇、约 14 根柱子：单簇够大，整体仍然稀疏。
+
+**一簇的几何**由 `world/FairyDianthusFeature` 一次摆完：
+
+- 先在同一片（同一个圆心、同一个半径）里撒 `small_count` 根矮的，每根 1~3 格；
+- 再从同一个圆心、同一个半径里取 `large_count` 个位置长高的——所以高仙灵石竹的分布**必然落在矮的那片之内**，反过来不成立；
+- 主柱高度取 4~12；分支柱从主柱的**下半段**伸出（`y <= 主柱高度 / 2`），只与主柱相邻（水平距离正好 1 格，不额外延伸），
+  分支柱的顶端一定低于主柱顶端；
+- 同一格允许分出多根分支：摆分支时是在**当前状态**上再加一个连接，不拿默认状态覆盖。
+
+高度图取 `MOTION_BLOCKING` 而不是 `WORLD_SURFACE_WG`：两者在世界生成时都准，但只有前者随方块更新，
+所以同一份代码在游戏测试里对着刚铺好的沙台也能取到正确高度。
+
+**方块状态**：`part`（`stem` / `branch` / `turn`）加四向布尔（`north/east/south/west`）。
+`part` 决定竖柱用哪一份模型，四向布尔决定连接柱。
+
+**竖柱的贴图是连接纹理**：`fairy_dianthus.png` 左上角是 3 列 × 2 行的六个连接变体，每列一条完整的侧面（8 像素宽）。
+它不是「东南西北各一块」，而是「这个面的左右两侧有没有分支」：
+
+| 位置 | 像素范围 | 含义 |
+|---|---|---|
+| 第一行第一个 | x 0~8，y 0~16 | 这个面的左右都没有分支 |
+| 第一行第二个 | x 8~16，y 0~16 | 这个面的右边有分支 |
+| 第一行第三个 | x 16~24，y 0~12 | 这个面的左边是主柱（十二格高，给转向件用） |
+| 第二行第一个 | x 0~8，y 16~32 | 这个面的左边有分支 |
+| 第二行第二个 | x 8~16，y 16~32 | 这个面的两边都有分支 |
+| 第二行第三个 | x 16~24，y 16~28 | 这个面的右边是主柱 |
+
+「左右」按站在方块外面看这个面算（与 vanilla `FaceInfo` 的顶点顺序一致）：北面的左边是东、东面的左边是南、
+南面的左边是西、西面的左边是北。每个面取哪一条，取决于**该面左右两侧**有没有连出去的分支；
+转向件则看主柱在它哪一侧（`main_left` / `main_right`），其余面用「没有分支」那条；
+十二格高的那两条贴图是十六格那两条的镜像，所以转向件用它们时左右要反过来（生成脚本里对调的只有 `turn` 一支）。
+
+竖柱因此不是一个模型加状态，而是**按状态生成的一整套模型**：`tools/generate_fairy_dianthus_models.py`
+按上面的规则生成 20 份竖柱模型（`stem` 一份、`branch` 十五份、`turn` 四份）与 `blockstates/fairy_dianthus.json`
+的 multipart 条目；`tools/check_fairy_dianthus_connection.py` 反过来把每份模型的面换算回贴图区名字，
+并确认六条贴图区在 PNG 里整块不透明（漏空一眼就能看出来）。
+改贴图布局时先改生成脚本里的 `TILES`，再重跑脚本，不要手改模型。
+
+**连接柱与转向件的朝向由模型旋转给出**：示例里连接柱是 8×4×8 的盒子绕 X 轴转 90°。
+元素的 90° 旋转 vanilla 不支持，但**方块模型**级的 `x` / `y` 旋转支持（原版 `small_amethyst_bud`
+就是「模型朝上、靠 `x: 90` 转到正面」）。所以连接柱按示例**未旋转**的位置写（8×4×8，y 0~4、z 4~12），
+UV 取贴图里对应那条的横带，再由 blockstate 的 `x: 90` 加各方向的 `y` 转到位：南 `x: 90`、北 `x: 90, y: 180`、
+东 `x: 90, y: 90`、西 `x: 90, y: 270`。这样几何与 UV 一起被转。
+转向件按连接方向套 `y: 0/90/180/270`，底面朝向跟着主柱一起转。
+
+**侧面依附关系**：转向件必须靠着它连着的那一格（`FairyDianthusBlock#canSurvive` / `isSupport`）。
+主柱被挖掉时整根分支柱一起断；反过来主柱不依赖分支柱，它自己立在下面那格上。
+`getShape` 与 `getCollisionShape` 都是「柱子 ∪ 连接柱」，转向件的柱子按抬起后的 `TURN_STEM`（y 4~16）算，
+所以分支那几格的瞄准框与碰撞箱都比光秃秃的柱子宽，也不会框住底下那 4 像素的空气。
+
+**矮的那一种的偏移是一列一个，且由坐标决定**：`FairyDianthusSmallBlock.OFFSET`（0~3）选出
+`fairy_dianthus_small{,_1,_2,_3}` 四份模型，各自把柱子挪 1 像素。整根柱子共用同一个值——向上接的那一格从
+下面那格继承（`getStateForPlacement`），生成器给整根柱子写同一个值。
+
+`offsetFor` 是**坐标的纯函数**（位置哈希），不用随机源：客户端预测与服务端结算得到同一个值，
+所以放下去不会先显示原位再跳一下；同一格永远同一个值，重进存档也一样。
+
+**音效是仙人掌那套**：原版 `Blocks.CACTUS` 用的是 `SoundType.WOOL`，这里照抄。
+
+**物品栏**：两种物品的 `models/item/*.json` 直接父到基础状态的方块模型（`stem_0000`、`fairy_dianthus_small`），
+方块模型自己父到 `minecraft:block/block` 拿到手里的展示变换。
+
+**玩家摆放**：`item/FairyDianthusItem` 只在「点在高仙灵石竹的侧面」时接分支——
+被点那格打上朝该侧的连接（`FairyDianthusBlock#withStub`），相邻那格摆一个朝回主柱的转向件（`#turnBase`）。
+其余放置一律走原版 `BlockItem`，不会自动连邻居。
+
+**没有生物群系着色**：贴图自带颜色，模型上没有 `tintindex`，`DdtClient` 也没有为这两块注册取色器。
+
+`FairyDianthusTests` 盯这几件事：发光 10 且不生长、只长在沙土上、两种植物不能互相托住、
+只有高的有碰撞箱且连接柱参与瞄准框与碰撞、普通放置不连接且放出来是基础状态、点侧面只连一根、
+矮的那一列共用一个偏移、生成器的几何与「高的在那片之内」、带连接的格子是 `Part.BRANCH`、分支只从下半段出、
+两头连接都在。
+
+### 夜光灌木
+
+`dawnduskterminal:night_glow_bush`（夜光灌木）是蓝色沙漠里的一丛小灌木，摆法与分布都照原版枯死的灌木。
+贴图不是新画的：把原版 `minecraft:block/dead_bush` 的 16×16 复制进项目，按亮度把四档棕色换成仙灵石竹的配色
+（最暗是薄荷绿 `(64,255,194)`，最亮是白），落在 `textures/block/night_glow_bush.png`。
+
+**光照 7**（`NightGlowBushBlock.LIGHT`），并且贴图满亮度渲染（`Properties#emissiveRendering`），
+所以它在夜里也是一丛亮着的灌木。它不生长：没有 `randomTicks()`，也不接受骨粉。
+
+**摆放条件与原版枯死的灌木同一套**：底面判定用的是同一个方块标签 `#minecraft:dead_bush_may_place_on`
+（沙类、陶瓦、土类），脚下被挖掉时随之消失。方块属性也照抄原版：可被替换、无碰撞、一碰即碎、草类音效、
+随机 XZ 偏移。
+
+**分布与原版枯死的灌木完全一致**：`configured_feature/night_glow_bush.json` 是 `random_patch`，
+`tries` 4、`xz_spread` 7、`y_spread` 3，内层 `simple_block` 只往空气里放；
+`placed_feature/night_glow_bush.json` 是 `in_square` + `heightmap WORLD_SURFACE_WG` + `biome`。
+这两份文件逐字对应原版的 `patch_dead_bush`，只换了要放的方块。它挂在 `biome/blue_desert.json` 的
+`vegetal_decoration` 层末尾，紧挨着仙灵石竹。
+
+`NightGlowBushTests` 断言两件事：光照 7 且不生长；沙能托住、石头不能托住，且脚下消失时灌木随之消失。
+
+### 植物着色
+
+草方块与树叶的两套 tint 都由 `world/ChronoPlantTints` 决定，客户端取色器只负责把群系换成 ID。
+规则同时看**路径与命名空间**：只有 `dawnduskterminal:*` 下的副本会变，主世界的同名群系
+（`minecraft:sparse_jungle`、`minecraft:river` …）一律原样交回（`ChronoPlantTints.isChrono`）。
+只看路径会顺手改掉主世界，`ChronoPlantTintsTests.overworldBiomesKeepTheirOwnTint` 钉住这一条。
+
+规则有三条：
+
+- `sparse_jungle` 的草与树叶走暮色森林彩虹树叶那套公式，但把周期去掉了：原公式是
+  `hash(x) ^ 255`、`hash(z) ^ 255` 之类按坐标取色，32 格一回，远看就是一块块方砖。
+  现在改成三倍频值噪声（`RAINBOW_SCALE` 48、`RAINBOW_HUE_GAIN` 2.4、`RAINBOW_OCTAVE_RATIO` 2.07），
+  色相连续变化，`ChronoPlantTintsTests` 直接断言「相隔 1 格与相隔 512 格的颜色差没有分别」（没有可见周期）。
+- 两条河与九个海洋类群系（共 11 个路径）的草与树叶固定为 `portal_fluid` 的雾色 `0x7F159E`，
+  原色不参与计算；海滩不算在内。
+- 黑森林的树叶单独给一个暗红色 `0xE94E14`，其余群系原样。
+
+规则写在副本的路径上，因此这些群系必须留在 `palette_biomes` 标签里，`ChronoPlantTintsTests` 对此作出断言。
+仙灵石竹不参与群系着色：贴图自带颜色，模型上也没有 `tintindex`。
+
 ### 恶地只在昼区
 
 `dawnduskterminal:badlands` 一族沿用原版气候表中恶地所在的那几格，而恶地要求温度落入热档（`0.55 ~ 1.0`）。
@@ -373,7 +508,13 @@
 
 温度的晨昏线偏移不在此处实现，而是由群系源处理，详见「温带分带与温度映射」。
 
-`MineshaftHeightMixin` 与 `MineshaftChestLootMixin` 用于限制废弃矿井的高度并替换其战利品表。
+废弃矿井不再是「在原版结构上叠 mixin」，而是原版两份类的**副本**：`structure/ChronoMineshaftStructure`
+与 `structure/ChronoMineshaftPieces` 照原版逐行搬运（只改包名、注册名与下面几处刻意偏离），
+`structure/ChronoMineshaftWoods` 负责四套木材。副本自己能做的事绝不叠 mixin：
+原版的 `MineshaftHeightMixin`、`MineshaftChestLootMixin` 与四个木材 mixin 都已删除。
+
+刻意偏离只有这些：木材按地表群系选（见「废弃矿井」一节）、y 带限制在 `-64 ~ -10`、
+战利品表换成 `dawnduskterminal:chests/chrono_mineshaft`、`wood` 记在 NBT 上、`MineShaftPiece` 的构造函数可见性放开给测试。
 
 识别维度统一依靠噪声设置的 `default_fluid` 是否为 `portal_fluid`。
 
@@ -387,6 +528,26 @@
 `StructureExclusionMixin` 负责排除不在白名单之内的结构。
 
 同一文件中的 `UNMAPPED` 与 `LANDMARKS` 记录未放行的暮色森林结构与地标，它们仅服务于日志，不影响行为。
+
+### 废弃矿井
+
+废弃矿井是原版两份类的副本，不叠 mixin：`structure/ChronoMineshaftStructure` 与
+`structure/ChronoMineshaftPieces` 照原版逐行搬运，只改包名、注册名与下面几处刻意偏离。
+`data/dawnduskterminal/worldgen/structure/mineshaft.json` 的 `type` 指向 `dawnduskterminal:mineshaft`，
+四个件类型也各自注册在 `ModStructures` 下。
+
+**木材按地表群系选**（`structure/ChronoMineshaftWoods`）：取该区块地表群系，按下表映射到暮色森林的木种。
+未列出的情况一律暮色橡木。
+
+| 群系 | 木种 |
+|---|---|
+| `dark_forest`、`old_growth_birch_forest` | 黑木（`dark_wood`） |
+| 温度低于 0.15 的寒冷区域 | 苍穹木（`canopy_wood`） |
+| 沼泽类（`swamp`、`mangrove_swamp`） | 暮色森林的红树（`twilight_oak` 的沼泽套） |
+| 其余 | 暮色橡木（`twilight_oak_wood`） |
+
+刻意偏离原版的地方：y 带限制在 `-64 ~ -10`、战利品表换成 `dawnduskterminal:chests/chrono_mineshaft`、
+`wood` 记在 NBT 上、`MineShaftPiece` 的构造函数可见性放开给测试用。
 
 ### 高大暮色橡树
 
@@ -755,3 +916,5 @@ forest、birch_forest、old_growth_birch_forest、flower_forest、dark_forest、
 天光会被烘焙进区块，因此改动天光后，旧存档需要重新计算。
 
 `AquiferTests` 与 `WorldgenTests` 会对调色板与流体作出断言，改动之前应先查看相关测试。
+
+

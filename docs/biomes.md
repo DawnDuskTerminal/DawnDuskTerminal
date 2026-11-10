@@ -81,7 +81,7 @@
 |---|---|---|---|
 | `floatrees` | 天门 | 全维度 | 不经过替换表，采样深度低于 -1.6 时直接返回，早于 delegate |
 | `white_land` | 白地 | 昼区 `0.6 <= param < 0.8` | 裸地，地表 `siltstone`，恶魂支线 T2 |
-| `blue_desert` | 蓝色沙漠 | 极夜 `param <= -0.8` 的干湿度一半 | 蓝沙地，地表 `road_sand`，带雪 |
+| `blue_desert` | 蓝色沙漠 | 极夜 `param <= -0.8` 的干湿度一半 | 蓝沙地，地表 `road_sand`；不铺苍穹霜片；长仙灵石竹 |
 | `polar_dawn` | 极昼平原 | 极昼 `param >= 0.8` | 占位，内容依照白地 |
 | `polar_dusk` | 极夜平原 | 极夜 `param <= -0.8` | 占位，内容依照白地 |
 
@@ -151,3 +151,4 @@
 | 岩浆 | 热情的暮光 | `enthu_fluid` |
 | 冰 | 凝固的苍穹 | `frozen_canopy` |
 | 雪 | 苍穹霜 | `canopy_frost` |
+

@@ -1,0 +1,8 @@
+{
+  "variants": {
+    "offset=0": {"model": "dawnduskterminal:block/fairy_dianthus_small"},
+    "offset=1": {"model": "dawnduskterminal:block/fairy_dianthus_small_1"},
+    "offset=2": {"model": "dawnduskterminal:block/fairy_dianthus_small_2"},
+    "offset=3": {"model": "dawnduskterminal:block/fairy_dianthus_small_3"}
+  }
+}

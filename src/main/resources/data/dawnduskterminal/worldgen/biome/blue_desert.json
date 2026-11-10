@@ -80,7 +80,11 @@
       "dawnduskterminal:brown_mushroom_normal",
       "dawnduskterminal:red_mushroom_normal",
       "dawnduskterminal:patch_sugar_cane_desert",
-      "dawnduskterminal:patch_pumpkin"
+      "dawnduskterminal:patch_pumpkin",
+
+      "dawnduskterminal:fairy_dianthus",
+
+      "dawnduskterminal:night_glow_bush"
     ],
     [
       "dawnduskterminal:freeze_top_layer"
@@ -176,3 +180,5 @@
   },
   "temperature": -0.45
 }
+
+

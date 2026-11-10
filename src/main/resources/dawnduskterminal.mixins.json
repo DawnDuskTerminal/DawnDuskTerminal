@@ -13,8 +13,6 @@
     "FeatureSorterMixin",
     "LightEngineSkyLightMixin",
     "StructureExclusionMixin",
-    "MineshaftChestLootMixin",
-    "MineshaftHeightMixin",
     "PaintingVariantGuardMixin",
     "CraftingMenuMixin",
     "SkyIslandCloudMixin",
@@ -27,7 +25,7 @@
     "LevelSetBlockReactionMixin"
   ],
   "client": [
-    "BiomeColorsFoliageMixin",
+    "BiomeColorsPlantMixin",
     "ClientLevelSkyColorMixin",
     "ClientLevelTimeOfDayMixin",
     "ExperimentArmorGlowMixin",

@@ -1,9 +1,13 @@
 package com.dawnduskterminal.world;
 
+import com.dawnduskterminal.DawnDuskTerminal;
 import com.dawnduskterminal.registry.ModBlocks;
 import com.dawnduskterminal.registry.ModTerrainBlocks;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.Holder;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.WorldGenLevel;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.block.SnowyDirtBlock;
@@ -22,8 +26,15 @@ import net.minecraft.world.level.levelgen.feature.configurations.NoneFeatureConf
  *
  * <p>一处有意为之的差异：原版问的是 {@code Biome#shouldFreeze}，它判断水的流体标签。本维度的水是
  * portal_fluid，不在那个标签里，所以这里也对着我们自己的流体判断，否则调色板的冰永远不会出现
+ *
+ * <p>蓝色沙漠（地表是路之沙的那片沙地）是例外：那里<b>不铺苍穹霜片</b>。它的气温低到原版会下雪，
+ * 但设定上那是一片裸沙，雪片会把它盖成雪原；冰仍然照冻，只有霜片这一支被跳过
  */
 public class ChronoFreezeFeature extends Feature<NoneFeatureConfiguration> {
+    /** 地表是路之沙的沙漠：不铺霜片 */
+    private static final ResourceKey<Biome> BARE_SAND_DESERT =
+            ResourceKey.create(Registries.BIOME, DawnDuskTerminal.id("blue_desert"));
+
     public ChronoFreezeFeature() {
         super(NoneFeatureConfiguration.CODEC);
     }
@@ -41,7 +52,8 @@ public class ChronoFreezeFeature extends Feature<NoneFeatureConfiguration> {
                 int z = origin.getZ() + dz;
                 top.set(x, level.getHeight(Heightmap.Types.MOTION_BLOCKING, x, z), z);
                 below.set(top).move(Direction.DOWN, 1);
-                Biome biome = level.getBiome(top).value();
+                Holder<Biome> biomeHolder = level.getBiome(top);
+                Biome biome = biomeHolder.value();
 
                 // 原版 shouldFreeze 分两段：温度与降水的门槛，再判断水的流体标签。这里把门槛改用在我
                 // 们自己的流体上，而不是绕过它，否则每个群系里每片流体表面，包括温暖群系，都会冻上
@@ -52,7 +64,9 @@ public class ChronoFreezeFeature extends Feature<NoneFeatureConfiguration> {
                     level.setBlock(below, ModTerrainBlocks.FROZEN_CANOPY.get().defaultBlockState(), 2);
                 }
 
-                if (biome.shouldSnow(level, top)) {
+                // 裸沙的那片沙漠不铺霜：它的气温照样低到会下雪，但设定上地面就是一片路之沙
+                boolean bareSand = biomeHolder.is(BARE_SAND_DESERT);
+                if (!bareSand && biome.shouldSnow(level, top)) {
                     level.setBlock(top, ModTerrainBlocks.CANOPY_FROST.get().defaultBlockState(), 2);
                     BlockState under = level.getBlockState(below);
                     if (under.hasProperty(SnowyDirtBlock.SNOWY)) {

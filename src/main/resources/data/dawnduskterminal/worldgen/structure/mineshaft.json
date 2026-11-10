@@ -1,0 +1,6 @@
+{
+  "type": "dawnduskterminal:mineshaft",
+  "biomes": "#dawnduskterminal:has_structure/mineshaft",
+  "spawn_overrides": {},
+  "step": "underground_structures"
+}

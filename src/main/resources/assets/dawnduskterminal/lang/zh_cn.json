@@ -142,6 +142,9 @@
   "block.dawnduskterminal.hollow_skygate_pine_log_climbable": "空心天门松原木",
   "block.dawnduskterminal.skygate_pine_leaves": "天门松树叶",
   "block.dawnduskterminal.skygate_pine_sapling": "天门松树苗",
+  "block.dawnduskterminal.fairy_dianthus": "大仙灵石竹",
+  "block.dawnduskterminal.night_glow_bush": "夜光灌木",
+  "block.dawnduskterminal.fairy_dianthus_small": "小仙灵石竹",
   "biome.dawnduskterminal.floatrees": "天门",
   "block.dawnduskterminal.carid_ore": "卡里德矿",
   "item.dawnduskterminal.carid": "卡里德",
@@ -403,3 +406,5 @@
   "subtitles.dawnduskterminal.expowheel_shoot": "博览轮舞发射",
   "subtitles.dawnduskterminal.expowheel_ambient": "博览轮舞回旋"
 }
+
+

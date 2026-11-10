@@ -75,6 +75,9 @@ public final class ModCreativeTabs {
                         accept(output, ModTerrainBlocks.HOLLOW_SKYGATE_PINE_LOG_ITEM.get());
                         accept(output, ModTerrainBlocks.SKYGATE_PINE_LEAVES_ITEM.get());
                         accept(output, ModTerrainBlocks.SKYGATE_PINE_SAPLING_ITEM.get());
+                        accept(output, ModTerrainBlocks.FAIRY_DIANTHUS_ITEM.get());
+                        accept(output, ModTerrainBlocks.FAIRY_DIANTHUS_SMALL_ITEM.get());
+                        accept(output, ModTerrainBlocks.NIGHT_GLOW_BUSH_ITEM.get());
                         accept(output, ModTerrainBlocks.SCARLET_MOLYBDENUM_ORE_ITEM.get());
                         accept(output, ModChronoOres.DEEP_SCARLET_ITEM.get());
                         accept(output, ModChronoOres.CARID_ORE_ITEM.get());
