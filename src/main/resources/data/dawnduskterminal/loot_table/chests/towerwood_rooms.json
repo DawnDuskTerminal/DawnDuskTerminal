@@ -1,0 +1,99 @@
+{
+  "type": "minecraft:chest",
+  "pools": [
+    {
+      "rolls": 1.0,
+      "entries": [
+        {
+          "type": "minecraft:loot_table",
+          "value": "twilightforest:chests/tower_room"
+        }
+      ]
+    },
+    {
+      "rolls": 1.0,
+      "entries": [
+        {
+          "type": "minecraft:item",
+          "name": "dawnduskterminal:experiment_001"
+        },
+        {
+          "type": "minecraft:item",
+          "name": "dawnduskterminal:experiment_002"
+        },
+        {
+          "type": "minecraft:item",
+          "name": "dawnduskterminal:experiment_003"
+        },
+        {
+          "type": "minecraft:item",
+          "name": "dawnduskterminal:experiment_004"
+        },
+        {
+          "type": "minecraft:item",
+          "name": "dawnduskterminal:experiment_005"
+        },
+        {
+          "type": "minecraft:item",
+          "name": "dawnduskterminal:experiment_006"
+        },
+        {
+          "type": "minecraft:item",
+          "name": "dawnduskterminal:experiment_007"
+        },
+        {
+          "type": "minecraft:item",
+          "name": "dawnduskterminal:experiment_008"
+        },
+        {
+          "type": "minecraft:item",
+          "name": "dawnduskterminal:experiment_009"
+        },
+        {
+          "type": "minecraft:item",
+          "name": "dawnduskterminal:experiment_010"
+        },
+        {
+          "type": "minecraft:item",
+          "name": "dawnduskterminal:experiment_011"
+        },
+        {
+          "type": "minecraft:item",
+          "name": "dawnduskterminal:experiment_012"
+        },
+        {
+          "type": "minecraft:item",
+          "name": "dawnduskterminal:experiment_013"
+        },
+        {
+          "type": "minecraft:item",
+          "name": "dawnduskterminal:experiment_014"
+        },
+        {
+          "type": "minecraft:item",
+          "name": "dawnduskterminal:experiment_015"
+        },
+        {
+          "type": "minecraft:item",
+          "name": "dawnduskterminal:experiment_016"
+        },
+        {
+          "type": "minecraft:item",
+          "name": "dawnduskterminal:experiment_017"
+        },
+        {
+          "type": "minecraft:item",
+          "name": "dawnduskterminal:experiment_018"
+        },
+        {
+          "type": "minecraft:item",
+          "name": "dawnduskterminal:experiment_019"
+        },
+        {
+          "type": "minecraft:item",
+          "name": "dawnduskterminal:experiment_020"
+        }
+      ]
+    }
+  ]
+}

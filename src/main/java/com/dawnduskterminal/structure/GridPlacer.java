@@ -253,7 +253,8 @@ public final class GridPlacer {
      * <p>分法对着「看的时候想比什么」：
      *
      * <ul>
-     *   <li>{@code ceiling/*} 与 {@code floor/*} 合成一组，按体型分——天花板和楼板本来就是同一层的两面；
+     *   <li>{@code ceiling/*} 与 {@code floor/*} 合成一组，按体型分——天花板和楼板本来就是同一层的两面
+     *       （按体型的平铺楼板 {@code floor/<体型>} 也算这一组，与 {@code ceiling/<体型>} 排在一起）；
      *   <li>{@code room/} 默认按体型分（家具房是主角，同一体型的家具排在一起才好比）；
      *   <li>空地房、宝箱房、以及上下楼的几种房间（绳梯、楼梯、楼梯口、掉落口）不多，单独各占一块，
      *       不再按体型分；
@@ -277,6 +278,9 @@ public final class GridPlacer {
             return family + "/shaft/" + roleOf(name);
         }
         if (parts.length >= 3 && parts[parts.length - 2].equals("ceiling")) {
+            return family + "/ceiling+floor/" + name;
+        }
+        if (parts.length >= 3 && parts[parts.length - 2].equals("floor")) {
             return family + "/ceiling+floor/" + name;
         }
         if (parts.length >= 2 && parts[parts.length - 2].equals("wall")) {

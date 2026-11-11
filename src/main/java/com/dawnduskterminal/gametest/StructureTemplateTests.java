@@ -5,11 +5,15 @@ import com.dawnduskterminal.structure.BandProcessor;
 import com.dawnduskterminal.structure.GridPlacer;
 import com.dawnduskterminal.structure.GridStructure;
 import com.dawnduskterminal.structure.StructureExclusions;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -17,8 +21,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.HolderGetter;
 import net.minecraft.core.SectionPos;
 import net.minecraft.core.Vec3i;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -28,13 +34,18 @@ import net.minecraft.nbt.NbtAccounter;
 import net.minecraft.nbt.NbtIo;
 import net.minecraft.nbt.NbtOps;
 import net.minecraft.nbt.Tag;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.RandomizableContainer;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.entity.vehicle.MinecartChest;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.StructureManager;
 import net.minecraft.world.level.WorldGenLevel;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.Rotation;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.ChunkGenerator;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.levelgen.structure.PoolElementStructurePiece;
@@ -50,6 +61,8 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureProc
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureProcessorType;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager;
+import net.minecraft.world.level.storage.loot.LootTable;
+import net.minecraft.world.phys.AABB;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 import twilightforest.init.TFBlocks;
@@ -264,7 +277,7 @@ public final class StructureTemplateTests {
                     chestRooms++;
                 }
                 // 层数用「房间件的落笔行」数：每层所有房间件都在 origin + k*5 + 4 这一行，
-                // 而 `ceiling/*` 同时被当成地板件用，按它数会把每层数成两层
+                // 地板、天花板、地基各自成件，按它们数会把每层数成好几层
                 if (id.contains("room/")) {
                     roomHeights.add(piece.getBoundingBox().minY());
                     if (id.contains("/empty")) {
@@ -578,15 +591,15 @@ public final class StructureTemplateTests {
         helper.succeed();
     }
 
-    /** 宝箱房里自带两辆宝箱矿车：哪次重新导出漏掉实体，这条会先报出来 */
+    /** 带机关的那间房里自带两辆宝箱矿车：哪次重新导出漏掉实体，这条会先报出来 */
     @GameTest(template = "ddt_empty")
-    public static void chestRoomKeepsItsMinecarts(GameTestHelper helper) {
-        String path = "/data/dawnduskterminal/structure/towerwood_rooms/room/rect/chest_01.nbt";
+    public static void furnRoomKeepsItsMinecarts(GameTestHelper helper) {
+        String path = "/data/dawnduskterminal/structure/towerwood_rooms/room/rect/furn_06.nbt";
         try (InputStream in = StructureTemplateTests.class.getResourceAsStream(path)) {
-            helper.assertTrue(in != null, "找不到宝箱房件 " + path);
+            helper.assertTrue(in != null, "找不到机关房件 " + path);
             CompoundTag root = NbtIo.readCompressed(in, NbtAccounter.unlimitedHeap());
             ListTag entities = root.getList("entities", Tag.TAG_COMPOUND);
-            helper.assertTrue(entities.size() == 2, "宝箱房应当带两辆矿车，实际 " + entities.size() + " 个实体");
+            helper.assertTrue(entities.size() == 2, "熔炉房应当带两辆矿车，实际 " + entities.size() + " 个实体");
             for (int i = 0; i < entities.size(); i++) {
                 // 件里的实体是 {pos, blockPos, nbt} 三件套，id 在内层 nbt 里
                 CompoundTag nbt = entities.getCompound(i).getCompound("nbt");
@@ -598,8 +611,195 @@ public final class StructureTemplateTests {
                 helper.assertFalse(nbt.contains("neoforge:attachments"), "矿车不该带开发期模组的附着数据");
             }
         } catch (IOException error) {
-            throw new AssertionError("宝箱房件读不出来", error);
+            throw new AssertionError("机关房件读不出来", error);
         }
+        helper.succeed();
+    }
+
+    /**
+     * 同一格的房间件只落一遍
+     *
+     * <p>以前房间件落两遍：空气一遍（内空靠件里存的空气清）、实体方块一遍。多出来那遍的代价有两个：
+     * 箱子这类带 nbt 的方块第二遍会先清旧方块实体再盖 barrier，第一遍已经 roll 好的内容物被抖到地上；
+     * 件里的实体会被 spawn 两次（处理器只管方块，管不到实体），件里两辆宝箱矿车变成四辆。
+     * 现在内空由 `air/<体型>` 清，房间件只在实体方块那一遍落一次——件列表里每格正好一条。
+     */
+    @GameTest(template = "ddt_empty")
+    public static void roomsPlaceExactlyOnce(GameTestHelper helper) {
+        int rooms = 0;
+        for (String name : List.of("grid_rooms", "towerwood_rooms")) {
+            GridStructure grid = gridStructure(helper, name);
+            for (int i = 0; i < 8; i++) {
+                StructureStart start = generate(helper, grid, 18000L + i, new ChunkPos(i * 19 + 11, 37));
+                helper.assertTrue(start.isValid(), name + " 第 " + i + " 座应当生成出来");
+                Map<String, Integer> passes = new HashMap<>();
+                for (PoolElementStructurePiece piece : poolPieces(start)) {
+                    String path = path(piece);
+                    if (!path.contains("/room/")) {
+                        continue;
+                    }
+                    BoundingBox box = piece.getBoundingBox();
+                    passes.merge(path + "@" + box.minX() + "," + box.minY() + "," + box.minZ(), 1, Integer::sum);
+                    rooms++;
+                }
+                for (Map.Entry<String, Integer> entry : passes.entrySet()) {
+                    helper.assertTrue(
+                            entry.getValue() == 1,
+                            name + " 的 " + entry.getKey() + " 落了 " + entry.getValue() + " 遍（房间件只该落一遍实体方块）");
+                }
+            }
+        }
+        helper.assertTrue(rooms > 0, "一座房间件都没数到，这条用例证明不了什么");
+        helper.succeed();
+    }
+
+    /**
+     * 这间机关房摆进世界后不该有东西弹出来
+     *
+     * <p>件里是一整套红石机关：拉杆、红石块、动力铁轨、漏斗、熔炉、两辆宝箱矿车。
+     * 拉杆这类需要附着面的方块，附着面没落上就会在摆完的方块更新里自己弹掉，变成地上的掉落物；
+     * 房间件落两遍也会把箱子第一遍的内容物抖出来。实机里看到的就是「箱子附近散着东西」。
+     * 这里真把件摆进世界、跑几 tick，数一遍掉落物。
+     *
+     * <p>顺带钉住另外两件事：箱子带着 loot 表（否则开出来是空的），件里两辆矿车世界里也只有两辆。
+     */
+    @GameTest(template = "ddt_empty")
+    public static void furnRoomPlacesNothingThatPops(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        StructureTemplateManager templates = level.getStructureManager();
+        ChunkGenerator generator = level.getChunkSource().getGenerator();
+        BlockPos anchor = helper.absolutePos(new BlockPos(2, 4, 2));
+        ChunkPos chunkPos = new ChunkPos(anchor);
+        BoundingBox area = writableArea(level, chunkPos);
+        BlockPos min = new BlockPos(area.minX() + 1, anchor.getY(), area.minZ() + 1);
+        PoolElementStructurePiece room =
+                piece(templates, DawnDuskTerminal.id("towerwood_rooms/room/rect/furn_06"), min);
+        room.postProcess(level, level.structureManager(), generator, level.random, area, chunkPos, min);
+
+        BoundingBox box = room.getBoundingBox();
+        boolean chest = false;
+        for (BlockPos cursor :
+                BlockPos.betweenClosed(box.minX(), box.minY(), box.minZ(), box.maxX(), box.maxY(), box.maxZ())) {
+            if (level.getBlockEntity(cursor) instanceof RandomizableContainer container) {
+                chest |= container.getLootTable() != null;
+            }
+        }
+        helper.assertTrue(chest, "机关房的箱子应当带着 loot 表（否则开出来是空的）");
+
+        // 件里两辆宝箱矿车、两段动力铁轨（局部 (3,2,1) 与 (2,3,1)）。
+        // 摆一遍就该只有两辆；多出来说明同一条实体被 spawn 了两次
+        AABB reach = new AABB(
+                min.getX() - 2, min.getY() - 2, min.getZ() - 2, min.getX() + 7, min.getY() + 8, min.getZ() + 9);
+        helper.assertTrue(level.getEntitiesOfClass(MinecartChest.class, reach).size() == 2, "件里两辆宝箱矿车，世界里应当也是两辆");
+
+        helper.runAfterDelay(5, () -> {
+            List<ItemEntity> popped = level.getEntitiesOfClass(
+                    ItemEntity.class,
+                    new AABB(
+                            box.minX() - 2,
+                            box.minY() - 2,
+                            box.minZ() - 2,
+                            box.maxX() + 3,
+                            box.maxY() + 3,
+                            box.maxZ() + 3));
+            helper.assertTrue(
+                    popped.isEmpty(),
+                    "机关房摆完有东西弹出来了："
+                            + popped.stream()
+                                    .map(entity -> entity.getItem().toString())
+                                    .toList());
+            // 两段铁轨还在原位、还是动力铁轨。形状不看：这两段一格高、一格西（(3,2,1) 与 (2,3,1)），
+            // 原版铁轨 onPlace 会自己算成 ascending_west 的坡（与 setBlock 的 update flags 无关），
+            // 件里写的 north_south 保不住。要两段各自平放得挪件，见 docs/worldgen.md
+            for (BlockPos rail : List.of(min.offset(3, 2, 1), min.offset(2, 3, 1))) {
+                BlockState state = level.getBlockState(rail);
+                helper.assertTrue(state.is(Blocks.POWERED_RAIL), rail + " 应当是动力铁轨，实际 " + state);
+            }
+            helper.assertTrue(
+                    level.getEntitiesOfClass(MinecartChest.class, reach).size() == 2, "跑了几 tick 之后宝箱矿车应当还是两辆");
+            helper.succeed();
+        });
+    }
+
+    /**
+     * 宝箱里装什么全看件里写的那张 loot 表，件里只存一个 id，写错不会报错、箱子只是空的
+     *
+     * <p>两件事一起钉：
+     *
+     * <ul>
+     *   <li>件里的宝箱写的 {@code LootTable} 必须在注册表里；
+     *   <li>模组自己那几张宝箱表里引用的每个 item / 嵌套表都要解析得开——20 个试验物品是逐个手写的，
+     *       写错一个号不会报错，只会少一样东西。
+     * </ul>
+     */
+    @GameTest(template = "ddt_empty")
+    public static void chestLootTablesResolve(GameTestHelper helper) {
+        HolderGetter<LootTable> tables =
+                helper.getLevel().getServer().reloadableRegistries().lookup().lookupOrThrow(Registries.LOOT_TABLE);
+        // 件里的宝箱：件路径 → 里面应当写的那张表
+        Map<String, String> pieces = Map.of(
+                "/data/dawnduskterminal/structure/grid_rooms/room/rect/chest.nbt",
+                "chests/grid_rooms",
+                "/data/dawnduskterminal/structure/towerwood_rooms/room/rect/chest_02.nbt",
+                "chests/towerwood_rooms",
+                "/data/dawnduskterminal/structure/towerwood_rooms/room/rect/furn_06.nbt",
+                "chests/towerwood_furnace");
+        for (Map.Entry<String, String> entry : pieces.entrySet()) {
+            String expected = DawnDuskTerminal.id(entry.getValue()).toString();
+            try (InputStream in = StructureTemplateTests.class.getResourceAsStream(entry.getKey())) {
+                helper.assertTrue(in != null, "找不到件 " + entry.getKey());
+                CompoundTag root = NbtIo.readCompressed(in, NbtAccounter.unlimitedHeap());
+                ListTag blocks = root.getList("blocks", Tag.TAG_COMPOUND);
+                boolean found = false;
+                for (int i = 0; i < blocks.size(); i++) {
+                    String table = blocks.getCompound(i).getCompound("nbt").getString("LootTable");
+                    if (table.isEmpty()) {
+                        continue;
+                    }
+                    found |= expected.equals(table);
+                    helper.assertTrue(
+                            tables.get(ResourceKey.create(Registries.LOOT_TABLE, ResourceLocation.parse(table)))
+                                    .isPresent(),
+                            entry.getKey() + " 的宝箱指向 " + table + "，这张表不在注册表里");
+                }
+                helper.assertTrue(found, entry.getKey() + " 的宝箱里没有写 " + expected);
+            } catch (IOException error) {
+                throw new AssertionError(entry.getKey() + " 读不出来", error);
+            }
+        }
+        // 我们自己那几张表的内容：每个 item 与嵌套表都要能解析
+        int checked = 0;
+        for (String name : List.of("chests/grid_rooms", "chests/towerwood_rooms", "chests/towerwood_furnace")) {
+            String resource = "/data/dawnduskterminal/loot_table/" + name + ".json";
+            try (InputStream in = StructureTemplateTests.class.getResourceAsStream(resource)) {
+                helper.assertTrue(in != null, "找不到 " + resource);
+                JsonObject json = JsonParser.parseString(new String(in.readAllBytes(), StandardCharsets.UTF_8))
+                        .getAsJsonObject();
+                for (JsonElement pool : json.getAsJsonArray("pools")) {
+                    for (JsonElement element : pool.getAsJsonObject().getAsJsonArray("entries")) {
+                        JsonObject loot = element.getAsJsonObject();
+                        String type = loot.get("type").getAsString();
+                        if ("minecraft:item".equals(type)) {
+                            ResourceLocation id =
+                                    ResourceLocation.parse(loot.get("name").getAsString());
+                            helper.assertTrue(BuiltInRegistries.ITEM.containsKey(id), name + " 里的物品 " + id + " 没有注册");
+                            checked++;
+                        } else if ("minecraft:loot_table".equals(type)) {
+                            ResourceLocation id =
+                                    ResourceLocation.parse(loot.get("value").getAsString());
+                            helper.assertTrue(
+                                    tables.get(ResourceKey.create(Registries.LOOT_TABLE, id))
+                                            .isPresent(),
+                                    name + " 引用的表 " + id + " 不在注册表里");
+                            checked++;
+                        }
+                    }
+                }
+            } catch (IOException error) {
+                throw new AssertionError(resource + " 读不出来", error);
+            }
+        }
+        helper.assertTrue(checked > 20, "样本太少，只检查到 " + checked + " 条 loot 项");
         helper.succeed();
     }
 
@@ -736,6 +936,301 @@ public final class StructureTemplateTests {
         return manager.get(DawnDuskTerminal.id(grid.templates() + "/" + relative))
                 .orElseThrow(() -> new IllegalStateException(relative + " 不存在"))
                 .getSize();
+    }
+
+    /**
+     * 每格都有一件地板、一件天花板，而且与格子同样大
+     *
+     * <p>地板与天花板是两套件：天花是倒扣台阶，地板是平铺板材。平层的楼板曾经回落到
+     * `ceiling/<体型>`，于是脚底下铺的是天花纹；件被重新导出成小一圈（内角件导成 6×6）时，
+     * 世界里只是角落缺一格，不会报任何错。这里按包围盒把两条一起钉住：
+     * 每个房间件下面一格有 `floor/*`、上面四格有 `ceiling/*`，且两件的 x/z 跨度与房间件相同。
+     */
+    @GameTest(template = "ddt_empty")
+    public static void everyCellHasAFloorAndACeiling(GameTestHelper helper) {
+        for (String name : List.of("grid_rooms", "towerwood_rooms")) {
+            GridStructure grid = gridStructure(helper, name);
+            for (int i = 0; i < 6; i++) {
+                StructureStart start = generate(helper, grid, 13000L + i, new ChunkPos(i * 13 + 5, 17));
+                helper.assertTrue(start.isValid(), name + " 第 " + i + " 座应当生成出来");
+                List<PoolElementStructurePiece> pieces = poolPieces(start);
+                int cells = 0;
+                for (PoolElementStructurePiece room : pieces) {
+                    BoundingBox box = room.getBoundingBox();
+                    if (!path(room).contains("/room/")) {
+                        continue;
+                    }
+                    assertPlane(helper, name, pieces, box, box.minY() - 1, "/floor/");
+                    assertPlane(helper, name, pieces, box, box.minY() + 4, "/ceiling/");
+                    cells++;
+                }
+                helper.assertTrue(cells > 0, name + " 第 " + i + " 座应当摆出房间件");
+            }
+        }
+        helper.succeed();
+    }
+
+    /** 与这一格同位置、同一行的那件楼板/天花板，尺寸必须是格子尺寸 */
+    private static void assertPlane(
+            GameTestHelper helper,
+            String grid,
+            List<PoolElementStructurePiece> pieces,
+            BoundingBox room,
+            int y,
+            String kind) {
+        for (PoolElementStructurePiece piece : pieces) {
+            BoundingBox box = piece.getBoundingBox();
+            if (box.minY() != y
+                    || box.minX() != room.minX()
+                    || box.minZ() != room.minZ()
+                    || !path(piece).contains(kind)) {
+                continue;
+            }
+            helper.assertTrue(
+                    box.getXSpan() == room.getXSpan() && box.getZSpan() == room.getZSpan(),
+                    grid + " 的 " + path(piece) + " 应当与格子同宽同深（" + room.getXSpan() + "x" + room.getZSpan() + "），实际 "
+                            + box);
+            return;
+        }
+        helper.assertTrue(false, grid + " 的格子 " + room + " 在 y=" + y + " 没有 " + kind + " 件（平层楼板是不是又回落到 ceiling 了）");
+    }
+
+    /**
+     * 楼梯两端的邻格必须是空地房
+     *
+     * <p>楼梯件沿长边从一头走到另一头：本层两端是进出口，上一层两端是下楼口，共四格。
+     * `markStairEnds` 把这四格记成「必须是空地房」，但它算邻格时拿的是楼梯格自己的跨度，
+     * 而一行里的跨度是 5、7、5 混排，往负方向那一侧整整差 2 格，查出来永远是 null——
+     * 家具照旧摆进进出口。这里按包围盒找邻格，与 `GridFrame#adjacent` 判据一致：
+     * 端上确实有房间，就必须是 `/empty`（凹角格例外，见下）；被切掉的角上没有房间，跳过。
+     */
+    @GameTest(template = "ddt_empty")
+    public static void stairEndsAreEmptyRooms(GameTestHelper helper) {
+        int ends = 0;
+        for (String name : List.of("grid_rooms", "towerwood_rooms")) {
+            GridStructure grid = gridStructure(helper, name);
+            for (int i = 0; i < 8; i++) {
+                StructureStart start = generate(helper, grid, 14000L + i, new ChunkPos(i * 11 + 4, 19));
+                helper.assertTrue(start.isValid(), name + " 第 " + i + " 座应当生成出来");
+                List<PoolElementStructurePiece> pieces = poolPieces(start);
+                for (PoolElementStructurePiece stair : pieces) {
+                    BoundingBox box = stair.getBoundingBox();
+                    if (!path(stair).contains("/room/")
+                            || !hasPiece(pieces, "/floor/rect/stairtop", box.minX(), box.minY() + 4, box.minZ())) {
+                        continue;
+                    }
+                    // 楼梯沿长边走：件是 5×7，转过 90 度就是 7×5
+                    boolean alongZ = box.getZSpan() > box.getXSpan();
+                    for (int sign = -1; sign <= 1; sign += 2) {
+                        for (int dy = 0; dy <= 5; dy += 5) {
+                            PoolElementStructurePiece end = endAt(pieces, box, alongZ, sign, box.minY() + dy);
+                            if (end == null) {
+                                continue;
+                            }
+                            // 凹角格只有 `room/inner_corner/corner` 一件，格内只有凹角那一道石阶与栏杆、没有家具，
+                            // 本身就能走，`pickRoom` 对凹角格也直接用它（没有 `inner_corner/empty` 那件）
+                            String endPath = path(end);
+                            helper.assertTrue(
+                                    endPath.contains("/empty") || endPath.contains("/inner_corner/corner"),
+                                    name + " 楼梯 " + box + " 的进出口应当换成空地房，实际是 " + endPath);
+                            ends++;
+                        }
+                    }
+                }
+            }
+        }
+        helper.assertTrue(ends > 4, "样本太少，只检查到 " + ends + " 个楼梯进出口");
+        helper.succeed();
+    }
+
+    /** 这一格在 {@code (alongZ ? z : x)} 方向那一侧的邻格：共用框架线的两件在包围盒上重叠一行/一列 */
+    private static PoolElementStructurePiece endAt(
+            List<PoolElementStructurePiece> pieces, BoundingBox cell, boolean alongZ, int sign, int y) {
+        for (PoolElementStructurePiece piece : pieces) {
+            if (!path(piece).contains("/room/")) {
+                continue;
+            }
+            BoundingBox box = piece.getBoundingBox();
+            if (box.minY() != y) {
+                continue;
+            }
+            if (alongZ) {
+                boolean touches = sign < 0 ? box.maxZ() == cell.minZ() : box.minZ() == cell.maxZ();
+                if (touches && span(box.minX(), box.maxX(), cell.minX(), cell.maxX()) >= 2) {
+                    return piece;
+                }
+            } else {
+                boolean touches = sign < 0 ? box.maxX() == cell.minX() : box.minX() == cell.maxX();
+                if (touches && span(box.minZ(), box.maxZ(), cell.minZ(), cell.maxZ()) >= 2) {
+                    return piece;
+                }
+            }
+        }
+        return null;
+    }
+
+    /** 两段闭区间重叠几格 */
+    private static int span(int minA, int maxA, int minB, int maxB) {
+        return Math.min(maxA, maxB) - Math.max(minA, minB) + 1;
+    }
+
+    /**
+     * 底层的楼梯格也要有地基
+     *
+     * <p>`baseOf` 曾经对楼梯格返回 null，理由是「没有往下跨越的结构」——那说的是绳梯。
+     * 后果是底层楼梯那一格悬在土里：从下面、从侧面看都是个洞。地基的顶行贴在楼板下面一行，
+     * 所以这里只按「同一格、顶行 = 房间件下面两行」找；上层格子不摆地基（下面是室内），不看。
+     */
+    @GameTest(template = "ddt_empty")
+    public static void stairRoomsSitOnABase(GameTestHelper helper) {
+        int checked = 0;
+        for (String name : List.of("grid_rooms", "towerwood_rooms")) {
+            GridStructure grid = gridStructure(helper, name);
+            for (int i = 0; i < 8; i++) {
+                StructureStart start = generate(helper, grid, 15000L + i, new ChunkPos(i * 9 + 3, 23));
+                helper.assertTrue(start.isValid(), name + " 第 " + i + " 座应当生成出来");
+                List<PoolElementStructurePiece> pieces = poolPieces(start);
+                int lowest = Integer.MAX_VALUE;
+                for (PoolElementStructurePiece piece : pieces) {
+                    if (path(piece).contains("/room/")) {
+                        lowest = Math.min(lowest, piece.getBoundingBox().minY());
+                    }
+                }
+                for (PoolElementStructurePiece stair : pieces) {
+                    BoundingBox box = stair.getBoundingBox();
+                    if (!path(stair).contains("/room/")
+                            || box.minY() != lowest
+                            || !hasPiece(pieces, "/floor/rect/stairtop", box.minX(), box.minY() + 4, box.minZ())) {
+                        continue;
+                    }
+                    boolean base = false;
+                    for (PoolElementStructurePiece piece : pieces) {
+                        BoundingBox below = piece.getBoundingBox();
+                        base |= path(piece).contains("/base/")
+                                && below.maxY() == box.minY() - 2
+                                && Math.abs(below.minX() - box.minX()) <= 1
+                                && Math.abs(below.minZ() - box.minZ()) <= 1;
+                    }
+                    helper.assertTrue(base, name + " 的底层楼梯格 " + box + " 下面没有地基");
+                    checked++;
+                }
+            }
+        }
+        helper.assertTrue(checked > 3, "样本太少，只检查到 " + checked + " 个底层楼梯格");
+        helper.succeed();
+    }
+
+    /**
+     * 凹角格最后落笔：同一层里凹角的天花板件排在其他天花板件后面
+     *
+     * <p>凹角件在凹口那一角摆的方块（塔木那族是警示塔木）压在两条框架线上，而紧邻的两格自己也要画
+     * 那两条线，谁后摆谁赢。排在前面的位置上，凹角那一角就被邻居的框架盖掉了。
+     *
+     * <p>只看天花板件：房间件另有一遍「带边框家具的格子最后再落一次」（`placeBorder`），
+     * 那一遍故意把普通房间件排到最后，拿房间件比顺序会误报。
+     *
+     * <p>一件分两遍落（空气一遍、实体方块一遍），同一格的天花板件因此出现两次；按行分组只看最后一件，
+     * 两遍各自都应该以凹角件收尾。
+     */
+    @GameTest(template = "ddt_empty")
+    public static void innerCornerCeilingsArePlacedLast(GameTestHelper helper) {
+        int corners = 0;
+        for (String name : List.of("grid_rooms", "towerwood_rooms")) {
+            GridStructure grid = gridStructure(helper, name);
+            for (int i = 0; i < 6; i++) {
+                StructureStart start = generate(helper, grid, 16000L + i, new ChunkPos(i * 15 + 7, 29));
+                helper.assertTrue(start.isValid(), name + " 第 " + i + " 座应当生成出来");
+                // 行 → 那一行最后一件天花板件的路径，以及那一行天花板件的最大序号
+                Map<Integer, String> lastCeiling = new HashMap<>();
+                Map<Integer, Integer> lastCeilingIndex = new HashMap<>();
+                Set<Integer> cornerRows = new HashSet<>();
+                List<PoolElementStructurePiece> pieces = poolPieces(start);
+                for (int index = 0; index < pieces.size(); index++) {
+                    PoolElementStructurePiece piece = pieces.get(index);
+                    String path = path(piece);
+                    if (!path.contains("/ceiling/")) {
+                        continue;
+                    }
+                    int y = piece.getBoundingBox().minY();
+                    lastCeiling.put(y, path);
+                    lastCeilingIndex.put(y, index);
+                    if (path.contains("inner_corner")) {
+                        cornerRows.add(y);
+                    }
+                }
+                for (int y : cornerRows) {
+                    helper.assertTrue(
+                            lastCeiling.get(y).contains("inner_corner"),
+                            name + " 第 " + i + " 座的 y=" + y + " 那层最后摆的天花板是 " + lastCeiling.get(y) + "，凹角那一角会被它盖掉");
+                    // 同一层墙件的落笔行比天花板低 4 格（+4 vs +8），墙的最上一行正是錾制/封装塔木梁；
+                    // 凹角天花板必须排在那些墙件之后
+                    for (int index = 0; index < pieces.size(); index++) {
+                        PoolElementStructurePiece other = pieces.get(index);
+                        if (path(other).contains("/wall/")
+                                && other.getBoundingBox().minY() == y - 4
+                                && index > lastCeilingIndex.get(y)) {
+                            helper.assertTrue(false, name + " 第 " + i + " 座的墙件 " + path(other) + " 排在凹角天花板之后，会把警示塔木盖掉");
+                        }
+                    }
+                    corners++;
+                }
+            }
+        }
+        helper.assertTrue(corners > 0, "一座带凹角格的结构都没测到，这条用例证明不了什么");
+        helper.succeed();
+    }
+
+    /** 某个位置上有没有这一件 */
+    private static boolean hasPiece(List<PoolElementStructurePiece> pieces, String kind, int x, int y, int z) {
+        for (PoolElementStructurePiece piece : pieces) {
+            BoundingBox box = piece.getBoundingBox();
+            if (box.minX() == x
+                    && box.minY() == y
+                    && box.minZ() == z
+                    && path(piece).contains(kind)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static List<PoolElementStructurePiece> poolPieces(StructureStart start) {
+        List<PoolElementStructurePiece> out = new ArrayList<>();
+        for (StructurePiece piece : start.getPieces()) {
+            if (piece instanceof PoolElementStructurePiece pool) {
+                out.add(pool);
+            }
+        }
+        return out;
+    }
+
+    private static String path(PoolElementStructurePiece piece) {
+        return piece.getElement().toString();
+    }
+
+    private static GridStructure gridStructure(GameTestHelper helper, String name) {
+        Structure structure = helper.getLevel()
+                .registryAccess()
+                .registryOrThrow(Registries.STRUCTURE)
+                .get(DawnDuskTerminal.id(name));
+        helper.assertTrue(structure instanceof GridStructure, name + " 应当是 GridStructure");
+        return (GridStructure) structure;
+    }
+
+    private static StructureStart generate(GameTestHelper helper, Structure structure, long seed, ChunkPos chunkPos) {
+        ServerLevel level = helper.getLevel();
+        ChunkGenerator generator = level.getChunkSource().getGenerator();
+        return structure.generate(
+                level.registryAccess(),
+                generator,
+                generator.getBiomeSource(),
+                level.getChunkSource().randomState(),
+                level.getStructureManager(),
+                seed,
+                chunkPos,
+                0,
+                level,
+                biome -> true);
     }
 
     /**
