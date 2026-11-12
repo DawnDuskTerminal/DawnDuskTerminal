@@ -1,6 +1,10 @@
 package com.dawnduskterminal.world;
 
+import com.dawnduskterminal.registry.ModChronoOres;
 import com.dawnduskterminal.registry.ModTerrainBlocks;
+import java.util.IdentityHashMap;
+import java.util.Map;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.NoiseChunk;
@@ -15,8 +19,14 @@ import net.minecraft.world.level.levelgen.NoiseChunk;
  * IRON  (Blocks.DEEPSLATE_IRON_ORE, Blocks.RAW_IRON_BLOCK, Blocks.TUFF, -60, -8)
  * </pre>
  *
- * <p>所以 {@code ore_veins_enabled: true} 时，数据包说什么都没用，维度照样长原版花岗岩与原版凝灰岩。
- * 矿石方块本身不动，只换这两种代替石头的填充物，这正是调色板要的
+ * <p>所以 {@code ore_veins_enabled: true} 时，数据包说什么都没用，维度照样长原版花岗岩、原版凝灰岩
+ * 与原版矿石方块。这里只换方块，不动矿脉自己的生成概率与高度：花岗岩换成赭石，凝灰岩换成暮光石，
+ * 矿石换成 {@link ModChronoOres} 的两档副本——原版石头一档的矿进苍穹石，深板岩一档的矿进紫苏岩。
+ * 粗矿块（{@code RAW_COPPER_BLOCK} 与 {@code RAW_IRON_BLOCK}）原样保留
+ *
+ * <p>矿脉不是这六种矿的唯一来源：六种矿各自还有一条特征
+ * （见 {@code data/dawnduskterminal/worldgen/placed_feature/ore_*.json}）。矿脉只是额外那一份，
+ * 因此它的频率与高度带保持原版，不跟着特征表那套去改
  */
 public final class ChronoVeinPalette {
     private ChronoVeinPalette() {}
@@ -25,6 +35,33 @@ public final class ChronoVeinPalette {
         static final BlockState OCHRE = ModTerrainBlocks.OCHRE.get().defaultBlockState();
         static final BlockState TWILIGHT_STONE =
                 ModTerrainBlocks.TWILIGHT_STONE.get().defaultBlockState();
+        static final Map<Block, BlockState> ORES = orePalette();
+
+        /**
+         * 原版矿石方块到这里的两档副本
+         *
+         * <p>键按方块身份比：原版那一份枚举常量就是这二十四个引用，不会有同名的另一份
+         */
+        private static Map<Block, BlockState> orePalette() {
+            Map<Block, BlockState> map = new IdentityHashMap<>();
+            ore(map, Blocks.COPPER_ORE, ModChronoOres.CANOPY_STONE_COPPER_ORE.get());
+            ore(map, Blocks.DEEPSLATE_COPPER_ORE, ModChronoOres.CHARNOCKITE_COPPER_ORE.get());
+            ore(map, Blocks.IRON_ORE, ModChronoOres.CANOPY_STONE_IRON_ORE.get());
+            ore(map, Blocks.DEEPSLATE_IRON_ORE, ModChronoOres.CHARNOCKITE_IRON_ORE.get());
+            ore(map, Blocks.GOLD_ORE, ModChronoOres.CANOPY_STONE_GOLD_ORE.get());
+            ore(map, Blocks.DEEPSLATE_GOLD_ORE, ModChronoOres.CHARNOCKITE_GOLD_ORE.get());
+            ore(map, Blocks.REDSTONE_ORE, ModChronoOres.CANOPY_STONE_REDSTONE_ORE.get());
+            ore(map, Blocks.DEEPSLATE_REDSTONE_ORE, ModChronoOres.CHARNOCKITE_REDSTONE_ORE.get());
+            ore(map, Blocks.LAPIS_ORE, ModChronoOres.CANOPY_STONE_LAPIS_ORE.get());
+            ore(map, Blocks.DEEPSLATE_LAPIS_ORE, ModChronoOres.CHARNOCKITE_LAPIS_ORE.get());
+            ore(map, Blocks.DIAMOND_ORE, ModChronoOres.CANOPY_STONE_DIAMOND_ORE.get());
+            ore(map, Blocks.DEEPSLATE_DIAMOND_ORE, ModChronoOres.CHARNOCKITE_DIAMOND_ORE.get());
+            return map;
+        }
+
+        private static void ore(Map<Block, BlockState> map, Block vanilla, Block palette) {
+            map.put(vanilla, palette.defaultBlockState());
+        }
     }
 
     /**
@@ -35,14 +72,16 @@ public final class ChronoVeinPalette {
         if (state == null) {
             return null;
         }
-        // 只有两个写死的填充物，直接比较 Block 比每方块查一次 IdentityHashMap 便宜
-        if (state.getBlock() == Blocks.GRANITE) {
+        // 只有十来种写死的填充物，直接按方块身份查表比每方块建一个包装便宜
+        Block block = state.getBlock();
+        if (block == Blocks.GRANITE) {
             return Holder.OCHRE;
         }
-        if (state.getBlock() == Blocks.TUFF) {
+        if (block == Blocks.TUFF) {
             return Holder.TWILIGHT_STONE;
         }
-        return state;
+        BlockState ore = Holder.ORES.get(block);
+        return ore != null ? ore : state;
     }
 
     /**

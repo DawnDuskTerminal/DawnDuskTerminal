@@ -31,7 +31,8 @@
     "ClientLevelSkyColorMixin",
     "ClientLevelTimeOfDayMixin",
     "ExperimentArmorGlowMixin",
-    "LevelRendererSkyAlignMixin"
+    "LevelRendererSkyAlignMixin",
+    "LevelRendererRainTextureMixin"
   ],
   "injectors": {
     "defaultRequire": 1

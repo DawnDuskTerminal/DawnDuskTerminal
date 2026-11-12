@@ -10,6 +10,18 @@
   "block.dawnduskterminal.eclogite": "Eclogite",
   "block.dawnduskterminal.charnockite": "Charnockite",
   "block.dawnduskterminal.twilight_stone": "Twilight Stone",
+  "block.dawnduskterminal.canopy_stone_copper_ore": "Canopy Stone Copper Ore",
+  "block.dawnduskterminal.canopy_stone_iron_ore": "Canopy Stone Iron Ore",
+  "block.dawnduskterminal.canopy_stone_gold_ore": "Canopy Stone Gold Ore",
+  "block.dawnduskterminal.canopy_stone_redstone_ore": "Canopy Stone Redstone Ore",
+  "block.dawnduskterminal.canopy_stone_lapis_ore": "Canopy Stone Lapis Lazuli Ore",
+  "block.dawnduskterminal.canopy_stone_diamond_ore": "Canopy Stone Diamond Ore",
+  "block.dawnduskterminal.charnockite_copper_ore": "Charnockite Copper Ore",
+  "block.dawnduskterminal.charnockite_iron_ore": "Charnockite Iron Ore",
+  "block.dawnduskterminal.charnockite_gold_ore": "Charnockite Gold Ore",
+  "block.dawnduskterminal.charnockite_redstone_ore": "Charnockite Redstone Ore",
+  "block.dawnduskterminal.charnockite_lapis_ore": "Charnockite Lapis Lazuli Ore",
+  "block.dawnduskterminal.charnockite_diamond_ore": "Charnockite Diamond Ore",
   "block.dawnduskterminal.road_sand": "Road Sand",
   "block.dawnduskterminal.unconscious_sand": "Unconscious Sand",
   "block.dawnduskterminal.siltstone": "Siltstone",
@@ -125,6 +137,7 @@
   "block.dawnduskterminal.charnockite_scarlet_molybdenum_ore": "Wulfenite-bearing Charnockite",
   "item.dawnduskterminal.rawscarletmolybdenum": "Raw Wulfenite",
   "item.dawnduskterminal.garnet": "Garnet",
+  "item.dawnduskterminal.blood_rupert": "Blood Rupert",
   "item.dawnduskterminal.sky_slices": "Sky Slices",
   "item.dawnduskterminal.ochre": "Ochre",
   "item.dawnduskterminal.canopy_frost_ball": "Canopy Frost",
@@ -409,7 +422,13 @@
   "subtitles.dawnduskterminal.ghast_universal_shoot": "Ghast spits a fireball",
   "subtitles.dawnduskterminal.ghast_universal_deflect": "Ghast bats the fireball aside",
   "subtitles.dawnduskterminal.expowheel_shoot": "Fleshbook fires",
-  "subtitles.dawnduskterminal.expowheel_ambient": "Fleshbook whirls"
+  "subtitles.dawnduskterminal.expowheel_ambient": "Fleshbook whirls",
+  "item.dawnduskterminal.firework_machinebow": "Firework Machine Bow",
+  "item.dawnduskterminal.firework_machinebow.desc": "Hold right-click to spend one firework rocket and fire a random one every 0.5 s",
+  "item.dawnduskterminal.firework_machinebow.desc2": "The blast ignores hurt immunity; accepts Power, Punch, Flame, Multishot and Quick Charge",
+  "subtitles.dawnduskterminal.firework_machinebow_launch": "Machine bow rocket launches",
+  "subtitles.dawnduskterminal.firework_machinebow_shoot": "Machine bow fires",
+  "subtitles.dawnduskterminal.firework_machinebow_draw": "Machine bow draws"
 }
 
 

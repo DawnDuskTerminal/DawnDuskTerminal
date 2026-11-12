@@ -6,13 +6,13 @@
       "item": "dawnduskterminal:rawscarletmolybdenum"
     },
     {
-      "item": "twilightforest:raw_ironwood"
-    },
-    {
       "item": "dawnduskterminal:experiment_016"
     },
     {
       "item": "twilightforest:carminite"
+    },
+    {
+      "item": "minecraft:cauldron"
     }
   ],
   "result": {

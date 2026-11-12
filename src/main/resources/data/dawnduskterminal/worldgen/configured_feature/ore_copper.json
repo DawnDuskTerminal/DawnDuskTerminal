@@ -1,0 +1,27 @@
+{
+  "type": "minecraft:ore",
+  "config": {
+    "discard_chance_on_air_exposure": 0.0,
+    "size": 10,
+    "targets": [
+      {
+        "state": {
+          "Name": "dawnduskterminal:canopy_stone_copper_ore"
+        },
+        "target": {
+          "predicate_type": "minecraft:tag_match",
+          "tag": "dawnduskterminal:stone_ore_replaceables"
+        }
+      },
+      {
+        "state": {
+          "Name": "dawnduskterminal:charnockite_copper_ore"
+        },
+        "target": {
+          "predicate_type": "minecraft:tag_match",
+          "tag": "dawnduskterminal:deepslate_ore_replaceables"
+        }
+      }
+    ]
+  }
+}

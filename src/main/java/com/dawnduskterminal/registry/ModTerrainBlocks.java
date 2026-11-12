@@ -69,7 +69,7 @@ public final class ModTerrainBlocks {
             BLOCKS.registerSimpleBlock("eclogite", stone(MapColor.STONE, 5.0F));
 
     public static final DeferredBlock<Block> CHARNOCKITE =
-            BLOCKS.registerSimpleBlock("charnockite", stone(MapColor.DEEPSLATE, 5.0F));
+            BLOCKS.registerSimpleBlock("charnockite", stone(MapColor.DEEPSLATE, 5.0F, SoundType.DEEPSLATE));
 
     public static final DeferredBlock<Block> TWILIGHT_STONE =
             BLOCKS.registerSimpleBlock("twilight_stone", stone(MapColor.TERRACOTTA_GRAY, 2.5F));
@@ -396,11 +396,16 @@ public final class ModTerrainBlocks {
 
     /** 石头类方块的共同属性：全部用锡、爆炸抗性 9、石头音效，只有硬度与地图色不同 */
     private static BlockBehaviour.Properties stone(MapColor color, float hardness) {
+        return stone(color, hardness, SoundType.STONE);
+    }
+
+    /** 同上，音效另给。深板岩那一套（紫苏岩）用 {@link SoundType#DEEPSLATE} */
+    private static BlockBehaviour.Properties stone(MapColor color, float hardness, SoundType sound) {
         return BlockBehaviour.Properties.of()
                 .mapColor(color)
                 .requiresCorrectToolForDrops()
                 .strength(hardness, 9.0F)
-                .sound(SoundType.STONE);
+                .sound(sound);
     }
 
     private static BlockBehaviour.Properties log(MapColor color) {

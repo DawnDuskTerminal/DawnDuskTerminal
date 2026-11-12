@@ -22,6 +22,18 @@
     "dawnduskterminal:experiment_069",
     "dawnduskterminal:experiment_076",
     "dawnduskterminal:antibuilder_type2",
-    "dawnduskterminal:towerdev_builder_type2"
+    "dawnduskterminal:towerdev_builder_type2",
+    "dawnduskterminal:canopy_stone_copper_ore",
+    "dawnduskterminal:canopy_stone_iron_ore",
+    "dawnduskterminal:canopy_stone_gold_ore",
+    "dawnduskterminal:canopy_stone_redstone_ore",
+    "dawnduskterminal:canopy_stone_lapis_ore",
+    "dawnduskterminal:canopy_stone_diamond_ore",
+    "dawnduskterminal:charnockite_copper_ore",
+    "dawnduskterminal:charnockite_iron_ore",
+    "dawnduskterminal:charnockite_gold_ore",
+    "dawnduskterminal:charnockite_redstone_ore",
+    "dawnduskterminal:charnockite_lapis_ore",
+    "dawnduskterminal:charnockite_diamond_ore"
   ]
 }

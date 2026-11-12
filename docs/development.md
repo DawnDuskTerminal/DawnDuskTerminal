@@ -483,6 +483,35 @@ Windows DLL 只依赖 UCRT 与 `kernel32.dll`，不需要 `libwinpthread-1.dll` 
 
 `oreVeinsAreEnabledLikeVanilla` 验证大矿脉已开启。
 
+### BlockStyleTests
+
+`directionalStonesUseTheMirroredVariants` 验证有向随机那一组是 4 条变体：模型与镜像模型各转 0/180，
+镜像模型父在 `cube_mirrored_all` 上且复用同一张贴图。
+
+`directionlessBlocksMirrorTheirQuarterTurns` 验证无向随机那一组是 8 条：四个 90° 旋转各配一份镜像，
+同样带镜像模型。
+
+`rosyDirtKeepsTheQuarterTurns` 验证霞土是 4 条纯旋转（只转 y 四档），且没有镜像模型。
+
+`charnockiteFamilySoundsLikeDeepslate` 验证紫苏岩一档（本体、赤钼矿、狄拉克矿与六块矿石）与深板岩同音效，
+苍穹石一档仍是石头音效。
+
+### OverworldOreTests
+
+`vanillaOresBecomeThePaletteOres` 验证矿脉里那十二块原版矿石经 `ChronoVeinPalette` 换成两档副本（频率不动）。
+
+`paletteOresKeepTheirHostStoneHardness` 验证两档副本的硬度分别等于苍穹石与紫苏岩。
+
+`overworldOresStayOutOfTheCreativeTabs` 验证这十二块不在创造栏里。
+
+`paletteOresShipTheirOwnLootTables` 验证十二份战利品表都能加载到。
+
+`oreFeaturesPlaceOnlyThePaletteOres` 验证六条矿石特征只放调色板方块、上下两档各一个目标、且不区分空气暴露。
+
+`oreFeaturesKeepTheReducedCountsAndTheirOwnHeightBands` 验证六条的次数与各自的高度带，并断言六个上界互不相等。
+
+`wasteStoneFeaturesKeepTheReducedCounts` 验证赭石、绿片岩、榴辉岩与暮光石四套特征的次数。
+
 ### PortalShapeTests
 
 `plantedPoolIsPortal` 验证带植物的水池判定为传送门。
@@ -753,7 +782,8 @@ feature 引用与 `neoforge:remove_features` 的 ID 必须真实存在，否则�
 
 新增自定义 Feature 放置在 `world/` 中，并注册在 `registry/ModFeatures` 中。
 
-新增矿石放置在 `registry/ModChronoOres` 中。
+新增矿石放置在 `registry/ModChronoOres` 中，方块状态、模型与战利品表由
+`tools/generate_overworld_ore_assets.py` 生成，见 `docs/worldgen.md` 的「主世界矿石」。
 
 新增物品放置在 `registry/ModItems` 中。
 

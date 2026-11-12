@@ -416,7 +416,7 @@
 已经有自己那张图标的不算占位，登记在 `ModExperimentItems.TEXTURED`，各自注册成普通物品。
 判据是 `models/item/experiment_%03d.json` 的 `layer0` 指向自己的贴图。
 真正还借 `experiment_temp.png` 的才是占位，由 `ModExperimentItems.PLACEHOLDERS` 补出。
-两张表加起来一共 72 个号，即 31 个有贴图的加 41 个占位，用 `simpleItems()` 取。
+两张表加起来一共 72 个号，即 32 个有贴图的加 40 个占位，用 `simpleItems()` 取。
 `gametest/ExperimentItemTests#placeholderTableMatchesTheIcons` 把两张表与 115 份模型逐号对上，
 换了某个号的图标却忘了写进 `TEXTURED` 会直接红。
 
@@ -745,6 +745,17 @@ thirdperson 为 [-80,260,-40] / [-80,-280,40] 与 -1,-2,2.5 的位移，firstper
 
 只有拆解配方、没有合成配方的物品按暮色森林的 `twilightforest:uncrafting` 格式编写。
 例子是试验物品 017（四个钢叶加一片黑树树叶），见 `data/dawnduskterminal/recipe/experiment_017_uncrafting.json`。
+
+另外两条同样走这个格式，都是两格排布（`"AB"`），产物落在 3x3 第一行的前两格：
+
+| 文件 | 输入 | 产物 |
+|---|---|---|
+| `experiment_018_uncrafting.json` | 试验物品018 | 砷铅铁锭 + 黏土块（`minecraft:clay`） |
+| `experiment_035_uncrafting.json` | 试验物品035 | 绯色钼锭 + 黏土块（`minecraft:clay`） |
+
+三条都只有拆解配方，因此不会被「反查合成配方」那一档抢走；
+哪天谁给 018 或 035 补了合成配方，拆解就会改走反查那条，
+`gametest/Experiment051Tests` 里两条 `...UncraftsIntoIngotAndClay` 先红。
 
 字段含义：
 
@@ -1873,6 +1884,87 @@ thirdperson 为 [-80,260,-40] / [-80,-280,40] 与 -1,-2,2.5 的位移，firstper
 - 每支曲子各自在 jar 里带够长的 Ogg，并在 `sounds.json` 里带 `stream` 与 `attenuation_distance: 32`。
   不写死支数，只钉「表里有几支，三处就得几支一一对上」；
 - 伤害类型与两个语言文件的关键字齐备。
+
+## 火箭机弩
+
+`item/FireworkMachineBowItem`，注册名 `dawnduskterminal:firework_machinebow`，主栏目里排在棱镜权杖后面。
+
+按住右键期间，每 `10 - 2 × 快速装填等级` tick 打出一发烟花火箭，最快 4 tick（0.2 秒）。
+弹体照抄原版弩打火箭的那一条：`FireworkRocketEntity` 的七参构造器（带 `shot_at_angle`）、从眼睛下方 0.15 格出膛、
+弹速 1.6。
+多重射击时多出来的两发各偏 `7 度 + 0~3 度的随机量`，两发各自摇，互不相同。
+火箭内容每一发现摇：形状、颜色、淡出色、拖尾与闪烁之外，飞行时长取 `1~3`，烟火之心数量取 `1~7`。
+消耗掉的那一枚是哪种火箭都不影响结果。
+
+### 只播「物品被使用」那一下
+
+本物品**不继承** `CrossbowItem`：原版 `ItemInHandRenderer` 对 `CrossbowItem` 有一条专门的 instanceof 分支，
+按住右键时会把物品抬到胸前作出拉弦姿势，而那正是要避免的。
+改用 `UseAnim.NONE` 之后，按住右键期间物品就摆在普通位置，没有任何使用姿势。
+
+每一发出弹的那一拍，客户端调一次 `ItemInHandRenderer#itemUsed`（`client/FireworkMachineBowBob`）：
+把 `mainHandHeight` 打回 0，物品先往下沉一下，再由装备回弹那套逻辑升回去。
+这就是原版每次成功使用物品时 `Minecraft#startUseItem` 调的那一句，项目里那些按一下就走完的物品
+（043、057、066、血肉之书等）每用一次也都是这一下。
+它与 `Player#swing` 的挥手是两条路，这里不用挥手。客户端按 `onUseTick` 的同一拍自己算，不占网络包。
+
+### 弹药与耐久
+
+火箭就是这门武器的弹药：每发消耗身上任意一枚烟花火箭，先看副手，再走整份背包（含快捷栏）。
+身上一枚都没有时 `use` 直接失败、弩举不起来；按住打到一半打空了，`onUseTick` 会 `stopUsingItem` 收手。
+多重射击仍是扣一枚：三发共用那一枚，与原版多重射击「一箭三发」的扣弹方式一致。
+
+耐久 465，与原版弩相同；每发扣 3 点，也就是原版弩打烟花火箭的 `getDurabilityUse`。
+先出弹再扣耐久，最后一发照打、弩随后碎掉。
+创造模式不扣弹药也不扣耐久，走的是原版 `useAmmo` / `ItemStack#hurtAndBreak` 同一条判据。
+
+### 声音
+
+三声都是模组自己的事件，见 `sounds.json`：
+`firework_machinebow_launch`（原版烟花的 `launch1`，火箭发射）、
+`firework_machinebow_shoot`（原版弩的 `shoot1~3`，发射）与
+`firework_machinebow_draw`（原版弩的 `loading_middle1~4`，装填）。
+发射与装填是跟着手的两声，下一发之前先给 64 格内的玩家发 `ClientboundStopSoundPacket` 掐掉残响；
+**火箭发射那一声不掐**：火箭已经射出去了，声音该跟着它走完。
+弹体设了 `setSilent(true)`，原版那声 `FIREWORK_ROCKET_LAUNCH` 不会出来抢，由 `firework_machinebow_launch` 自己补。
+
+### 贴图两档
+
+常态是初始贴图。每一发把 `DataComponents.CUSTOM_MODEL_DATA` 在 1 与 2 之间来回切，模型 `overrides` 按它选
+`firework_machinebow_1` / `firework_machinebow_2` 两张。
+停手（`releaseUsing`）与不再使用中（`inventoryTick`）都会清掉这一项，回到初始贴图；切手、收起这类不走
+`releaseUsing` 的路径由 `inventoryTick` 兜住。
+
+这一项每发都在变，如果按默认的 `!oldStack.equals(newStack)` 判换手动画，每一发都会触发一次「收起再抬起」；
+快速装填间隔短的时候动画来不及回弹，会一路叠着往下沉，最后把物品压出屏幕。
+所以物品覆写 `shouldCauseReequipAnimation`，只看物品本体与槽位，换贴图不再触发换手动画。
+
+### 附魔
+
+物品挂在 `data/minecraft/tags/item/enchantable/` 的 `bow`、`crossbow` 与 `durability` 三个原版标签上：
+前两条给出弓弩两套附魔，后一条让耐久类附魔（耐久、经验修补）也吃得到。
+耐久 465 加上不可堆叠，正好满足原版 `Item#isEnchantable` 的两条要求，不需要另开判据。
+
+- 力量：每级伤害乘 `1 + 0.25 × 等级`；
+- 冲击：**减少**命中和爆炸的击退，每级减半，II 级起完全不击退；
+- 火矢：点着被爆炸波及的目标 5 秒，火焰免疫的除外；
+- 多重射击：三发，多出来的两发各偏 `7 度 + 0~3 度随机量`；
+- 快速装填：每级把间隔减 2 tick，最快 0.2 秒。
+
+### 伤害结算
+
+原版火箭的爆炸伤害写在 `FireworkRocketEntity` 的私有 `dealExplosionDamage` 里，距离、视线与衰减都按原版那一套走，
+模组不碰。出膛时把 `DdtMachinebowRocket` 标记与星数、三个附魔等级写进火箭的 `NeoForgeData`，
+伤害落地前由 `LivingIncomingDamageEvent`（`world/MachinebowFireworks`）认标记再补：
+
+- 烟火之心：星数只影响伤害，外观固定只演一颗爆炸。原版这一下是按 `5 + 2 × 1` 算的，
+  这里乘 `(5 + 2 × 星数) / 7` 换成星数对应的伤害，5 格距离衰减与视线判定原样保留。
+- 力量：伤害乘 `1 + 0.25 × 等级`。
+- 火矢：点着被爆炸波及的目标 5 秒，火焰免疫的除外。
+- 无视无敌帧：事件排在无敌帧判定之前，把 `invulnerableTime` 清零之后这一下按满额进 `actuallyHurt`；
+  多重射击三发同 tick 命中也是三发全额。
+- 冲击：击退由 `LivingEntity#hurt` 里的 `knockback(0.4)` 施加，这一下在事件之后；
+  出手前把目标登记进 `PENDING_PUNCH`，由 `LivingKnockBackEvent` 按等级把强度削掉（每级减半，II 级起 0）。
 
 ## 反建器二型（反建场）
 

@@ -44,6 +44,14 @@
 
 在同一维度内混用原版群系与模组群系时必须开启该配置项，调色板维度正属于这种情况。
 
+## structure
+
+- `mineshaft_chest_chance`：默认值 0.01，与原版写死的 1/100 一致，取值范围 0 到 1。
+  废弃矿井每段走廊、每一侧放一辆箱车的概率。
+  取 0 即矿井里不再出现箱车；取 1 则每一侧都会放。
+  箱车装在 `dawnduskterminal:chests/chrono_mineshaft` 这张表上，
+  内容是暮色森林大型空心矿山那一套，逐条写在 `data/dawnduskterminal/loot_table/chests/chrono_mineshaft.json`。
+
 ## render
 
 - `native_mesh`：默认值 true，用于指定高塔恶魂的渲染是否使用 jar 内自带的 native 网格内核。

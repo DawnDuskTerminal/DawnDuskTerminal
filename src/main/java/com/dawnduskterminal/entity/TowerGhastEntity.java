@@ -149,11 +149,13 @@ public class TowerGhastEntity extends PathfinderMob implements YsmPackUser {
     @Override
     protected void registerGoals() {
         this.goalSelector.addGoal(0, new FloatGoal(this));
+        // 下雨时先躲进有顶的地方：露天的地面生物每 2 秒挨一点雨滴伤害，见 SeekRainShelterGoal
+        this.goalSelector.addGoal(1, new SeekRainShelterGoal(this));
         // AvoidEntityGoal 的泛型上限是 PathfinderMob，而伤害只可能来自玩家，所以只值得躲玩家
-        this.goalSelector.addGoal(1, new AvoidEntityGoal<>(this, Player.class, 6.0F, 1.0D, 1.2D));
-        this.goalSelector.addGoal(2, new WaterAvoidingRandomStrollGoal(this, 0.8D));
-        this.goalSelector.addGoal(3, new LookAtPlayerGoal(this, Player.class, 8.0F));
-        this.goalSelector.addGoal(4, new RandomLookAroundGoal(this));
+        this.goalSelector.addGoal(2, new AvoidEntityGoal<>(this, Player.class, 6.0F, 1.0D, 1.2D));
+        this.goalSelector.addGoal(3, new WaterAvoidingRandomStrollGoal(this, 0.8D));
+        this.goalSelector.addGoal(4, new LookAtPlayerGoal(this, Player.class, 8.0F));
+        this.goalSelector.addGoal(5, new RandomLookAroundGoal(this));
     }
 
     /**

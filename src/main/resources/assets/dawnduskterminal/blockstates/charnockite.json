@@ -1,7 +1,36 @@
 {
   "variants": {
-    "": {
-      "model": "dawnduskterminal:block/charnockite"
-    }
+    "": [
+      {
+        "model": "dawnduskterminal:block/charnockite"
+      },
+      {
+        "model": "dawnduskterminal:block/charnockite_mirrored"
+      },
+      {
+        "model": "dawnduskterminal:block/charnockite",
+        "y": 90
+      },
+      {
+        "model": "dawnduskterminal:block/charnockite_mirrored",
+        "y": 90
+      },
+      {
+        "model": "dawnduskterminal:block/charnockite",
+        "y": 180
+      },
+      {
+        "model": "dawnduskterminal:block/charnockite_mirrored",
+        "y": 180
+      },
+      {
+        "model": "dawnduskterminal:block/charnockite",
+        "y": 270
+      },
+      {
+        "model": "dawnduskterminal:block/charnockite_mirrored",
+        "y": 270
+      }
+    ]
   }
 }

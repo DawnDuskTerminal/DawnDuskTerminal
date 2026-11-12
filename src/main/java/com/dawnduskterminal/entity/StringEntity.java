@@ -4,6 +4,7 @@ import com.dawnduskterminal.registry.ModDamageTypes;
 import com.dawnduskterminal.registry.ModEntities;
 import com.dawnduskterminal.registry.ModFluids;
 import com.dawnduskterminal.registry.ModSounds;
+import com.dawnduskterminal.world.ChronoRain;
 import java.util.EnumSet;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleTypes;
@@ -65,6 +66,12 @@ import org.jetbrains.annotations.Nullable;
  * 推进量由 {@link #getFlyingSpeed} 从速度属性折算（原版这一格对非玩家操控的生物是常量，
  * 速度属性不参与）。
  *
+ * <h2>雨天：飞行型不受流体区域约束</h2>
+ * 低空飞行型平时在液面上方两格盘旋，追丢目标后由 {@link ReturnToFluidGoal} 飞回液体上空。
+ * 晨昏线维度下雨时（{@link ChronoRain#isRainy}），这两条约束一起放开：巡航点改成任意一处空气，
+ * 回家行为整个不触发，于是它可以一直飘在露天的雨里（见 {@link #isRainFreeFlight}）。
+ * 滑行型与游动型不受影响——它们的活动范围本来就是流体本身。
+ *
  * <h2>待机音</h2>
  * 原版的待机音有随机静音期，这只生物要一直有声：当前这条还剩 8 tick 时起下一条，
  * 两条重叠着听不出断点，见 {@link #tickAmbientSound}。
@@ -124,6 +131,8 @@ public class StringEntity extends PathfinderMob implements Enemy {
 
     /** 低空飞行型的盘旋高度，液面之上 */
     private static final double LOW_FLIGHT_HEIGHT = 2.0D;
+    /** 雨天自由巡航时竖直方向摇动的半幅，格 */
+    private static final double FREE_FLIGHT_VERTICAL = 6.0D;
     /** 游动型贴着池底往上这么多 */
     private static final double SWIM_DEPTH = 0.2D;
     /** 游动型的身体要塞进液面之下：脚最多离液面这么近 */
@@ -796,6 +805,41 @@ public class StringEntity extends PathfinderMob implements Enemy {
     }
 
     /**
+     * 雨天里飞行型是不是可以脱离流体区域自由飞
+     *
+     * <p>只看天气：这个维度在不在下雨。不要求它自己淋着雨——树下、洞里那一只也照样算「这个天气」，
+     * 不然一只飞进屋檐的飞行型会立刻掉头回湖里
+     */
+    public boolean isRainFreeFlight() {
+        return this.kind == Kind.FLYER && ChronoRain.isRainy(this.level());
+    }
+
+    /**
+     * 雨天里的自由巡航点：附近任意一处能塞下它的空气，不看流体
+     *
+     * <p>竖直方向在当前位置上下各 {@value #FREE_FLIGHT_VERTICAL} 格之内摇，钳在建造高度以内；
+     * 落点必须自己是空气、上面一格也是空气（碰撞箱宽 1.8 格，按最小的体型也占两格竖直空间）。
+     * 找不到就返回 {@code null}，由调用方下一轮重掷——与 {@link #randomHoverPoint} 的约定一致
+     */
+    @Nullable
+    private Vec3 randomFreeAirPoint(double radius) {
+        for (int attempt = 0; attempt < 6; attempt++) {
+            double angle = this.getRandom().nextDouble() * Math.PI * 2.0D;
+            double distance = radius * (0.35D + this.getRandom().nextDouble() * 0.65D);
+            int x = Mth.floor(this.getX() + Math.cos(angle) * distance);
+            int z = Mth.floor(this.getZ() + Math.sin(angle) * distance);
+            double y = this.getY() + (this.getRandom().nextDouble() * 2.0D - 1.0D) * FREE_FLIGHT_VERTICAL;
+            y = Mth.clamp(
+                    y, this.level().getMinBuildHeight() + 1.0D, this.level().getMaxBuildHeight() - 2.0D);
+            BlockPos pos = BlockPos.containing(x + 0.5D, y, z + 0.5D);
+            if (this.level().isEmptyBlock(pos) && this.level().isEmptyBlock(pos.above())) {
+                return new Vec3(x + 0.5D, y, z + 0.5D);
+            }
+        }
+        return null;
+    }
+
+    /**
      * 已经停在某列液面上方 {@link #LOW_FLIGHT_HEIGHT} 格附近？
      *
      * <p>低空飞行型的回家行为用它判断「是不是已经到家了」；用高度图找液面，所以飞多高都成立
@@ -1296,7 +1340,9 @@ public class StringEntity extends PathfinderMob implements Enemy {
 
         @Override
         public void start() {
-            Vec3 point = this.mob.randomHoverPoint(8.0D);
+            // 雨天放开流体约束：巡航点取任意一处空气，见 StringEntity#randomFreeAirPoint
+            Vec3 point =
+                    this.mob.isRainFreeFlight() ? this.mob.randomFreeAirPoint(8.0D) : this.mob.randomHoverPoint(8.0D);
             if (point != null) {
                 this.mob
                         .getNavigation()
@@ -1326,6 +1372,10 @@ public class StringEntity extends PathfinderMob implements Enemy {
         @Override
         public boolean canUse() {
             if (this.mob.getTarget() != null || !this.mob.isAlive()) {
+                return false;
+            }
+            // 雨天不回液体上空：这一条是「流体区域约束」的另一半，见 StringEntity#isRainFreeFlight
+            if (this.mob.isRainFreeFlight()) {
                 return false;
             }
             if (!this.mob.getNavigation().isDone() || this.mob.isHoveringOverFluid()) {

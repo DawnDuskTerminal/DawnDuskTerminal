@@ -10,6 +10,18 @@
   "block.dawnduskterminal.eclogite": "榴辉岩",
   "block.dawnduskterminal.charnockite": "紫苏岩",
   "block.dawnduskterminal.twilight_stone": "暮光石",
+  "block.dawnduskterminal.canopy_stone_copper_ore": "苍穹石铜矿石",
+  "block.dawnduskterminal.canopy_stone_iron_ore": "苍穹石铁矿石",
+  "block.dawnduskterminal.canopy_stone_gold_ore": "苍穹石金矿石",
+  "block.dawnduskterminal.canopy_stone_redstone_ore": "苍穹石红石矿石",
+  "block.dawnduskterminal.canopy_stone_lapis_ore": "苍穹石青金石矿石",
+  "block.dawnduskterminal.canopy_stone_diamond_ore": "苍穹石钻石矿石",
+  "block.dawnduskterminal.charnockite_copper_ore": "紫苏岩铜矿石",
+  "block.dawnduskterminal.charnockite_iron_ore": "紫苏岩铁矿石",
+  "block.dawnduskterminal.charnockite_gold_ore": "紫苏岩金矿石",
+  "block.dawnduskterminal.charnockite_redstone_ore": "紫苏岩红石矿石",
+  "block.dawnduskterminal.charnockite_lapis_ore": "紫苏岩青金石矿石",
+  "block.dawnduskterminal.charnockite_diamond_ore": "紫苏岩钻石矿石",
   "block.dawnduskterminal.road_sand": "路之沙",
   "block.dawnduskterminal.unconscious_sand": "不醒沙",
   "block.dawnduskterminal.siltstone": "粉砂岩",
@@ -131,6 +143,7 @@
   "block.dawnduskterminal.charnockite_scarlet_molybdenum_ore": "紫苏钼铅矿",
   "item.dawnduskterminal.rawscarletmolybdenum": "粗钼铅矿",
   "item.dawnduskterminal.garnet": "石榴石",
+  "item.dawnduskterminal.blood_rupert": "血鲁珀特",
   "item.dawnduskterminal.sky_slices": "天空切片",
   "item.dawnduskterminal.ochre": "赭石",
   "item.dawnduskterminal.canopy_frost_ball": "苍穹霜",
@@ -412,7 +425,13 @@
   "subtitles.dawnduskterminal.ghast_universal_shoot": "恶魂喷出火球",
   "subtitles.dawnduskterminal.ghast_universal_deflect": "恶魂把火球拨开",
   "subtitles.dawnduskterminal.expowheel_shoot": "博览轮舞发射",
-  "subtitles.dawnduskterminal.expowheel_ambient": "博览轮舞回旋"
+  "subtitles.dawnduskterminal.expowheel_ambient": "博览轮舞回旋",
+  "item.dawnduskterminal.firework_machinebow": "火箭机弩",
+  "item.dawnduskterminal.firework_machinebow.desc": "按住右键，每 0.5 秒消耗一枚烟花火箭、随机打出一发",
+  "item.dawnduskterminal.firework_machinebow.desc2": "爆炸无视受击无敌帧；接受力量、冲击、火矢、多重射击与快速装填",
+  "subtitles.dawnduskterminal.firework_machinebow_launch": "火箭机弩火箭发射",
+  "subtitles.dawnduskterminal.firework_machinebow_shoot": "火箭机弩发射",
+  "subtitles.dawnduskterminal.firework_machinebow_draw": "火箭机弩装填"
 }
 
 

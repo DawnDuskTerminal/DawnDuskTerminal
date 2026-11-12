@@ -1,7 +1,21 @@
 {
   "variants": {
-    "": {
-      "model": "dawnduskterminal:block/rosy_dirt"
-    }
+    "": [
+      {
+        "model": "dawnduskterminal:block/rosy_dirt"
+      },
+      {
+        "model": "dawnduskterminal:block/rosy_dirt",
+        "y": 90
+      },
+      {
+        "model": "dawnduskterminal:block/rosy_dirt",
+        "y": 180
+      },
+      {
+        "model": "dawnduskterminal:block/rosy_dirt",
+        "y": 270
+      }
+    ]
   }
 }

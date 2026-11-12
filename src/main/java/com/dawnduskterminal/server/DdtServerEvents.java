@@ -16,6 +16,7 @@ import com.dawnduskterminal.structure.StructureExclusions;
 import com.dawnduskterminal.world.AntibuilderType2Field;
 import com.dawnduskterminal.world.CampCarminiteFireAura;
 import com.dawnduskterminal.world.ChronoLineState;
+import com.dawnduskterminal.world.ChronoRain;
 import com.dawnduskterminal.world.Experiment065Field;
 import com.dawnduskterminal.world.Experiment069Field;
 import com.dawnduskterminal.world.Experiment076Reaction;
@@ -53,6 +54,7 @@ import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.server.ServerStartedEvent;
 import net.neoforged.neoforge.event.server.ServerStoppedEvent;
+import net.neoforged.neoforge.event.tick.EntityTickEvent;
 import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import net.neoforged.neoforge.network.PacketDistributor;
@@ -119,6 +121,33 @@ public final class DdtServerEvents {
         BeetrootProcess.tickAll();
         Experiment076Reaction.tickAll();
         StringSpawner.tick(event.getServer());
+    }
+
+    /**
+     * 雨天淋在露天的地面生物身上那一点伤害
+     *
+     * <p>每只生物自己错开相位：{@code tickCount} 与实体 id 一起取模，全服的伤害结算不会挤在同一 tick。
+     * 判定本身在 {@link ChronoRain} 里，这里只负责「谁在什么节拍上挨这一下」
+     *
+     * <p>挂 {@code EntityTickEvent.Post}（它只在活物的 {@code tick()} 末尾发）而不是遍历全维度实体：
+     * 晴天第一句就出去了，雨天才往下走
+     */
+    public static void onEntityTick(EntityTickEvent.Post event) {
+        if (!(event.getEntity() instanceof LivingEntity living)) {
+            return;
+        }
+        if (living.level().isClientSide()) {
+            return;
+        }
+        if (!ChronoRain.isRainy(living.level())) {
+            return;
+        }
+        if ((living.tickCount + living.getId()) % ChronoRain.DAMAGE_INTERVAL_TICKS != 0) {
+            return;
+        }
+        if (ChronoRain.shouldHurt(living)) {
+            ChronoRain.hurtInRain(living);
+        }
     }
 
     /** 服务器停下：把还在跑的喷火过程、恶魂陷阱场、095 与 055 的场、076 的反应、065 / 069 两张场的场心表、反建器二型的场心表与红篝火的气场表清干净，别留到下一次启动 */

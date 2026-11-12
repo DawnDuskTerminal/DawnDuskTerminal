@@ -32,6 +32,14 @@ import net.minecraft.world.phys.AABB;
  * 每 5 秒对每个玩家最多找十个列，命中的列有半概率生成，附近已有五只就不再刷。
  *
  * <p>自然生成只出滑行型；低空飞行型与游动型只能由滑行型分裂出来（见 {@code StringEntity}）
+ *
+ * <h2>雨天：飞行型露天生成</h2>
+ *
+ * <p>晨昏线维度下雨时，原版刷怪器在露天格子上被整个压掉（见 {@link ChronoRainSpawns}），
+ * 于是这一轮再加一趟：在附近任意一列的地表之上六到十六格、必须连着 {@link ChronoRain#isExposed}
+ * 判定（露天、所在群系会下雨、此刻正在下雨）的位置刷低空飞行型。它不要求脚边有传送门流体——
+ * 雨天的飞行型本来就不受流体区域约束（见 {@code StringEntity#isRainFreeFlight}），
+ * 所以从露天地面飘出来的那一只不必先找一片湖
  */
 public final class StringSpawner {
     /** 每 100 tick 扫一轮 */
@@ -44,6 +52,11 @@ public final class StringSpawner {
     private static final double MAX_DISTANCE = 44.0D;
     /** 玩家周围 48 格内的上限 */
     private static final int MAX_NEARBY = 5;
+
+    /** 雨天飞行型刷在地表之上多少格，含上下界 */
+    private static final int FLYER_MIN_HEIGHT = 6;
+
+    private static final int FLYER_MAX_HEIGHT = 16;
 
     private StringSpawner() {}
 
@@ -58,9 +71,13 @@ public final class StringSpawner {
             if (level.getDifficulty() == Difficulty.PEACEFUL) {
                 continue;
             }
+            boolean raining = ChronoRain.isRainy(level);
             for (ServerPlayer player : level.players()) {
                 if (!player.isSpectator()) {
                     trySpawnAround(level, player);
+                    if (raining) {
+                        trySpawnFlyerAround(level, player);
+                    }
                 }
             }
         }
@@ -105,6 +122,65 @@ public final class StringSpawner {
             entity.moveTo(x + 0.5D, y, z + 0.5D, random.nextFloat() * 360.0F, 0.0F);
             entity.finalizeSpawn(
                     level, level.getCurrentDifficultyAt(entity.blockPosition()), MobSpawnType.NATURAL, null);
+            if (!level.noCollision(entity)) {
+                continue;
+            }
+            level.addFreshEntity(entity);
+            return;
+        }
+    }
+
+    /**
+     * 雨天的那一趟：在露天的空气里刷低空飞行型
+     *
+     * <p>高度取 {@link Heightmap.Types#WORLD_SURFACE}（流体也算地表），再往上抬
+     * {@value #FLYER_MIN_HEIGHT} 到 {@value #FLYER_MAX_HEIGHT} 格：这个高度既在露天，又已经离开树冠，
+     * 刷出来不会当场贴脸。落点要求连着两格空气（飞行型的碰撞箱宽 1.8 格，但注册尺寸
+     * 只是占位，真正的尺寸按体型算，所以至少得留出两格竖直空间），并且
+     * {@link ChronoRain#isExposed} 成立——那一句同时管住「露天」「这个群系会下雨」「此刻在下雨」
+     *
+     * <p>不要求脚边有传送门流体：飞行型在雨天本来就不受流体区域约束
+     */
+    private static void trySpawnFlyerAround(ServerLevel level, ServerPlayer player) {
+        AABB area = player.getBoundingBox().inflate(48.0D);
+        if (level.getEntitiesOfClass(StringEntity.class, area).size() >= MAX_NEARBY) {
+            return;
+        }
+        RandomSource random = level.getRandom();
+        for (int attempt = 0; attempt < ATTEMPTS; attempt++) {
+            double angle = random.nextDouble() * Math.PI * 2.0D;
+            double distance = MIN_DISTANCE + random.nextDouble() * (MAX_DISTANCE - MIN_DISTANCE);
+            int x = Mth.floor(player.getX() + Math.cos(angle) * distance);
+            int z = Mth.floor(player.getZ() + Math.sin(angle) * distance);
+            if (!level.getChunkSource().hasChunk(x >> 4, z >> 4)) {
+                continue;
+            }
+            int surfaceY = level.getHeight(Heightmap.Types.WORLD_SURFACE, x, z);
+            if (surfaceY <= level.getMinBuildHeight() || surfaceY >= level.getMaxBuildHeight()) {
+                continue;
+            }
+            int y = surfaceY + FLYER_MIN_HEIGHT + random.nextInt(FLYER_MAX_HEIGHT - FLYER_MIN_HEIGHT + 1);
+            BlockPos spawnPos = new BlockPos(x, y, z);
+            if (y >= level.getMaxBuildHeight() - 1
+                    || !level.isEmptyBlock(spawnPos)
+                    || !level.isEmptyBlock(spawnPos.above())) {
+                continue;
+            }
+            if (!ChronoRain.isExposed(level, spawnPos)) {
+                continue;
+            }
+            if (random.nextFloat() > 0.5F) {
+                continue;
+            }
+            StringEntity entity = ModEntities.STRING.get().create(level);
+            if (entity == null) {
+                return;
+            }
+            entity.moveTo(x + 0.5D, y, z + 0.5D, random.nextFloat() * 360.0F, 0.0F);
+            entity.finalizeSpawn(
+                    level, level.getCurrentDifficultyAt(entity.blockPosition()), MobSpawnType.NATURAL, null);
+            // 先 finalizeSpawn（它会掷体型）再改变种：setKind 会重装整套运动系统与行为表
+            entity.setKind(StringEntity.Kind.FLYER);
             if (!level.noCollision(entity)) {
                 continue;
             }

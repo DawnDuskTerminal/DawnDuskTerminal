@@ -1,7 +1,20 @@
 {
   "variants": {
-    "": {
-      "model": "dawnduskterminal:block/eclogite"
-    }
+    "": [
+      {
+        "model": "dawnduskterminal:block/eclogite"
+      },
+      {
+        "model": "dawnduskterminal:block/eclogite_mirrored"
+      },
+      {
+        "model": "dawnduskterminal:block/eclogite",
+        "y": 180
+      },
+      {
+        "model": "dawnduskterminal:block/eclogite_mirrored",
+        "y": 180
+      }
+    ]
   }
 }

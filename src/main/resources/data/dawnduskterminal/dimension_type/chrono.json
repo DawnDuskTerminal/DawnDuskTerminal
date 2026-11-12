@@ -2,7 +2,7 @@
   "ambient_light": 0.0,
   "bed_works": true,
   "coordinate_scale": 1.0,
-  "effects": "minecraft:overworld",
+  "effects": "dawnduskterminal:chrono",
   "fixed_time": 12000,
   "has_ceiling": false,
   "has_raids": false,

@@ -1,0 +1,6 @@
+{
+  "parent": "dawnduskterminal:item/firework_machinebow",
+  "textures": {
+    "layer0": "dawnduskterminal:item/firework_machinebow_1"
+  }
+}

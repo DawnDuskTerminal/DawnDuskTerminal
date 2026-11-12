@@ -24,6 +24,10 @@ import net.minecraft.world.level.levelgen.structure.pieces.StructurePiecesBuilde
  *       顶到海平面。竖向放不下时优先保住顶部（顶部对齐 {@link #BAND_MAX_Y}），因为过长的矿井只要顶部
  *       不越界就仍在地下的空腔里</li>
  *   <li>JSON 里没有 {@code mineshaft_type} 字段，一个结构 id 走遍全维度</li>
+ *   <li>群系名单是整个调色板（{@code #dawnduskterminal:palette_biomes}），不是一张挑过的群系表：
+ *       原版与这里的群系判定都取「结构起点那一格的群系」，而起点落在 y -64 到 -10，那一层是洞穴群系
+ *       （滴水石洞、繁茂洞穴、深暗），拿它筛就等于让矿井由地下群系决定生不生。整张调色板进名单以后，
+ *       这个判定对任何一格都成立，矿井只由 placement 决定（见 {@code data/dawnduskterminal/tags/}）</li>
  * </ul>
  *
  * <p>件的战利品表换成 {@code dawnduskterminal:chests/chrono_mineshaft}，见

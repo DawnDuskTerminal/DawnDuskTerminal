@@ -235,5 +235,28 @@
         "attenuation_distance": 32
       }
     ]
+  },
+  "firework_machinebow_launch": {
+    "subtitle": "subtitles.dawnduskterminal.firework_machinebow_launch",
+    "sounds": [
+      "minecraft:fireworks/launch1"
+    ]
+  },
+  "firework_machinebow_shoot": {
+    "subtitle": "subtitles.dawnduskterminal.firework_machinebow_shoot",
+    "sounds": [
+      "minecraft:item/crossbow/shoot1",
+      "minecraft:item/crossbow/shoot2",
+      "minecraft:item/crossbow/shoot3"
+    ]
+  },
+  "firework_machinebow_draw": {
+    "subtitle": "subtitles.dawnduskterminal.firework_machinebow_draw",
+    "sounds": [
+      "minecraft:item/crossbow/loading_middle1",
+      "minecraft:item/crossbow/loading_middle2",
+      "minecraft:item/crossbow/loading_middle3",
+      "minecraft:item/crossbow/loading_middle4"
+    ]
   }
 }

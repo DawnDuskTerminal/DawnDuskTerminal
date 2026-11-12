@@ -1,0 +1,10 @@
+{
+  "variants": {
+    "lit=false": {
+      "model": "dawnduskterminal:block/charnockite_redstone_ore"
+    },
+    "lit=true": {
+      "model": "dawnduskterminal:block/charnockite_redstone_ore"
+    }
+  }
+}

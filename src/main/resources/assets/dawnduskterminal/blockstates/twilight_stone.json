@@ -1,7 +1,20 @@
 {
   "variants": {
-    "": {
-      "model": "dawnduskterminal:block/twilight_stone"
-    }
+    "": [
+      {
+        "model": "dawnduskterminal:block/twilight_stone"
+      },
+      {
+        "model": "dawnduskterminal:block/twilight_stone_mirrored"
+      },
+      {
+        "model": "dawnduskterminal:block/twilight_stone",
+        "y": 180
+      },
+      {
+        "model": "dawnduskterminal:block/twilight_stone_mirrored",
+        "y": 180
+      }
+    ]
   }
 }

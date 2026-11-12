@@ -1,6 +1,7 @@
 package com.dawnduskterminal.structure;
 
 import com.dawnduskterminal.DawnDuskTerminal;
+import com.dawnduskterminal.config.DdtConfig;
 import com.dawnduskterminal.registry.ModStructures;
 import com.google.common.collect.Lists;
 import com.mojang.logging.LogUtils;
@@ -44,20 +45,23 @@ import org.slf4j.Logger;
  * 晨昏线废弃矿井的件：房间、走廊、十字与楼梯
  *
  * <p>整份复制自 1.21.1 的 {@code MineshaftPieces}，生成逻辑与摆方块的顺序一个字没改，
- * 改的只有三件事：
+ * 改的只有四件事：
  * <ul>
  *   <li>木材套组从 {@code MineshaftStructure.Type}（原版只有橡木与深色橡木两个值）换成
  *       {@link ChronoMineshaftWoods}：落笔点读 {@code woods.log()/planks()/fence()}，
  *       取哪一套由中心房间那一列的地表群系决定（见 {@link ChronoMineshaftWoods#atSurface}）</li>
  *   <li>件的类型换成 {@link ModStructures} 里注册的那四个，存档读回来才认得自己的件</li>
  *   <li>箱车战利品表换成 {@link #LOOT}</li>
+ *   <li>箱车的抽取挪到铺完地板之后，概率改走配置项（默认与原版的 1/100 一致），见
+ *       {@link #placeChestMinecarts}：本维度矿井所在的 y 带以空腔为主，原版那条「脚下必须有方块」的判定
+ *       会把箱车几乎全部吃掉</li>
  * </ul>
  *
  * <p>件是跟着结构 start 一起写进区块的，玩家分次探索时从磁盘读回来再落笔，所以木材套组必须自己进 NBT
  * （{@link #WOOD_TAG}）；读不出来的值按暮色橡木处理，旧存档里的矿井因此仍然完整。
  *
  * <p>与原版对拍时请以这份文件与 1.21.1 的 {@code MineshaftPieces.java} 逐段比对：结构上的差别只应有
- * 上面三件事。
+ * 上面四件事。
  */
 public class ChronoMineshaftPieces {
     /** 件在 NBT 里记的木材套组名字，见 {@link ChronoMineshaftWoods#id()} */
@@ -480,13 +484,6 @@ public class ChronoMineshaftPieces {
                     this.maybePlaceCobWeb(p_227743_, p_227747_, p_227746_, 0.05F, 2, 2, k1 - 2);
                     this.maybePlaceCobWeb(p_227743_, p_227747_, p_227746_, 0.05F, 0, 2, k1 + 2);
                     this.maybePlaceCobWeb(p_227743_, p_227747_, p_227746_, 0.05F, 2, 2, k1 + 2);
-                    if (p_227746_.nextInt(100) == 0) {
-                        this.createChest(p_227743_, p_227747_, p_227746_, 2, 0, k1 - 1, LOOT);
-                    }
-
-                    if (p_227746_.nextInt(100) == 0) {
-                        this.createChest(p_227743_, p_227747_, p_227746_, 0, 0, k1 + 1, LOOT);
-                    }
 
                     if (this.spiderCorridor && !this.hasPlacedSpider) {
                         int l1 = 1;
@@ -526,6 +523,33 @@ public class ChronoMineshaftPieces {
                             this.maybeGenerateBlock(p_227743_, p_227747_, p_227746_, f, 1, 0, j3, blockstate1);
                         }
                     }
+                }
+
+                this.placeChestMinecarts(p_227743_, p_227747_, p_227746_);
+            }
+        }
+
+        /**
+         * 段内两侧的箱车
+         *
+         * <p>原版把这一步写在铺地板之前，判定是「这一格是空气、下面不是空气」。本维度 y -64 ~ -10 以成片的
+         * 空腔与浮岛为主（见 {@code docs/worldgen.md} 的「网格屋群」一节），件底下多半是空气，那条判定几乎
+         * 逢抽必失败；而本件的走廊是件自己挖出来的，地板也由件自己铺，所以地板铺完再抽就够了：脚下一定是
+         * 木板或原地形，上面一定是走廊里的洞穴空气
+         *
+         * <p>概率见 {@code DdtConfig.mineshaftChestChance()}，默认与原版的 1/100 一致：判定修好之后，
+         * 这条概率就按原版的意思生效了，想加密的人改配置即可
+         */
+        private void placeChestMinecarts(WorldGenLevel p_227800_, BoundingBox p_227801_, RandomSource p_227802_) {
+            double chance = DdtConfig.mineshaftChestChance();
+            for (int section = 0; section < this.numSections; section++) {
+                int k1 = 2 + section * 5;
+                if (p_227802_.nextFloat() < chance) {
+                    this.createChest(p_227800_, p_227801_, p_227802_, 2, 0, k1 - 1, LOOT);
+                }
+
+                if (p_227802_.nextFloat() < chance) {
+                    this.createChest(p_227800_, p_227801_, p_227802_, 0, 0, k1 + 1, LOOT);
                 }
             }
         }

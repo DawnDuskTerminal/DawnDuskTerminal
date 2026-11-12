@@ -1,0 +1,19 @@
+{
+  "type": "twilightforest:uncrafting",
+  "cost": 0,
+  "input": {
+    "item": "dawnduskterminal:experiment_035"
+  },
+  "input_count": 1,
+  "key": {
+    "A": {
+      "item": "dawnduskterminal:scarlet_molybdenum_ingot"
+    },
+    "B": {
+      "item": "minecraft:clay"
+    }
+  },
+  "pattern": [
+    "AB"
+  ]
+}

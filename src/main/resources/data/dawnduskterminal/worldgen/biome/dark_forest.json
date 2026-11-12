@@ -36,9 +36,12 @@
     [],
     [],
     [
-      "twilightforest:legacy_redstone_ore",
-      "twilightforest:legacy_diamond_ore",
-      "twilightforest:legacy_lapis_ore",
+      "dawnduskterminal:ore_copper",
+      "dawnduskterminal:ore_iron",
+      "dawnduskterminal:ore_gold",
+      "dawnduskterminal:ore_redstone",
+      "dawnduskterminal:ore_diamond",
+      "dawnduskterminal:ore_lapis",
       "dawnduskterminal:ore_scarlet_molybdenum",
       "dawnduskterminal:ore_carid",
       "dawnduskterminal:ore_dirac"

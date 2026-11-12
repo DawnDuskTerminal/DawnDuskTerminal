@@ -724,12 +724,14 @@ public final class StructureTemplateTests {
     /**
      * 宝箱里装什么全看件里写的那张 loot 表，件里只存一个 id，写错不会报错、箱子只是空的
      *
-     * <p>两件事一起钉：
+     * <p>三件事一起钉：
      *
      * <ul>
      *   <li>件里的宝箱写的 {@code LootTable} 必须在注册表里；
-     *   <li>模组自己那几张宝箱表里引用的每个 item / 嵌套表都要解析得开——20 个试验物品是逐个手写的，
-     *       写错一个号不会报错，只会少一样东西。
+     *   <li>模组自己那几张宝箱表必须逐条写着物品，不许出现 {@code minecraft:loot_table} 嵌套引用：
+     *       开箱掉什么要能在 {@code data/dawnduskterminal/loot_table/chests/} 的那一个文件里逐行读到；
+     *   <li>表里写的每个 item 都要在物品注册表里——20 个试验物品是逐个手写的，写错一个号不会报错，
+     *       只会少一样东西。
      * </ul>
      */
     @GameTest(template = "ddt_empty")
@@ -767,9 +769,10 @@ public final class StructureTemplateTests {
                 throw new AssertionError(entry.getKey() + " 读不出来", error);
             }
         }
-        // 我们自己那几张表的内容：每个 item 与嵌套表都要能解析
+        // 我们自己那几张表的内容：每个 item 都要能解析，而且不许嵌套引用别的表
         int checked = 0;
-        for (String name : List.of("chests/grid_rooms", "chests/towerwood_rooms", "chests/towerwood_furnace")) {
+        for (String name : List.of(
+                "chests/grid_rooms", "chests/towerwood_rooms", "chests/towerwood_furnace", "chests/chrono_mineshaft")) {
             String resource = "/data/dawnduskterminal/loot_table/" + name + ".json";
             try (InputStream in = StructureTemplateTests.class.getResourceAsStream(resource)) {
                 helper.assertTrue(in != null, "找不到 " + resource);
@@ -779,18 +782,13 @@ public final class StructureTemplateTests {
                     for (JsonElement element : pool.getAsJsonObject().getAsJsonArray("entries")) {
                         JsonObject loot = element.getAsJsonObject();
                         String type = loot.get("type").getAsString();
+                        helper.assertTrue(
+                                !"minecraft:loot_table".equals(type),
+                                name + " 里嵌套引用了 " + loot.get("value") + "，宝箱内容要逐条写在这张表里");
                         if ("minecraft:item".equals(type)) {
                             ResourceLocation id =
                                     ResourceLocation.parse(loot.get("name").getAsString());
                             helper.assertTrue(BuiltInRegistries.ITEM.containsKey(id), name + " 里的物品 " + id + " 没有注册");
-                            checked++;
-                        } else if ("minecraft:loot_table".equals(type)) {
-                            ResourceLocation id =
-                                    ResourceLocation.parse(loot.get("value").getAsString());
-                            helper.assertTrue(
-                                    tables.get(ResourceKey.create(Registries.LOOT_TABLE, id))
-                                            .isPresent(),
-                                    name + " 引用的表 " + id + " 不在注册表里");
                             checked++;
                         }
                     }

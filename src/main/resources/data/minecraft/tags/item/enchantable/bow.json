@@ -1,6 +1,7 @@
 {
   "replace": false,
   "values": [
-    "dawnduskterminal:carminite_molybdenum_reactor_staff"
+    "dawnduskterminal:carminite_molybdenum_reactor_staff",
+    "dawnduskterminal:firework_machinebow"
   ]
 }

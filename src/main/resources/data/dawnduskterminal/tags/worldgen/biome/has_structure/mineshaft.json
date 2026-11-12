@@ -1,19 +1,6 @@
 {
   "replace": false,
   "values": [
-    "dawnduskterminal:blue_desert",
-    "dawnduskterminal:dripstone_caves",
-    "dawnduskterminal:ice_spikes",
-    "dawnduskterminal:lush_caves",
-    "dawnduskterminal:mangrove_swamp",
-    "dawnduskterminal:mushroom_fields",
-    "dawnduskterminal:plains",
-    "dawnduskterminal:savanna",
-    "dawnduskterminal:savanna_plateau",
-    "dawnduskterminal:snowy_plains",
-    "dawnduskterminal:stony_shore",
-    "dawnduskterminal:sunflower_plains",
-    "dawnduskterminal:swamp",
-    "dawnduskterminal:windswept_savanna"
+    "#dawnduskterminal:palette_biomes"
   ]
 }

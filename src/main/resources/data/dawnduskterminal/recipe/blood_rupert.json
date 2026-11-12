@@ -1,0 +1,28 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "dawnduskterminal:blood_rupert"
+    },
+    {
+      "item": "dawnduskterminal:garnet"
+    },
+    {
+      "item": "dawnduskterminal:illustrious_powder"
+    },
+    {
+      "item": "minecraft:ghast_tear"
+    },
+    {
+      "item": "minecraft:ghast_tear"
+    },
+    {
+      "item": "minecraft:ghast_tear"
+    }
+  ],
+  "result": {
+    "id": "dawnduskterminal:blood_rupert",
+    "count": 4
+  }
+}

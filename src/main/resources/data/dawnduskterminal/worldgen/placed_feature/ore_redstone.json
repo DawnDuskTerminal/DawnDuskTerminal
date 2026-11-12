@@ -1,9 +1,9 @@
 {
-  "feature": "minecraft:ore_redstone",
+  "feature": "dawnduskterminal:ore_redstone",
   "placement": [
     {
       "type": "minecraft:count",
-      "count": 4
+      "count": 7
     },
     {
       "type": "minecraft:in_square"
@@ -13,7 +13,7 @@
       "height": {
         "type": "minecraft:uniform",
         "max_inclusive": {
-          "absolute": 15
+          "absolute": 112
         },
         "min_inclusive": {
           "above_bottom": 0

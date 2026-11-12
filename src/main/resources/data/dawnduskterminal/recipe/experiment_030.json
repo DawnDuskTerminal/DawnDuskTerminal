@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "dawnduskterminal:blood_rupert"
+    },
+    {
+      "item": "dawnduskterminal:rawscarletmolybdenum"
+    },
+    {
+      "item": "minecraft:cauldron"
+    }
+  ],
+  "result": {
+    "id": "dawnduskterminal:experiment_030",
+    "count": 1
+  }
+}

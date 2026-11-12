@@ -11,6 +11,7 @@ import com.dawnduskterminal.item.CarminiteStaffItem;
 import com.dawnduskterminal.item.Experiment012Item;
 import com.dawnduskterminal.item.Experiment107Item;
 import com.dawnduskterminal.item.Experiment114Item;
+import com.dawnduskterminal.item.FireworkMachineBowItem;
 import com.dawnduskterminal.item.GhastPaintingItem;
 import com.dawnduskterminal.item.PrismStaffItem;
 import com.dawnduskterminal.item.ScarletMolybdArmorItem;
@@ -128,6 +129,19 @@ public final class ModItems {
             ITEMS.registerSimpleItem("rawscarletmolybdenum", new Item.Properties());
 
     public static final DeferredItem<Item> GARNET = ITEMS.registerSimpleItem("garnet", new Item.Properties());
+
+    /**
+     * 血鲁珀特：红得发亮的那颗滴状物，钼与炽热之泪两条支线的引子
+     *
+     * <p>四条配方在 {@code data/dawnduskterminal/recipe/} 下，分别是
+     * {@code experiment_030.json}（配粗钼铅矿与炼药锅压出试验物品030）、
+     * {@code blood_rupert.json}（配石榴石、光辉粉与三颗恶魂之泪自行增殖到四颗）、
+     * 以及 {@code fiery_tears_from_blood_rupert.json}（配玻璃瓶、恶魂之泪与炽热的方块烧成炽热之泪）
+     *
+     * <p>贴图是 {@code textures/item/blood_rupert.png}，模型走 {@code item/generated}
+     */
+    public static final DeferredItem<Item> BLOOD_RUPERT =
+            ITEMS.registerSimpleItem("blood_rupert", new Item.Properties());
 
     public static final DeferredItem<Item> SKY_SLICES = ITEMS.registerSimpleItem("sky_slices", new Item.Properties());
 
@@ -262,6 +276,19 @@ public final class ModItems {
      */
     public static final DeferredItem<PrismStaffItem> PRISM_STAFF = ITEMS.register(
             "prism_staff", () -> new PrismStaffItem(new Item.Properties().durability(PrismStaffItem.DURABILITY)));
+
+    /**
+     * 火箭机弩：按住右键每 0.5 秒消耗一枚烟花火箭、打出一发随机烟花火箭，见 {@link FireworkMachineBowItem}
+     *
+     * <p>耐久 465，与原版弩相同；每发扣 3 点，也就是原版弩打烟花火箭的 {@code getDurabilityUse}。
+     * 有耐久就同时满足原版 {@code Item#isEnchantable} 的两条（不可堆叠、带最大耐久），不用再另开判据
+     */
+    public static final DeferredItem<FireworkMachineBowItem> FIREWORK_MACHINEBOW = ITEMS.register(
+            "firework_machinebow",
+            () -> new FireworkMachineBowItem(new Item.Properties()
+                    .stacksTo(1)
+                    .durability(FireworkMachineBowItem.DURABILITY)
+                    .rarity(Rarity.UNCOMMON)));
 
     // T2 护甲，数值在 ModArmorMaterials 里，四件穿齐时每件自己续生命恢复
     public static final DeferredItem<ScarletMolybdArmorItem> SCARLET_MOLYBD_HELMET =

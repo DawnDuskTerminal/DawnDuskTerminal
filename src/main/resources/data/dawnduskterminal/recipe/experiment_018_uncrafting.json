@@ -1,0 +1,19 @@
+{
+  "type": "twilightforest:uncrafting",
+  "cost": 0,
+  "input": {
+    "item": "dawnduskterminal:experiment_018"
+  },
+  "input_count": 1,
+  "key": {
+    "A": {
+      "item": "dawnduskterminal:carminite_ingot"
+    },
+    "B": {
+      "item": "minecraft:clay"
+    }
+  },
+  "pattern": [
+    "AB"
+  ]
+}

@@ -6,6 +6,7 @@ import com.dawnduskterminal.crafting.UncraftingPlan;
 import com.dawnduskterminal.crafting.UncraftingResolver;
 import com.dawnduskterminal.registry.ModBlocks;
 import com.dawnduskterminal.registry.ModExperimentItems;
+import com.dawnduskterminal.registry.ModItems;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -14,6 +15,7 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.ItemTags;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Block;
@@ -287,6 +289,61 @@ public final class Experiment051Tests {
                 plan.products().get(6).is(darkLeaves.getItem()),
                 "output slot 6 must be dark leaves, got " + plan.products().get(6));
         for (int slot : new int[] {0, 1, 5, 8}) {
+            helper.assertTrue(
+                    plan.products().get(slot).isEmpty(),
+                    "output slot " + slot + " must stay empty, got "
+                            + plan.products().get(slot));
+        }
+        helper.succeed();
+    }
+
+    /**
+     * 试验物品 018 只能拆、不能合：拆一次吃 1 个，吐一颗砷铅铁锭加一块黏土块
+     *
+     * <p>数据在 {@code data/dawnduskterminal/recipe/experiment_018_uncrafting.json}，
+     * 是有形的两格排布（{@code "AB"}），所以产物落在 3x3 第一行的前两格。
+     * 与 017 那条一样顺带钉住「不可合成」：哪天给它补了合成配方，反查那段会抢在拆解配方前面
+     */
+    @GameTest(template = "ddt_empty")
+    public static void experiment018UncraftsIntoIngotAndClay(GameTestHelper helper) {
+        assertUncraftsIntoIngotAndClay(
+                helper, ModExperimentItems.textured().get(18).get(), ModItems.CARMINITE_INGOT.get());
+    }
+
+    /**
+     * 试验物品 035 同样只能拆、不能合：拆一次吃 1 个，吐一颗绯色钼锭加一块黏土块
+     *
+     * <p>数据在 {@code data/dawnduskterminal/recipe/experiment_035_uncrafting.json}，
+     * 排布与 018 那条一样是两格
+     */
+    @GameTest(template = "ddt_empty")
+    public static void experiment035UncraftsIntoIngotAndClay(GameTestHelper helper) {
+        assertUncraftsIntoIngotAndClay(
+                helper, ModExperimentItems.textured().get(35).get(), ModItems.SCARLET_MOLYBDENUM_INGOT.get());
+    }
+
+    /** 拆一次：第一格那颗锭、第二格黏土块，其余七格空着 */
+    private static void assertUncraftsIntoIngotAndClay(GameTestHelper helper, Item input, Item ingot) {
+        ServerLevel level = helper.getLevel();
+        boolean craftable = level.getRecipeManager().getRecipes().stream()
+                .anyMatch(holder ->
+                        holder.value().getResultItem(level.registryAccess()).is(input));
+        helper.assertFalse(
+                craftable, input.getDescriptionId() + " must stay uncraftable, but some crafting recipe now yields it");
+
+        UncraftingPlan plan = UncraftingResolver.resolve(level, new ItemStack(input));
+        helper.assertFalse(plan.isNone(), input.getDescriptionId() + " must uncraft into an ingot plus clay");
+        helper.assertTrue(
+                plan.inputCount() == 1,
+                "one " + input.getDescriptionId() + " must be eaten per uncraft, got " + plan.inputCount());
+        helper.assertTrue(
+                plan.products().get(0).is(ingot),
+                "output slot 0 must be " + ingot.getDescriptionId() + ", got "
+                        + plan.products().get(0));
+        helper.assertTrue(
+                plan.products().get(1).is(Items.CLAY),
+                "output slot 1 must be minecraft:clay, got " + plan.products().get(1));
+        for (int slot : new int[] {2, 3, 4, 5, 6, 7, 8}) {
             helper.assertTrue(
                     plan.products().get(slot).isEmpty(),
                     "output slot " + slot + " must stay empty, got "

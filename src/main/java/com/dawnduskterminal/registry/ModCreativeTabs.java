@@ -86,6 +86,7 @@ public final class ModCreativeTabs {
                         accept(output, ModChronoOres.DIRAC_ORE_ITEM.get());
                         accept(output, ModItems.RAW_SCARLET_MOLYBDENUM.get());
                         accept(output, ModItems.GARNET.get());
+                        accept(output, ModItems.BLOOD_RUPERT.get());
                         accept(output, ModItems.SKY_SLICES.get());
                         accept(output, ModItems.OCHRE.get());
                         accept(output, ModItems.CANOPY_FROST_BALL.get());
@@ -109,6 +110,7 @@ public final class ModCreativeTabs {
                         ModItems.susCakes().values().forEach(cake -> accept(output, cake.get()));
                         accept(output, ModItems.CARMINITE_BALL.get());
                         accept(output, ModItems.PRISM_STAFF.get());
+                        accept(output, ModItems.FIREWORK_MACHINEBOW.get());
                         accept(output, ModItems.STRING.get());
                         // 血肉之书没有序号，不是试验物品，挂在主栏目
                         accept(output, ModExperimentItems.EXPOWHEEL_FLESHBOOK.get());

@@ -2,11 +2,12 @@
   "type": "minecraft:crafting_shaped",
   "category": "misc",
   "pattern": [
-    "X X",
+    "XYX",
     " X "
   ],
   "key": {
-    "X": { "item": "dawnduskterminal:canopy_ingot" }
+    "X": { "item": "dawnduskterminal:canopy_ingot" },
+    "Y": { "item": "twilightforest:mason_jar" }
   },
   "result": {
     "id": "dawnduskterminal:canocan",

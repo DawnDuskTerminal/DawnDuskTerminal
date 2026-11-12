@@ -213,4 +213,53 @@ NeoForge 自带 191 个原版配方覆盖，其中 13 条与本模组需要修�
 `gametest/CanopyBoatTests` 通过 `RecipeManager` 取这四条最终生效的配方，逐条核对产物与每一种原料；
 产物是暮色森林的物品也照查，因此那边改 ID 时这里会先红。
 
+## 九 血鲁珀特
+
+血鲁珀特是新加的材料（`dawnduskterminal:blood_rupert`），图标由美术提供，模型走 `item/generated`。
+它引出两条支线：钼链与炽热之泪。
+
+| 配方 | 摆法 | 产物 |
+|---|---|---|
+| `experiment_030` | 无序：血鲁珀特 + 粗钼铅矿 + 炼药锅 | 1 试验物品030 |
+| `experiment_030_from_experiment_029` | 无序：试验物品029 + 2 粗钼铅矿 + 炼药锅 | 2 试验物品030 |
+| `experiment_030_smelting` | 烧炼，200 tick、0.7 经验 | 绯色钼锭 |
+| `blood_rupert` | 无序：血鲁珀特 + 石榴石 + 光辉粉 + 3 恶魂之泪 | 4 血鲁珀特 |
+| `fiery_tears_from_blood_rupert` | 无序：血鲁珀特 + 玻璃瓶 + 恶魂之泪 + 炽热的方块 | 1 炽热之泪 |
+| `fiery_tears_from_experiment_029` | 无序：试验物品029 + 玻璃瓶 + 恶魂之泪 + 炽热的方块 | 2 炽热之泪 |
+
+几处容易看错的地方：
+
+- 「炼药锅」是 `minecraft:cauldron` 这件**物品**，占无序配方的一格，合成时一并消耗；
+  不是把原料丢进炼药锅方块里煮
+- 「粗钼铅矿」是挖矿掉落的 `rawscarletmolybdenum`，不是钼铅矿方块本身
+- 「光辉粉」指本模组的 `illustrious_powder`
+- 「炽热之泪」是暮色森林的 `twilightforest:fiery_tears`，配方里写死这个 ID
+
+两条分支都各有一条配方产出同一件物品（试验物品030、炽热之泪），靠原料里粗钼铅矿的个数区分。
+因此 `gametest/BloodRupertTests` 除了核对产物与数量，还核对命中的配方 ID：
+两条若混淆，拿试验物品029 的那一叠会被当成单颗那条，白吃一份粗钼铅矿。
+
+试验物品030 顺手补上了自己的图标（`textures/item/experiment_030.png`），
+于是它从 `ModExperimentItems.PLACEHOLDERS` 搬到 `TEXTURED`：
+占位降为 40 个，有贴图的升到 32 个，`ExperimentItemTests` 里那两处计数断言随之改动。
+
+## 十 拆解
+
+试验物品051（拆解台那台机器）读的是暮色森林的 `twilightforest:uncrafting` 配方表，
+文件都在 `data/dawnduskterminal/recipe/` 下：
+
+| 配方 | 输入 | 一次吃掉 | 产物 |
+|---|---|---|---|
+| `experiment_017_uncrafting` | 试验物品017 | 1 | 4 钢叶锭 + 黑树树叶 |
+| `experiment_018_uncrafting` | 试验物品018 | 1 | 砷铅铁锭 + 黏土块 |
+| `experiment_035_uncrafting` | 试验物品035 | 1 | 绯色钼锭 + 黏土块 |
+
+「黏土块」是 `minecraft:clay`，不是黏土球（`clay_ball`）。
+
+后两条是两格排布（`"AB"`），产物落在 3x3 的第一行前两格；017 那条是 3x3 的斜排。
+三件试验物品都没有合成配方，所以反查合成配方那一档不会抢在拆解配方前面。
+`gametest/Experiment051Tests` 逐条钉住产物与位置，并顺带钉住「不可合成」。
+
+
+
 

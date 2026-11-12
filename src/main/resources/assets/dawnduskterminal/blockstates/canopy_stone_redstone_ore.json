@@ -1,0 +1,10 @@
+{
+  "variants": {
+    "lit=false": {
+      "model": "dawnduskterminal:block/canopy_stone_redstone_ore"
+    },
+    "lit=true": {
+      "model": "dawnduskterminal:block/canopy_stone_redstone_ore"
+    }
+  }
+}

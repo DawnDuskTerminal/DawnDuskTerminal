@@ -35,9 +35,11 @@ import com.dawnduskterminal.registry.ModTerrainBlocks;
 import com.dawnduskterminal.registry.ModTrunkPlacers;
 import com.dawnduskterminal.server.DdtServerEvents;
 import com.dawnduskterminal.world.CarminiteBlast;
+import com.dawnduskterminal.world.ChronoRainSpawns;
 import com.dawnduskterminal.world.DarkForestSpawns;
 import com.dawnduskterminal.world.Experiment065Field;
 import com.dawnduskterminal.world.FluidReactions;
+import com.dawnduskterminal.world.MachinebowFireworks;
 import net.minecraft.resources.ResourceLocation;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.IEventBus;
@@ -97,12 +99,16 @@ public final class DawnDuskTerminal {
         NeoForge.EVENT_BUS.addListener(DdtServerEvents::onServerStarted);
         NeoForge.EVENT_BUS.addListener(DdtServerEvents::onServerStopped);
         NeoForge.EVENT_BUS.addListener(DdtServerEvents::onServerTick);
+        NeoForge.EVENT_BUS.addListener(DdtServerEvents::onEntityTick);
         NeoForge.EVENT_BUS.addListener(DdtServerEvents::onPlayerLoggedIn);
         NeoForge.EVENT_BUS.addListener(DdtServerEvents::onPlayerTick);
         NeoForge.EVENT_BUS.addListener(DdtServerEvents::onLivingDeath);
         NeoForge.EVENT_BUS.addListener(DdtServerEvents::onRightClickItem);
         // 试验物品 065 的场：范围里打出的伤害一律无效，判定与场心登记都在 Experiment065Field
         NeoForge.EVENT_BUS.addListener(Experiment065Field::onLivingIncomingDamage);
+        // 火箭机弩的火箭：星数、力量、火矢、无敌帧在伤害落地前补，冲击削的那一次击退在落地后削
+        NeoForge.EVENT_BUS.addListener(MachinebowFireworks::onLivingIncomingDamage);
+        NeoForge.EVENT_BUS.addListener(MachinebowFireworks::onLivingKnockBack);
         // 试验物品 052 的连锁：主爆炸进行中把范围内的同类方块从破坏名单里摘出来、排到下一 tick 引爆
         NeoForge.EVENT_BUS.addListener(CarminiteBlast::protectArmedBlocks);
         NeoForge.EVENT_BUS.addListener(DdtCommands::register);
@@ -111,6 +117,8 @@ public final class DawnDuskTerminal {
         NeoForge.EVENT_BUS.addListener(GhastEliteEntity::onProjectileImpact);
         // 暗森林的刷怪：谁能刷出来只由脚下那块方块决定，规则见 DarkForestSpawns
         NeoForge.EVENT_BUS.addListener(DarkForestSpawns::onPositionCheck);
+        // 雨天压制露天生长的生物：露天判定与淋雨伤害共用 ChronoRain 那一套，见 ChronoRainSpawns
+        NeoForge.EVENT_BUS.addListener(ChronoRainSpawns::onPositionCheck);
 
         if (FMLEnvironment.dist == Dist.CLIENT) {
             DdtClient.init(modBus);

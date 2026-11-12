@@ -257,13 +257,16 @@ public class LivingArmorEntity extends Monster {
     @Override
     protected void registerGoals() {
         this.goalSelector.addGoal(0, new FloatGoal(this));
-        // 半血以下压过一切：逃跑，或者贴着靠山跟着打，见 WoundedGoal
-        this.goalSelector.addGoal(1, new WoundedGoal(this));
+        // 下雨时先躲进有顶的地方：露天的地面生物每 2 秒挨一点雨滴伤害，见 SeekRainShelterGoal。
+        // 它排在受伤与攻击之前：淋着雨还要打，等于站在原地掉血
+        this.goalSelector.addGoal(1, new SeekRainShelterGoal(this));
+        // 半血以下压过攻击：逃跑，或者贴着靠山跟着打，见 WoundedGoal
+        this.goalSelector.addGoal(2, new WoundedGoal(this));
         // 健康时：链锤拉开距离扔，斧头起跳劈，其余贴脸砍；追远目标时疾跑，见 ArmorAttackGoal
-        this.goalSelector.addGoal(2, new ArmorAttackGoal(this));
-        this.goalSelector.addGoal(4, new WaterAvoidingRandomStrollGoal(this, CHASE_SPEED));
-        this.goalSelector.addGoal(5, new LookAtPlayerGoal(this, Player.class, 8.0F));
-        this.goalSelector.addGoal(6, new RandomLookAroundGoal(this));
+        this.goalSelector.addGoal(3, new ArmorAttackGoal(this));
+        this.goalSelector.addGoal(5, new WaterAvoidingRandomStrollGoal(this, CHASE_SPEED));
+        this.goalSelector.addGoal(6, new LookAtPlayerGoal(this, Player.class, 8.0F));
+        this.goalSelector.addGoal(7, new RandomLookAroundGoal(this));
         this.targetSelector.addGoal(1, new HurtByTargetGoal(this));
         // 半血以下不主动找玩家：那时候由 WoundedGoal 决定是逃还是跟着靠山打
         this.targetSelector.addGoal(

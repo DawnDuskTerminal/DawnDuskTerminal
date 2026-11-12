@@ -237,6 +237,8 @@ feature 引用与 `neoforge:remove_features` 中的 ID 必须真实存在，否�
 
 `docs/portal.md` 为传送门与流体。
 
+`docs/weather.md` 为雨天：淋雨判定、伤害、躲雨、刷怪压制与雨的颜色。
+
 `docs/crafting.md` 为合成配方与标签。
 
 `docs/development.md` 为开发与构建。

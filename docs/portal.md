@@ -166,15 +166,25 @@
 
 ## 音效
 
+本模组按世界或实体位置播放的音效一律是**单声道**（`tools/audio/downmix_to_mono.py` 负责转换）：
+Minecraft 把声音交给 OpenAL，而 OpenAL 对多声道缓冲区不做空间化——立体声的源既不按距离衰减，
+出服务端广播半径（`16 × 音量` 格）时又直接消失，听感就是「远近一样响、到边上突然没了」。
+单声道才会按 `sounds.json` 的 `attenuation_distance`（缺省 16 格）做线性衰减。
+原版音效也都是单声道，音乐才是立体声。
+
 `portal_open` 用于开门。
 
 `portal_enter` 用于进入，暂借用 `portal_open` 的音频。
 
 `portal_exit` 用于离开，暂借用 `portal_open` 的音频。
 
-`portal_hurt` 用于受侵蚀。
+`portal_hurt` 用于受侵蚀，雨天露天伤害也用这一声（见 `weather.md`）。
 
 `chrono_ambient` 是维度环境音，暂借用 `carminite_field` 的音频。
+
+`requiem/*` 的六首是器物音乐，按实体位置播放、要按 32 格衰减（`RequiemSoundInstance`），所以同样是单声道。
+这与原版一致：唱片 `records/*` 是单声道（它挂在唱片机上，要随距离衰减），
+只有不定位的背景音乐 `music/*` 才是立体声。
 
 ## 命令
 

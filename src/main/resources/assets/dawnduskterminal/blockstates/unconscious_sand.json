@@ -1,7 +1,36 @@
 {
   "variants": {
-    "": {
-      "model": "dawnduskterminal:block/unconscious_sand"
-    }
+    "": [
+      {
+        "model": "dawnduskterminal:block/unconscious_sand"
+      },
+      {
+        "model": "dawnduskterminal:block/unconscious_sand_mirrored"
+      },
+      {
+        "model": "dawnduskterminal:block/unconscious_sand",
+        "y": 90
+      },
+      {
+        "model": "dawnduskterminal:block/unconscious_sand_mirrored",
+        "y": 90
+      },
+      {
+        "model": "dawnduskterminal:block/unconscious_sand",
+        "y": 180
+      },
+      {
+        "model": "dawnduskterminal:block/unconscious_sand_mirrored",
+        "y": 180
+      },
+      {
+        "model": "dawnduskterminal:block/unconscious_sand",
+        "y": 270
+      },
+      {
+        "model": "dawnduskterminal:block/unconscious_sand_mirrored",
+        "y": 270
+      }
+    ]
   }
 }

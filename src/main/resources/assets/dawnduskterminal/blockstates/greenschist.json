@@ -1,7 +1,20 @@
 {
   "variants": {
-    "": {
-      "model": "dawnduskterminal:block/greenschist"
-    }
+    "": [
+      {
+        "model": "dawnduskterminal:block/greenschist"
+      },
+      {
+        "model": "dawnduskterminal:block/greenschist_mirrored"
+      },
+      {
+        "model": "dawnduskterminal:block/greenschist",
+        "y": 180
+      },
+      {
+        "model": "dawnduskterminal:block/greenschist_mirrored",
+        "y": 180
+      }
+    ]
   }
 }

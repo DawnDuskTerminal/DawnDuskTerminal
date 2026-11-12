@@ -1,7 +1,20 @@
 {
   "variants": {
-    "": {
-      "model": "dawnduskterminal:block/siltstone"
-    }
+    "": [
+      {
+        "model": "dawnduskterminal:block/siltstone"
+      },
+      {
+        "model": "dawnduskterminal:block/siltstone_mirrored"
+      },
+      {
+        "model": "dawnduskterminal:block/siltstone",
+        "y": 180
+      },
+      {
+        "model": "dawnduskterminal:block/siltstone_mirrored",
+        "y": 180
+      }
+    ]
   }
 }

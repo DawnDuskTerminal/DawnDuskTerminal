@@ -568,20 +568,20 @@ public final class ExperimentItemTests {
      * 1..115 的分档：占位的定义是「图标还借 {@code experiment_temp.png}」，有自己贴图的不算占位
      *
      * <p>三张表要互补：{@code TAKEN}（有行为）+ 有自己贴图的那批 + 占位 = 1..115，谁也不能同时落两处。
-     * 占位一共 41 个——不是「115 减去被占的号」那么简单，因为 31 个号早就有自己的贴图与模型了
+     * 占位一共 40 个——不是「115 减去被占的号」那么简单，因为 32 个号早就有自己的贴图与模型了
      */
     @GameTest(template = "ddt_empty")
     public static void placeholdersOnlyCoverTheBlankIcons(GameTestHelper helper) {
         SortedMap<Integer, DeferredItem<Item>> placeholders = ModExperimentItems.placeholders();
         SortedMap<Integer, DeferredItem<Item>> textured = ModExperimentItems.textured();
-        // 图标还是 experiment_temp 的那 41 个号
+        // 图标还是 experiment_temp 的那 40 个号
         helper.assertTrue(
-                placeholders.size() == 41,
-                "only the numbers whose icon still borrows experiment_temp count as placeholders, expected 41, got "
+                placeholders.size() == 40,
+                "only the numbers whose icon still borrows experiment_temp count as placeholders, expected 40, got "
                         + placeholders.size());
-        // 已经有自己贴图的 31 个号
+        // 已经有自己贴图的 32 个号
         helper.assertTrue(
-                textured.size() == 31, "31 numbers already own their icon, expected 31, got " + textured.size());
+                textured.size() == 32, "32 numbers already own their icon, expected 32, got " + textured.size());
         helper.assertTrue(
                 ModExperimentItems.simpleItems().size() == placeholders.size() + textured.size(),
                 "simpleItems() must be exactly the two tables put together, got "
@@ -591,7 +591,7 @@ public final class ExperimentItemTests {
             helper.assertTrue(placeholders.containsKey(number), "number " + number + " must have a placeholder item");
         }
         for (int number :
-                new int[] {3, 5, 6, 13, 15, 16, 18, 21, 35, 58, 64, 68, 72, 73, 75, 77, 79, 82, 85, 90, 100, 113}) {
+                new int[] {3, 5, 6, 13, 15, 16, 18, 21, 30, 35, 58, 64, 68, 72, 73, 75, 77, 79, 82, 85, 90, 100, 113}) {
             helper.assertFalse(
                     placeholders.containsKey(number),
                     "number " + number + " already owns its icon, it must not be a placeholder any more");
@@ -666,8 +666,8 @@ public final class ExperimentItemTests {
                 }
             }
         }
-        helper.assertTrue(placeholders == 41, "41 numbers still borrow experiment_temp, got " + placeholders);
-        helper.assertTrue(textured == 31, "31 numbers own their icon but have no behaviour, got " + textured);
+        helper.assertTrue(placeholders == 40, "40 numbers still borrow experiment_temp, got " + placeholders);
+        helper.assertTrue(textured == 32, "32 numbers own their icon but have no behaviour, got " + textured);
         helper.assertTrue(taken == 43, "43 numbers are taken, got " + taken);
         helper.succeed();
     }

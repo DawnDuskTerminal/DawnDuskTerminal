@@ -119,6 +119,17 @@ public final class ModParticles {
                 }
             });
 
+    /**
+     * 晨昏线维度的雨点：贴图是从原版那四张水花（{@code splash_0..3}）复制一份再逐像素转色相得到的，
+     * 见 {@code tools/recolor_rain.py} 与 {@code textures/particle/chrono_splash_0..3.png}
+     *
+     * <p>只在这个维度的雨天出现，由 {@code client/ChronoDimensionEffects#tickRain} 逐 tick 生成；
+     * 颜色全在贴图里，没有顶点着色（乘法改不了色相）；实现在
+     * {@link com.dawnduskterminal.client.PortalRainParticle}
+     */
+    public static final DeferredHolder<ParticleType<?>, SimpleParticleType> PORTAL_RAIN =
+            register("particle_portal_rain");
+
     private ModParticles() {}
 
     private static DeferredHolder<ParticleType<?>, SimpleParticleType> register(String name) {

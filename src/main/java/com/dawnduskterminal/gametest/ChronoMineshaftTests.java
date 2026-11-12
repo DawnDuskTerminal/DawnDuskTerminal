@@ -1,6 +1,7 @@
 package com.dawnduskterminal.gametest;
 
 import com.dawnduskterminal.DawnDuskTerminal;
+import com.dawnduskterminal.config.DdtConfig;
 import com.dawnduskterminal.registry.ModStructures;
 import com.dawnduskterminal.structure.ChronoMineshaftPieces;
 import com.dawnduskterminal.structure.ChronoMineshaftStructure;
@@ -8,11 +9,20 @@ import com.dawnduskterminal.structure.ChronoMineshaftWoods;
 import com.dawnduskterminal.world.ChronoLine;
 import com.dawnduskterminal.world.ChronoLineState;
 import com.dawnduskterminal.world.PaletteBiomeSource;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
+import net.minecraft.core.HolderGetter;
 import net.minecraft.core.HolderSet;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -40,6 +50,11 @@ import net.minecraft.world.level.levelgen.structure.pieces.PiecesContainer;
 import net.minecraft.world.level.levelgen.structure.pieces.StructurePieceSerializationContext;
 import net.minecraft.world.level.levelgen.structure.pieces.StructurePieceType;
 import net.minecraft.world.level.levelgen.structure.placement.RandomSpreadStructurePlacement;
+import net.minecraft.world.level.storage.loot.LootParams;
+import net.minecraft.world.level.storage.loot.LootTable;
+import net.minecraft.world.level.storage.loot.parameters.LootContextParamSets;
+import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
+import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -49,6 +64,9 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
  * <p>矿井是复制出来的结构，木材套组按设定挑：黑森林与红草树林用黑木，沼泽类用红树，寒冷区域用苍穹木，
  * 其余暮色橡木。这几条是内容约定，代码里改一行就能错，所以在这里钉住。另一道是方块类型：走廊会在栅栏上
  * 直接 {@code setValue(FenceBlock.WEST, ...)}，选错方块类型是生成时抛异常。
+ *
+ * <p>群系名单与箱车这两项也钉在这里：名单一旦回到「挑过的群系表」，矿井就会由起点那一格的地下群系决定生
+ * 不生；箱车那张表一旦写错，箱车照样刷出来，打开却是空的——而且它必须逐条写着物品，不许嵌套引用别的表。
  */
 @GameTestHolder("dawnduskterminal")
 @PrefixGameTestTemplate(false)
@@ -64,6 +82,10 @@ public final class ChronoMineshaftTests {
 
     private static final TagKey<Biome> MINESHAFT_BIOMES =
             TagKey.create(Registries.BIOME, ResourceLocation.fromNamespaceAndPath(MOD_ID, "has_structure/mineshaft"));
+
+    /** 原版的「这些群系里不生矿井」表，本维度不得往里塞调色板群系 */
+    private static final TagKey<Biome> MINESHAFT_BLOCKING =
+            TagKey.create(Registries.BIOME, ResourceLocation.withDefaultNamespace("mineshaft_blocking"));
 
     /** 结构注册、件类型注册、群系标签三件套都得对上，否则矿井在维度里一次都不生成 */
     @GameTest(template = "ddt_empty")
@@ -93,6 +115,24 @@ public final class ChronoMineshaftTests {
                     "a chrono mineshaft must be listed on chrono biome copies only, got "
                             + ChronoMineshaftWoods.biomeId(biome));
         }
+
+        // 群系名单必须就是整张调色板。矿井的群系判定看的是结构起点那一格，而起点在 y -64 到 -10，
+        // 那里是洞穴群系；只列一部分群系就等于让地下群系决定矿井生不生
+        Registry<Biome> biomeRegistry = access.registryOrThrow(Registries.BIOME);
+        Set<ResourceLocation> missing = ids(biomeRegistry.getTag(PALETTE).orElseThrow());
+        missing.removeAll(ids(biomes));
+        String missingMessage = "#" + MINESHAFT_BIOMES.location() + " 少了这些调色板群系，矿井会按地下群系生：" + missing;
+        helper.assertTrue(missing.isEmpty(), missingMessage);
+
+        // mineshaft_blocking 同理：那条判定会把落在地下洞穴群系里的件整块跳过
+        biomeRegistry.getTag(MINESHAFT_BLOCKING).ifPresent(blocked -> {
+            for (Holder<Biome> biome : blocked) {
+                ResourceLocation blockedId = ChronoMineshaftWoods.biomeId(biome);
+                helper.assertTrue(
+                        !ChronoMineshaftWoods.isChronoBiome(blockedId),
+                        "地下群系 " + blockedId + " 仍然在 #" + MINESHAFT_BLOCKING.location() + " 里挡着矿井");
+            }
+        });
 
         // 件类型必须注册在自己的命名空间下，存档里的件才认得回来
         Registry<StructurePieceType> pieceTypes = access.registryOrThrow(Registries.STRUCTURE_PIECE);
@@ -318,5 +358,99 @@ public final class ChronoMineshaftTests {
         helper.assertTrue(
                 chosen.size() > 1, "three far apart shafts must not all end up on the same wood set, got " + chosen);
         helper.succeed();
+    }
+
+    /**
+     * 箱车里的东西必须逐条写在 {@code chests/chrono_mineshaft.json} 里，内容对着暮色森林大型空心矿山
+     *
+     * <p>三件事一起钉：
+     *
+     * <ul>
+     *   <li>表里不许出现 {@code minecraft:loot_table} 这种嵌套引用——宝箱掉什么要能在那一个文件里逐行读到；
+     *   <li>三个池的投掷次数必须是大型空心矿山那三档 4 / 2 / 1；
+     *   <li>几样招牌货得在：火把浆果、铁木稿、魔法地图、月虫女王、铁木块、金粒。
+     * </ul>
+     *
+     * <p>最后再真抽几次：表 id 写错、物品 id 写错，游戏都不会报错，箱车照常刷出来、打开是空的
+     */
+    @GameTest(template = "ddt_empty")
+    public static void minecartsCarryTheLargeHollowHillLoot(GameTestHelper helper) {
+        HolderGetter<LootTable> tables =
+                helper.getLevel().getServer().reloadableRegistries().lookup().lookupOrThrow(Registries.LOOT_TABLE);
+        Holder<LootTable> table = tables.get(ChronoMineshaftPieces.LOOT).orElse(null);
+        helper.assertTrue(table != null, "箱车写的 " + ChronoMineshaftPieces.LOOT.location() + " 没有被加载");
+
+        String resource = "/data/dawnduskterminal/loot_table/chests/chrono_mineshaft.json";
+        Set<String> names = new LinkedHashSet<>();
+        List<Double> rolls = new ArrayList<>();
+        try (InputStream in = ChronoMineshaftTests.class.getResourceAsStream(resource)) {
+            helper.assertTrue(in != null, "找不到 " + resource);
+            JsonObject json = JsonParser.parseString(new String(in.readAllBytes(), StandardCharsets.UTF_8))
+                    .getAsJsonObject();
+            for (JsonElement pool : json.getAsJsonArray("pools")) {
+                JsonObject poolObject = pool.getAsJsonObject();
+                rolls.add(poolObject.get("rolls").getAsDouble());
+                for (JsonElement element : poolObject.getAsJsonArray("entries")) {
+                    JsonObject entry = element.getAsJsonObject();
+                    String type = entry.get("type").getAsString();
+                    helper.assertTrue(
+                            !"minecraft:loot_table".equals(type),
+                            resource + " 里出现了嵌套引用 " + entry.get("value") + "，宝箱内容要逐条写在表里");
+                    helper.assertTrue(
+                            "minecraft:item".equals(type) || "minecraft:empty".equals(type),
+                            resource + " 里的 " + type + " 不是这一张表该有的条目");
+                    if ("minecraft:item".equals(type)) {
+                        names.add(entry.get("name").getAsString());
+                    }
+                }
+            }
+        } catch (IOException error) {
+            throw new AssertionError(resource + " 读不出来", error);
+        }
+
+        helper.assertTrue(rolls.equals(List.of(4.0D, 2.0D, 1.0D)), "三个池的投掷次数应当是大型空心矿山的 4 / 2 / 1，实际 " + rolls);
+        for (String wanted : List.of(
+                "twilightforest:torchberries",
+                "twilightforest:ironwood_pickaxe",
+                "twilightforest:magic_map",
+                "twilightforest:moonworm_queen",
+                "twilightforest:ironwood_block",
+                "minecraft:gold_nugget")) {
+            helper.assertTrue(names.contains(wanted), resource + " 少了大空心矿山的 " + wanted);
+        }
+
+        // 真抽几次：抽得出东西才算「货在」
+        LootParams params = new LootParams.Builder(helper.getLevel())
+                .withParameter(LootContextParams.ORIGIN, Vec3.atCenterOf(helper.absolutePos(new BlockPos(4, 0, 4))))
+                .create(LootContextParamSets.CHEST);
+        for (long seed : new long[] {1L, 7L, 42L}) {
+            var items = table.value().getRandomItems(params, seed);
+            helper.assertTrue(!items.isEmpty(), "种子 " + seed + " 抽出来的箱车是空的");
+            helper.assertTrue(items.size() >= 3, "三个池一共至少 7 堆东西，种子 " + seed + " 只抽到 " + items.size() + " 堆");
+        }
+        helper.succeed();
+    }
+
+    /**
+     * 箱车概率是配置项，默认与原版的 1/100 一致
+     *
+     * <p>抽取顺序修好之后（见 {@code ChronoMineshaftPieces#placeChestMinecarts}），概率按原版的意思生效就够了；
+     * 这里只钉取值范围，免得配置项被写成 0（一只箱车都不出）或超过 1
+     */
+    @GameTest(template = "ddt_empty")
+    public static void chestChanceIsSane(GameTestHelper helper) {
+        double chance = DdtConfig.mineshaftChestChance();
+        helper.assertTrue(chance > 0.0D, "箱车概率不能是 0，当前 " + chance);
+        helper.assertTrue(chance <= 1.0D, "箱车概率不能超过 1，当前 " + chance);
+        helper.succeed();
+    }
+
+    /** 一组群系 holder 的 id 集合，比较两张标签用 */
+    private static Set<ResourceLocation> ids(HolderSet<Biome> biomes) {
+        Set<ResourceLocation> ids = new LinkedHashSet<>();
+        for (Holder<Biome> biome : biomes) {
+            ids.add(ChronoMineshaftWoods.biomeId(biome));
+        }
+        return ids;
     }
 }

@@ -51,6 +51,7 @@ import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.neoforged.neoforge.client.event.EntityRenderersEvent;
 import net.neoforged.neoforge.client.event.ModelEvent;
 import net.neoforged.neoforge.client.event.RegisterColorHandlersEvent;
+import net.neoforged.neoforge.client.event.RegisterDimensionSpecialEffectsEvent;
 import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
 import net.neoforged.neoforge.client.event.RegisterParticleProvidersEvent;
 import net.neoforged.neoforge.client.event.RegisterRenderBuffersEvent;
@@ -95,6 +96,8 @@ public final class DdtClient {
         modBus.addListener(Experiment011PlateRenderer::onRegisterRenderers);
         modBus.addListener(DdtClient::onRegisterEntityRenderers);
         modBus.addListener(DdtClient::onRegisterParticleProviders);
+        // 这个维度的天气观感：雨天落地的水花改由 ChronoDimensionEffects 生成
+        modBus.addListener(DdtClient::registerDimensionEffects);
         modBus.addListener(DdtClient::registerMenuScreens);
         modBus.addListener(YsmEntityReload::register);
     }
@@ -496,6 +499,18 @@ public final class DdtClient {
         event.registerSpriteSet(ModParticles.REQUIEM_NOTE.get(), RequiemNoteParticle::provider);
         // 棱镜射线上的光点：带颜色、恒满亮的 SpellParticle，见 PrismTraceParticle
         event.registerSpriteSet(ModParticles.PRISM_TRACE.get(), PrismTraceParticle.Provider::new);
+        // 雨天的水花：贴图借原版 rain，颜色固定成传送门流体的色相，见 PortalRainParticle
+        event.registerSpriteSet(ModParticles.PORTAL_RAIN.get(), PortalRainParticle.Provider::new);
+    }
+
+    /**
+     * 这个维度的天气观感：雨天落地的水花改由 {@link ChronoDimensionEffects} 生成
+     *
+     * <p>注册键要与 {@code data/dawnduskterminal/dimension_type/chrono.json} 的 {@code effects} 一致，
+     * 两处写的是同一个 ID（{@code dawnduskterminal:chrono}）
+     */
+    private static void registerDimensionEffects(RegisterDimensionSpecialEffectsEvent event) {
+        event.register(DawnDuskTerminal.id("chrono"), ChronoDimensionEffects.INSTANCE);
     }
 
     private static void registerFluidExtensions(RegisterClientExtensionsEvent event) {

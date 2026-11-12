@@ -1,7 +1,20 @@
 {
   "variants": {
-    "": {
-      "model": "dawnduskterminal:block/canopy_stone"
-    }
+    "": [
+      {
+        "model": "dawnduskterminal:block/canopy_stone"
+      },
+      {
+        "model": "dawnduskterminal:block/canopy_stone_mirrored"
+      },
+      {
+        "model": "dawnduskterminal:block/canopy_stone",
+        "y": 180
+      },
+      {
+        "model": "dawnduskterminal:block/canopy_stone_mirrored",
+        "y": 180
+      }
+    ]
   }
 }

@@ -15,8 +15,9 @@ import net.minecraft.world.entity.player.Player;
  * <p>两件事：
  *
  * <ul>
- *   <li><b>距离衰减</b>：{@code EntityBoundSoundInstance} 走的是 OpenAL 那套按位置的距离模型，
- *       实测对这支不生效（听起来全程满音量），所以把 {@code attenuation} 设成
+ *   <li><b>距离衰减</b>：素材已经是单声道（`tools/audio/downmix_to_mono.py`），所以 OpenAL 会做空间化；
+ *       但引擎那条线性衰减的距离是 `attenuation_distance × max(音量, 1)`，默认只有 16 格，
+ *       对一 tick 飞两格的弹体太短。所以这里仍把 {@code attenuation} 设成
  *       {@link SoundInstance.Attenuation#NONE}，音量完全由 {@link #getVolume()} 说了算：
  *       监听者到弹体的距离按 {@value #RANGE} 格线性收到 0。引擎每 tick 读一次 {@code getVolume()}
  *       （{@code SoundEngine#tickNonPaused}），所以这是逐帧算的

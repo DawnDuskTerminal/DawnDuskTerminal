@@ -1,7 +1,36 @@
 {
   "variants": {
-    "": {
-      "model": "dawnduskterminal:block/chaos_stone"
-    }
+    "": [
+      {
+        "model": "dawnduskterminal:block/chaos_stone"
+      },
+      {
+        "model": "dawnduskterminal:block/chaos_stone_mirrored"
+      },
+      {
+        "model": "dawnduskterminal:block/chaos_stone",
+        "y": 90
+      },
+      {
+        "model": "dawnduskterminal:block/chaos_stone_mirrored",
+        "y": 90
+      },
+      {
+        "model": "dawnduskterminal:block/chaos_stone",
+        "y": 180
+      },
+      {
+        "model": "dawnduskterminal:block/chaos_stone_mirrored",
+        "y": 180
+      },
+      {
+        "model": "dawnduskterminal:block/chaos_stone",
+        "y": 270
+      },
+      {
+        "model": "dawnduskterminal:block/chaos_stone_mirrored",
+        "y": 270
+      }
+    ]
   }
 }

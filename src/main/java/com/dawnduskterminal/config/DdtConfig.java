@@ -22,6 +22,7 @@ public final class DdtConfig {
     private static final int PORTAL_COOLDOWN_TICKS_DEFAULT = 100;
     private static final boolean ENTITY_DEBUFF_DEFAULT = true;
     private static final boolean TOLERATE_FEATURE_CYCLES_DEFAULT = true;
+    private static final double MINESHAFT_CHEST_CHANCE_DEFAULT = 0.01D;
     private static final boolean NATIVE_MESH_DEFAULT = true;
     private static final double RIBBON_SPEED_DEFAULT = 1.0D;
 
@@ -35,6 +36,7 @@ public final class DdtConfig {
     private static final ModConfigSpec.IntValue PORTAL_COOLDOWN_TICKS;
     private static final ModConfigSpec.BooleanValue ENTITY_DEBUFF;
     private static final ModConfigSpec.BooleanValue TOLERATE_FEATURE_CYCLES;
+    private static final ModConfigSpec.DoubleValue MINESHAFT_CHEST_CHANCE;
     private static final ModConfigSpec.BooleanValue NATIVE_MESH;
     private static final ModConfigSpec.DoubleValue RIBBON_SPEED;
 
@@ -93,6 +95,12 @@ public final class DdtConfig {
         TOLERATE_FEATURE_CYCLES = b.comment(
                         "replace the vanilla feature sorter with a cycle tolerant one, required when both vanilla and modded biomes are used in one dimension")
                 .define("tolerate_feature_cycles", TOLERATE_FEATURE_CYCLES_DEFAULT);
+        b.pop();
+
+        b.push("structure");
+        MINESHAFT_CHEST_CHANCE = b.comment(
+                        "chance per corridor section per side that a chrono mineshaft lands a chest minecart, 0.01 is the vanilla rate")
+                .defineInRange("mineshaft_chest_chance", MINESHAFT_CHEST_CHANCE_DEFAULT, 0.0D, 1.0D);
         b.pop();
 
         b.push("render");
@@ -180,6 +188,18 @@ public final class DdtConfig {
 
     public static boolean nativeMeshEnabled() {
         return safe(NATIVE_MESH, NATIVE_MESH_DEFAULT);
+    }
+
+    /**
+     * 废弃矿井每段走廊、每一侧放箱车的概率
+     *
+     * <p>原版写死 {@code nextInt(100) == 0}，即 0.01；这里的默认值与它一致。
+     * 之所以留成配置项：这条概率过去看着像「根本没有宝箱」，根因是抽取顺序（见
+     * {@code ChronoMineshaftPieces#placeChestMinecarts}），顺序修好之后才轮到概率说话，
+     * 想调密度的人不必重新编译
+     */
+    public static double mineshaftChestChance() {
+        return safe(MINESHAFT_CHEST_CHANCE, MINESHAFT_CHEST_CHANCE_DEFAULT);
     }
 
     /** 骨骼物理（布条、头发、触手）的时间倍率，1.0 与 Yes Steve Model 一致 */

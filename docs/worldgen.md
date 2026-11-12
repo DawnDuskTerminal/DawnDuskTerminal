@@ -30,6 +30,37 @@
 `surface_rule` 是一张按群系分支的大表，其默认产物是 `canopy_stone`。
 `spawn_target` 沿用原版主世界。
 
+## 地形方块的随机纹理与音效
+
+石类方块的方块状态是一串随机变体，客户端按方块位置挑一条，所以同一片石头不会看出重复。
+关键在于**侧面**：整块绕 Y 轴转多少度，四个侧面都还是同一张贴图、同一个朝向——纯旋转不会让侧面变。
+侧面要变，只有换上 `minecraft:block/cube_mirrored_all` 那套把 UV 翻过来的镜像模型。
+两组的差别只在旋转档数：
+
+| 写法 | 原版原型 | 变体 | 方块 |
+|---|---|---|---|
+| 有向随机 | `minecraft:block/stone` | 模型 + 镜像模型各转 0/180，共 4 条 | 苍穹石、绿片岩、暮光石、粉砂岩、榴辉岩 |
+| 无向随机 | 沙子的四档旋转再加镜像 | 模型 + 镜像模型 × 0/90/180/270，共 8 条 | 紫苏岩、路之沙、不醒沙、混乱石 |
+
+有向那组是横向层理的贴图，按原版 `stone` 抄：只转 0/180，镜像把层理左右翻过来，合起来四种朝向；
+不做 90/270，是因为层理转 90° 会立起来，与这种石头对不上。
+无向那组是噪点贴图，没有层理可翻，怎么转都成立，于是四个 90° 档各配一份镜像全开，
+八条里侧面有正反两种——纯旋转的四条在侧面像素上完全一致，这也是为什么必须带镜像。
+
+镜像不额外出贴图：`<方块>_mirrored` 模型父在 `minecraft:block/cube_mirrored_all` 上，`textures.all`
+仍指这一块自己的那张 png，由父模型把 UV 翻过来。赭石不在上面两栏里，仍是单变体。
+
+霞土（`rosy_dirt`）照原版 `dirt` 走第三条路：四条纯旋转（`y` 0/90/180/270），**只转不镜像**。
+它的贴图是噪点，侧面翻不翻看不出来，所以这一条不提供镜像模型，侧面按「不管」处理。
+霞草方块本来就有这四条，写在它的 `snowy=false` 那一组里。
+
+音效按原版对齐：紫苏岩一档（紫苏岩本体、赤钼矿、狄拉克矿与六块 `charnockite_*_ore`）用
+`SoundType.DEEPSLATE`，与深板岩一致；苍穹石一档与其余石类用 `SoundType.STONE`。
+矿石的音效跟着宿主石走，`ModChronoOres` 里由 `HostTier` 一处给定。
+
+`BlockStyleTests` 盯这几件事：两组的变体数与旋转档（有向 4 条只转 0/180，无向 8 条四档各配镜像，
+两组都必须带镜像模型并复用同一张贴图），霞土的四条纯旋转（且不得有镜像模型），以及紫苏岩一族的音效。
+
 ## 移植文件
 
 `tools/port_overworld_worldgen.py` 从 Gradle 缓存中的反编译客户端 jar 里抽取原版的
@@ -50,6 +81,97 @@
 
 `configured_feature` 内部嵌套的引用不在改写范围之内。
 因此 `random_selector` 中 `feature` 与 `default` 两个键指向原版的部分需要手工补齐，详见「已知问题」。
+
+## 主世界矿石
+
+维度里的六种主世界矿石（铜、铁、金、红石、青金石、钻石）全部由本模组自己的方块生成，不再铺原版矿石。
+六种各有一对调色板副本，按宿主石分成两档：
+
+| 档 | 方块命名 | 硬度 | 爆炸抗性 |
+|---|---|---|---|
+| 上层（苍穹石） | `canopy_stone_<矿石>_ore` | 2.5 | 9 |
+| 深层（紫苏岩） | `charnockite_<矿石>_ore` | 5.0 | 9 |
+
+硬度与爆炸抗性照抄宿主石，取自 `ModTerrainBlocks` 里 `CANOPY_STONE` 与 `CHARNOCKITE` 的同一组属性。
+两档的分界就是两张方块标签：`dawnduskterminal:stone_ore_replaceables`（苍穹石、赭石、绿片岩、榴辉岩）
+与 `dawnduskterminal:deepslate_ore_replaceables`（紫苏岩、暮光石）。
+每条特征对两张标签各挂一个目标，所以石头里长出来的是上层那一档，深层的石头里是紫苏岩那一档。
+
+其余属性逐项照原版矿石：需要正确工具、玄武岩音色，音效与地图色按宿主石取
+（苍穹石一档是石头音效，紫苏岩一档是深板岩音效），并挂进 `#minecraft:needs_iron_tool`
+与 `#minecraft:mineable/pickaxe`。红石矿用 `RedStoneOreBlock`，点亮时发光 9；
+青金石矿与钻石矿分别是 2~5 与 3~7 点经验，其余三块经验为 0。
+
+战利品表写在 `data/dawnduskterminal/loot_table/blocks/` 下，逐条对着原版矿石的表抄：
+精准采集掉本体，否则掉原料（铜、铁、金三块掉粗矿），数量区间、时运公式与爆炸衰减都与原版一致。
+
+**它们不进创造模式物品栏**：创造栏的条目由 `ModCreativeTabs` 逐个点名，这十二块只作为世界生成的产物存在，
+想要带在身上只能精准采集。`OverworldOreTests.overworldOresStayOutOfTheCreativeTabs` 钉住这一条。
+
+方块状态、方块模型、物品模型与战利品表都由 `tools/generate_overworld_ore_assets.py` 按同一张六种矿石的表生成。
+改矿石种类时改脚本再重跑，不要手改这四份 JSON。
+
+### 生成
+
+每种矿只有一条放置特征（`dawnduskterminal:ore_<矿石>`），共六条，各指向同名的配置特征。
+原版「上带 / 下带 / 埋藏」那几种变体已合并成一条，因此也不再有空气暴露上的区别：
+六份配置特征的 `discard_chance_on_air_exposure` 全部是 0，露出洞壁的矿不会被刷掉。
+
+次数按原版每区块尝试的六成取整，铁另按作者调定的 33 落地；高度带六种互不相同。
+
+| 矿石 | 原版特征与次数 | 本维度 | 矿脉尺寸 | 原版高度带 | 本维度高度带 |
+|---|---|---|---|---|---|
+| 铜 | `ore_copper` 16 + `ore_copper_large` 16 | 19 | 10 | -16 ~ 112 | -32 ~ 200 |
+| 铁 | `ore_iron_upper` 90 + `ore_iron_middle` 10 + `ore_iron_small` 10 | 33 | 9 | 80 ~ 384（中带 -24 ~ 56，小簇 -64 ~ 72） | -64 ~ 176 |
+| 金 | `ore_gold` 4 + `ore_gold_lower` 0~1 | 3 | 9 | -64 ~ 32 | -64 ~ 128 |
+| 红石 | `ore_redstone` 4 + `ore_redstone_lower` 8 | 7 | 8 | -64 ~ 15（下带 -96 ~ -32） | -64 ~ 112 |
+| 青金石 | `ore_lapis` 2 + `ore_lapis_buried` 4 | 4 | 7 | -64 ~ 64 | -64 ~ 144 |
+| 钻石 | `ore_diamond` 7 + `ore_diamond_medium` 2 + `ore_diamond_buried` 4 | 8 | 8 | -64 ~ 16 | -64 ~ 96 |
+
+六种合计从每区块 177.5 次尝试降到 74 次（铁按 33 计入）。
+每一段内部是 `uniform`，六段互不相同，深浅次序与原版一致：钻石的顶最低（96），
+往上依次是红石 112、金 128、青金石 144、铁 176、铜 200；只有铜不从基岩起算（-32）。
+`ore_diamond_large` 那条每 9 区块一次的大矿簇并进了钻石这一条。
+`OverworldOreTests.oreFeaturesKeepTheReducedCountsAndTheirOwnHeightBands` 逐条核对次数与两端，
+并断言六个上界互不相等——写成同一个范围会直接失败。调次数时 JSON 与那张表要一起改。
+
+原版的形状（上带、中带与小簇叠出来的双峰）没有保留：三种并成一种之后要表达「偏深」，只能靠段的上界。
+段内因此是均匀的，深层的密度比主世界低，这是「次数减四成」（铁更少）与「高度带放宽」同时要求的必然结果。
+
+`tools/port_overworld_worldgen.py` 会把这些文件写回原版数值，重跑之后要按本表再改一遍。
+
+### 三废石与暮光石
+
+赭石、绿片岩、榴辉岩与暮光石由四条「石头变体」特征铺设（`ore_granite`、`ore_diorite`、
+`ore_andesite`、`ore_tuff`），每条各上下两层。次数同样按六成取整：
+
+| 放置特征 | 原版 | 本维度 |
+|---|---|---|
+| `ore_granite_upper` `ore_diorite_upper` `ore_andesite_upper` | 每 6 区块一次 | 每 10 区块一次 |
+| `ore_granite_lower` `ore_diorite_lower` `ore_andesite_lower` | 2 | 1 |
+| `ore_tuff` | 2 | 1 |
+
+上层三条正好 -40%；下层三条只能取整数（2 的六成是 1.2，落到 1），实际是 -50%。
+同一个群系里这两层合起来从每区块 2.17 次尝试降到 1.10 次，即 -49%。
+暮光石只有一条特征，按 -50% 落地。
+
+### 暮色森林群系
+
+十二份暮色森林内容的副本（forest、birch_forest、plains、savanna 等）原本引用暮色森林自己的
+`twilightforest:legacy_redstone_ore`、`legacy_diamond_ore` 与 `legacy_lapis_ore`，那三条放的是原版矿石方块。
+这些引用已换成上面那六条特征，与其余群系共用同一套次数与高度带。
+
+### 蛇形大矿脉：只换方块，不动频率
+
+原版大矿脉由 `OreVeinifier` 生成，方块状态写死在枚举常量里，数据包够不到。
+`ChronoVeinPalette` 把其中的方块全部换掉：花岗岩换赭石、凝灰岩换暮光石，
+矿石方块换成上面那两档副本（十二块原版矿石全部覆盖，石头一档进苍穹石，深板岩一档进紫苏岩）。
+粗矿块（`RAW_COPPER_BLOCK` 与 `RAW_IRON_BLOCK`）保持原样。
+
+**矿脉自身的生成概率与高度带一个数都没改**：铜脉 `0 ~ 50`、铁脉 `-60 ~ -8` 都还是原版那一套，
+这条路径也进 `OverworldOreTests.vanillaOresBecomeThePaletteOres`，只管方块对不对，不管频率。
+
+绿宝石矿与虫蚀石同样不在这一套里：`ore_emerald` 与 `ore_infested` 仍指向原版的配置特征。
 
 ## 调色板群系源
 
@@ -594,7 +716,7 @@ vanilla 不校验 uv 顺序（`BlockFaceUV#getV` 只按顶点号取 `uvs[1]` / `
 
 `PillarsFluidBlockMixin` 使石柱洞穴保持干燥。
 
-`NoiseChunkVeinPaletteMixin` 负责处理大矿脉的花岗岩与凝灰岩。
+`NoiseChunkVeinPaletteMixin` 负责处理大矿脉的花岗岩与凝灰岩，见「主世界矿石」。
 
 温度的晨昏线偏移不在此处实现，而是由群系源处理，详见「温带分带与温度映射」。
 
@@ -604,7 +726,9 @@ vanilla 不校验 uv 顺序（`BlockFaceUV#getV` 只按顶点号取 `uvs[1]` / `
 原版的 `MineshaftHeightMixin`、`MineshaftChestLootMixin` 与四个木材 mixin 都已删除。
 
 刻意偏离只有这些：木材按地表群系选（见「废弃矿井」一节）、y 带限制在 `-64 ~ -10`、
-战利品表换成 `dawnduskterminal:chests/chrono_mineshaft`、`wood` 记在 NBT 上、`MineShaftPiece` 的构造函数可见性放开给测试。
+群系名单用整张调色板（矿井不再由地下群系决定生不生）、
+战利品表换成 `dawnduskterminal:chests/chrono_mineshaft`、箱车挪到铺完地板之后（概率仍按原版的 1/100）、
+`wood` 记在 NBT 上、`MineShaftPiece` 的构造函数可见性放开给测试。
 
 识别维度统一依靠噪声设置的 `default_fluid` 是否为 `portal_fluid`。
 
@@ -626,6 +750,15 @@ vanilla 不校验 uv 顺序（`BlockFaceUV#getV` 只按顶点号取 `uvs[1]` / `
 `data/dawnduskterminal/worldgen/structure/mineshaft.json` 的 `type` 指向 `dawnduskterminal:mineshaft`，
 四个件类型也各自注册在 `ModStructures` 下。
 
+**群系名单就是整张调色板**：`data/dawnduskterminal/tags/worldgen/biome/has_structure/mineshaft.json` 只写一条
+`#dawnduskterminal:palette_biomes`，等于把维度里可能出现的每一个群系都放行。
+
+理由是群系判定取的是**结构起点那一格**的群系：`Structure#isValidBiome` 拿 `getNoiseBiome(起点)` 去查这张名单，
+而矿井的起点落在 y `-64 ~ -10`，那一层是洞穴群系（滴水石洞、繁茂洞穴、深暗）。
+名单只要挑过一部分群系，矿井就变成「由地下群系决定生不生」，与地表群系、与木材套组全都对不上。
+`data/minecraft/tags/worldgen/biome/mineshaft_blocking.json` 那份原版覆写也已删除：它把
+`dawnduskterminal:deep_dark` 塞进了「不生矿井」表，件落在深暗里会被整块跳过。
+
 **木材按地表群系选**（`structure/ChronoMineshaftWoods`）：取该区块地表群系，按下表映射到暮色森林的木种。
 未列出的情况一律暮色橡木。
 
@@ -636,8 +769,25 @@ vanilla 不校验 uv 顺序（`BlockFaceUV#getV` 只按顶点号取 `uvs[1]` / `
 | 沼泽类（`swamp`、`mangrove_swamp`） | 暮色森林的红树（`twilight_oak` 的沼泽套） |
 | 其余 | 暮色橡木（`twilight_oak_wood`） |
 
+**箱车与战利品**：战利品表是 `dawnduskterminal:chests/chrono_mineshaft`，内容对着暮色森林大型空心矿山
+（`large_hollow_hill` 的 `hill_size: 3`，即 `twilightforest:hill_3`），但**逐条写在这一个文件里**：
+三个池的投掷次数分别是 4 / 2 / 1，每个池里的物品、权重、数量区间与附魔都按原表抄写。
+
+表里不出现 `minecraft:loot_table` 这样的嵌套引用，开箱掉什么都能在 `data/dawnduskterminal/loot_table/chests/`
+的那一个文件里逐行读到、逐行改。原版 TF 表里有一处 `twilightforest:useless`（一堆花花草草，权重 25），
+嵌套引用摊不开，这里拆成 10 条、每条权重 3（合计 30，原表 25，差值可以忽略）。
+`chests/grid_rooms` 与 `chests/towerwood_rooms` 同样摊平：前者与矿井同内容，
+后者对应 `twilightforest:chests/tower_room`（含 `suspicious_stew` 的六种蘑菇煲效果，也是内联写的）。
+
+箱车的抽取挪到了铺完地板之后，概率由 `structure.mineshaft_chest_chance` 决定（默认 0.01，与原版一致）。
+原版在铺地板之前抽，判定是「这一格是空气、下面不是空气」；本维度 y `-64 ~ -10` 以成片的空腔与浮岛为主，
+件底下多半是空气，那条判定几乎逢抽必失败，箱车因此几乎见不到。
+本件的走廊是件自己挖的、地板也是件自己铺的，地板铺完再抽，脚下就一定是木板或原地形——判定修好之后，
+原版那 1/100 的概率才真正落在箱车上。
+
 刻意偏离原版的地方：y 带限制在 `-64 ~ -10`、战利品表换成 `dawnduskterminal:chests/chrono_mineshaft`、
-`wood` 记在 NBT 上、`MineShaftPiece` 的构造函数可见性放开给测试用。
+箱车挪到铺完地板之后、群系名单用整张调色板、`wood` 记在 NBT 上、
+`MineShaftPiece` 的构造函数可见性放开给测试用。
 
 ### 高大暮色橡树
 
@@ -993,10 +1143,11 @@ data/dawnduskterminal/structure/
   判定用「世界位置哈希 + 这一座房子的盐」，所以同一份存档里反复进出同一区块得到同一副面孔。
   带 nbt 的方块（宝箱）不参与缺失。
 - **箱子是件里自带的方块**，不是另外摆的件，`LootTable` 写在件的方块 nbt 里。三张表：
-  `grid_rooms/room/rect/chest` → `dawnduskterminal:chests/grid_rooms`（转 `twilightforest:hill_3`）；
-  `towerwood_rooms/room/rect/chest_02` → `chests/towerwood_rooms`（塔木那套房间宝箱
-  `twilightforest:chests/tower_room` 再加一池试验物品 `experiment_001..020`）；
+  `grid_rooms/room/rect/chest` → `dawnduskterminal:chests/grid_rooms`（同矿井那张表的内容，对着大型空心矿山）；
+  `towerwood_rooms/room/rect/chest_02` → `chests/towerwood_rooms`（塔木那套房间宝箱，对着 `tower_room`
+  的内容再加一池试验物品 `experiment_001..020`）；
   `towerwood_rooms/room/rect/furn_06` 的箱子 → `chests/towerwood_furnace`（石头占位 + 木炭/煤炭 + 生熟肉）。
+  四张表都是逐条写着物品的，没有一个 `minecraft:loot_table` 嵌套引用，见「废弃矿井」的「箱车与战利品」。
   **每座房子至少一间宝箱房**：它在挑格子的第一轮就占下一格 `rect`（`pickChest`），
   原来的 3% 权重只是「额外的宝箱房还能不能再出」；一栋仍可能出多间，`large` 与 `small` 没有宝箱件。
   带机关与熔炉的那间（`room/rect/furn_06`）只是普通家具房，跟 `furn_01..05` 一起按权重抽，

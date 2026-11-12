@@ -439,8 +439,8 @@ public final class ModExperimentItems {
      * 以后谁把某个号的图标从 {@code experiment_temp} 换成自己的、却没写进这张表，那条断言就会红
      */
     private static final Set<Integer> TEXTURED = Set.of(
-            3, 5, 6, 9, 13, 15, 16, 18, 21, 22, 23, 24, 28, 29, 35, 58, 64, 68, 72, 73, 75, 77, 79, 82, 85, 88, 90, 100,
-            105, 110, 113);
+            3, 5, 6, 9, 13, 15, 16, 18, 21, 22, 23, 24, 28, 29, 30, 35, 58, 64, 68, 72, 73, 75, 77, 79, 82, 85, 88, 90,
+            100, 105, 110, 113);
 
     /** {@link #TEXTURED} 里有描述行的那些：序号 → 语言键 */
     private static final Map<Integer, String> DESCRIPTIONS = Map.of(

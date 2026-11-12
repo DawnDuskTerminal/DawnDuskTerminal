@@ -1,0 +1,22 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "dawnduskterminal:blood_rupert"
+    },
+    {
+      "item": "minecraft:glass_bottle"
+    },
+    {
+      "item": "minecraft:ghast_tear"
+    },
+    {
+      "item": "dawnduskterminal:blazing_block"
+    }
+  ],
+  "result": {
+    "id": "twilightforest:fiery_tears",
+    "count": 1
+  }
+}

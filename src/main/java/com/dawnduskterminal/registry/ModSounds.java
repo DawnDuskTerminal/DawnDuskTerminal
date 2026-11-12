@@ -136,6 +136,23 @@ public final class ModSounds {
     /** 试验物品 057 那类发射：血肉之书的发射音 */
     public static final DeferredHolder<SoundEvent, SoundEvent> EXPOWHEEL_SHOOT = register("expowheel_shoot");
 
+    /** 火箭机弩每一发的那一声「火箭发射」，素材是原版烟花的 launch1 */
+    public static final DeferredHolder<SoundEvent, SoundEvent> FIREWORK_MACHINEBOW_LAUNCH =
+            register("firework_machinebow_launch");
+
+    /**
+     * 火箭机弩每一发的那一声「发射」，素材是原版弩的 shoot 三条
+     *
+     * <p>与 {@link #FIREWORK_MACHINEBOW_DRAW} 一起放，打下一发时由
+     * {@code ClientboundStopSoundPacket} 掐掉残响；三条事件是模组自己的，掐不到别人的弩
+     */
+    public static final DeferredHolder<SoundEvent, SoundEvent> FIREWORK_MACHINEBOW_SHOOT =
+            register("firework_machinebow_shoot");
+
+    /** 火箭机弩每一发的那一声「拉弦」，素材是原版弩拉弦的四条 */
+    public static final DeferredHolder<SoundEvent, SoundEvent> FIREWORK_MACHINEBOW_DRAW =
+            register("firework_machinebow_draw");
+
     /**
      * 血肉之书那片飞轮的持续音
      *
