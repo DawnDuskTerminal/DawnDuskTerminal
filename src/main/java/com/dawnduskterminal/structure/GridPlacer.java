@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.Optional;
 import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.SectionPos;
 import net.minecraft.core.Vec3i;
 import net.minecraft.core.registries.Registries;
@@ -125,12 +126,18 @@ public final class GridPlacer {
 
     private static final int CATALOGUE_PER_ROW = 8;
 
+    /** 网格从玩家脚前几格起铺：推出去两格，第一件不会压住你站的地方 */
+    private static final int CATALOGUE_GAP = 2;
+
+    /** 垫层画在件底下面几格：贴着一格，件里的洞不会变成坑 */
+    private static final int PAD_DEPTH = 1;
+
     /** 一个件在目录里占的格子：第 {@code column} 列、第 {@code row} 行（都是格子数，不是方块） */
     public record Cell(ResourceLocation id, String group, int column, int row) {}
 
     /** 摆全部件，各分类的第一个件都从新的一行开始 */
     public static String placeCatalogue(ServerLevel level, BlockPos origin) {
-        return placeCatalogue(level, origin, null, null);
+        return placeCatalogue(level, origin, null, null, Direction.SOUTH);
     }
 
     /**
@@ -139,11 +146,20 @@ public final class GridPlacer {
      * <p>{@code structureId} 为空时摆全部件；{@code dir} 为空时摆该结构的所有分类。
      * 同一个分类排在同一段行里，换分类另起一行，所以看不出分类边界的旧排法已经换掉。
      *
+     * <p>网格朝着 {@code facing} 铺：行沿你看的方向一格一格远去，列排在右手边，
+     * 起点在你面前 {@value #CATALOGUE_GAP} 格，所以范围由你站着朝哪看决定，不会朝背后长出去。
+     * 件本身一律不转：结构方块的 SAVE 只按世界里的方块读，转过一次就会把旋转烘进件文件
+     * （{@code StructureBlockEntity#saveStructure} 走 {@code fillFromWorld}，不看 rotation）。
+     *
      * <p>改完直接在结构方块里按 SAVE 就会写到 {@code generated/<ns>/structures/<路径>.nbt}，
      * 拷回 {@code data/<ns>/structure/<家族>/} 即可。方块位置保持件的本地原点，否则保存下来会把偏移写进件里。
      */
     public static String placeCatalogue(
-            ServerLevel level, BlockPos origin, @Nullable ResourceLocation structureId, @Nullable String dir) {
+            ServerLevel level,
+            BlockPos origin,
+            @Nullable ResourceLocation structureId,
+            @Nullable String dir,
+            Direction facing) {
         GridStructure family = null;
         if (structureId != null) {
             Structure registered =
@@ -167,6 +183,9 @@ public final class GridPlacer {
                     + (dir == null ? "" : dir) + "; is the family directory present?";
         }
         Map<String, Integer> groups = new LinkedHashMap<>();
+        Direction rows = facing;
+        Direction columns = facing.getClockWise();
+        BlockPos start = origin.relative(rows, CATALOGUE_GAP);
         int placed = 0;
         int skipped = 0;
         for (Cell cell : layout(ids)) {
@@ -180,12 +199,22 @@ public final class GridPlacer {
                 skipped++;
                 continue;
             }
-            BlockPos min = origin.offset(cell.column() * CATALOGUE_STEP, 0, cell.row() * CATALOGUE_STEP);
+            int alongRows = cell.row() * CATALOGUE_STEP;
+            int alongColumns = cell.column() * CATALOGUE_STEP;
+            BlockPos min = start.offset(
+                    rows.getStepX() * alongRows + columns.getStepX() * alongColumns,
+                    0,
+                    rows.getStepZ() * alongRows + columns.getStepZ() * alongColumns);
             loadChunks(level, min, size);
             frame(level, min, size);
+            // 结构方块与告示牌先放：它们会触发方块更新，梯子、活板门这种要附着面的一更新就掉，
+            // 所以件本身最后摆，摆完不再碰这一格
+            marker(level, cell.id(), min, size, facing);
+            // 井段件（post/well*）里是梯子与活板门，半空里没有隔壁就自己掉下来，摆之前先垫一格红羊毛
+            if (wellPiece(cell.id())) {
+                level.setBlock(min.offset(0, size.getY(), 0), Blocks.RED_WOOL.defaultBlockState(), 2);
+            }
             optional.get().placeInWorld(level, min, min, new StructurePlaceSettings(), level.getRandom(), 2);
-            marker(level, cell.id(), min, size);
-            sign(level, cell.id(), min.offset(-1, 0, -1), size);
             groups.merge(cell.group(), 1, Integer::sum);
             placed++;
         }
@@ -212,19 +241,29 @@ public final class GridPlacer {
                 .toList();
     }
 
+    /** 体型顺序：楼板、天花板、地基、房间都按这个排 */
+    private static final List<String> KIND_ORDER = List.of("small", "rect", "large", "inner_corner");
+
+    /** 房间组里的角色顺序：空地 → 宝箱 → 楼梯 → 掉落口 → 绳梯 → 家具，其余排最后 */
+    private static final List<String> ROLE_ORDER = List.of("empty", "chest", "stair", "drop", "rope", "furn");
+
     /**
-     * 摆位：同一个分类排在同一段行里，换分类另起一行
+     * 摆位：按段分块，同段内按体型、同组内按角色，换块另起一行
      *
      * <p>只算坐标、不碰世界，所以能直接拿假 id 测。每行 {@value #CATALOGUE_PER_ROW} 件；
-     * 换分类时上一行已经用掉一半也换行——目录才是这张图的主分块，行只是次级
+     * 换组时上一行已经用掉一半也换行。
+     *
+     * <p>段的顺序见 {@link #sectionRank}：特殊件 → 地板 → 天花板 → 地基 → 外挑 → 女儿墙 → 房间 → 墙。
      */
     public static List<Cell> layout(List<ResourceLocation> ids) {
         List<Cell> cells = new ArrayList<>(ids.size());
-        // 先按「组、路径」排一遍：{@code ceiling/large} 与 {@code floor/large/…} 属于同一组，
-        // 但路径排序会把它们拆到两头，同一个组就会画成两块。按组排过之后每组只出现一段
+        // 先按「段、体型、角色、路径」排一遍：同一个组必须排在相邻的位置上，
+        // 否则同组会被路径排序拆到两头，画成两块
         List<ResourceLocation> ordered = new ArrayList<>(ids);
-        ordered.sort(
-                Comparator.comparing((ResourceLocation id) -> groupOf(id)).thenComparing(ResourceLocation::getPath));
+        ordered.sort(Comparator.comparingInt(GridPlacer::sectionRank)
+                .thenComparingInt(GridPlacer::kindRank)
+                .thenComparingInt(GridPlacer::roleRank)
+                .thenComparing(ResourceLocation::getPath));
         String group = null;
         int row = 0;
         int column = 0;
@@ -248,50 +287,99 @@ public final class GridPlacer {
     }
 
     /**
+     * 段顺序：剩下的特殊件排最前，接着是地板、天花板、地基、外挑、女儿墙、房间，墙最后
+     *
+     * <p>特殊件（`post/`、`air/`、根目录的测试模板）不按段摆，合成一块放在最前面，
+     * 因为它们件数少、也不是拿来比样式的。
+     */
+    private static int sectionRank(ResourceLocation id) {
+        return switch (dirOf(id)) {
+            case "floor" -> 1;
+            case "ceiling" -> 2;
+            case "base" -> 3;
+            case "edge" -> 4;
+            case "parapet" -> 5;
+            case "room" -> 6;
+            case "wall" -> 7;
+            default -> 0;
+        };
+    }
+
+    /** 体型顺序：small → rect → large → inner_corner；纯数字（墙段长度 5 / 7）排在它们前面 */
+    private static int kindRank(ResourceLocation id) {
+        String[] parts = id.getPath().split("/");
+        for (String part : parts) {
+            int rank = KIND_ORDER.indexOf(part);
+            if (rank >= 0) {
+                return KIND_ORDER.size() + rank;
+            }
+        }
+        String name = parts[parts.length - 1];
+        // 墙件的长短边写在件名里（{@code small_plain_01}），没有单独一层目录
+        int underscore = name.indexOf('_');
+        if (underscore > 0) {
+            int rank = KIND_ORDER.indexOf(name.substring(0, underscore));
+            if (rank >= 0) {
+                return KIND_ORDER.size() + rank;
+            }
+        }
+        return name.chars().allMatch(Character::isDigit) ? Integer.parseInt(name) : 0;
+    }
+
+    /** 房间组里的角色顺序；不是房间件就一律 0（段内再按体型、路径排） */
+    private static int roleRank(ResourceLocation id) {
+        if (!"room".equals(dirOf(id))) {
+            return 0;
+        }
+        String[] parts = id.getPath().split("/");
+        int rank = ROLE_ORDER.indexOf(roleOf(parts[parts.length - 1]));
+        return rank < 0 ? ROLE_ORDER.size() : rank;
+    }
+
+    /** 分类目录：路径第二段（{@code <家族>/<目录>/…}）；根目录的测试模板没有这一段 */
+    private static String dirOf(ResourceLocation id) {
+        String[] parts = id.getPath().split("/");
+        return parts.length >= 2 ? parts[1] : "";
+    }
+
+    /** 房间件的体型：{@code <家族>/room/<体型>/<件名>} */
+    private static String kindOf(ResourceLocation id) {
+        String[] parts = id.getPath().split("/");
+        return parts.length >= 4 ? parts[2] : "other";
+    }
+
+    /** 墙件的长短边：{@code wall/small_plain_01} → {@code small} */
+    private static String wallSize(ResourceLocation id) {
+        String[] parts = id.getPath().split("/");
+        String name = parts[parts.length - 1];
+        int underscore = name.indexOf('_');
+        return underscore > 0 ? name.substring(0, underscore) : name;
+    }
+
+    /**
      * 摆位分块用的组：同一组排在同一段行里
      *
-     * <p>分法对着「看的时候想比什么」：
-     *
      * <ul>
-     *   <li>{@code ceiling/*} 与 {@code floor/*} 合成一组，按体型分——天花板和楼板本来就是同一层的两面
-     *       （按体型的平铺楼板 {@code floor/<体型>} 也算这一组，与 {@code ceiling/<体型>} 排在一起）；
-     *   <li>{@code room/} 默认按体型分（家具房是主角，同一体型的家具排在一起才好比）；
-     *   <li>空地房、宝箱房、以及上下楼的几种房间（绳梯、楼梯、楼梯口、掉落口）不多，单独各占一块，
-     *       不再按体型分；
-     *   <li>{@code wall/*} 按长边/短边分，{@code shaft/} 按角色，其余按目录。
+     *   <li>地板、天花板、地基、外挑、女儿墙各是一组；墙按短边 / 长边分两组；
+     *   <li>房间按体型分组（{@code room/small}、{@code room/rect}、{@code room/large}、
+     *       {@code room/inner_corner}），组内再按角色排；
+     *   <li>其余件（`post/`、`air/`、根目录的测试模板）合成最前面那一组。
      * </ul>
      */
     private static String groupOf(ResourceLocation id) {
-        String path = id.getPath();
-        String[] parts = path.split("/");
-        String family = parts[0];
-        String name = parts[parts.length - 1];
-        if (parts.length >= 4 && parts[parts.length - 3].equals("room")) {
-            String role = roleOf(name);
-            String kind = parts[parts.length - 2];
-            return LONE_ROLES.contains(role) ? family + "/room/" + role : family + "/room/" + kind;
-        }
-        if (parts.length >= 4 && parts[parts.length - 3].equals("floor")) {
-            return family + "/ceiling+floor/" + parts[parts.length - 2];
-        }
-        if (parts.length >= 4 && parts[parts.length - 3].equals("shaft")) {
-            return family + "/shaft/" + roleOf(name);
-        }
-        if (parts.length >= 3 && parts[parts.length - 2].equals("ceiling")) {
-            return family + "/ceiling+floor/" + name;
-        }
-        if (parts.length >= 3 && parts[parts.length - 2].equals("floor")) {
-            return family + "/ceiling+floor/" + name;
-        }
-        if (parts.length >= 2 && parts[parts.length - 2].equals("wall")) {
-            return family + "/wall/" + name.substring(0, Math.max(0, name.indexOf('_')));
-        }
-        return String.join("/", java.util.Arrays.copyOf(parts, parts.length - 1));
+        String family = id.getPath().split("/")[0];
+        return switch (dirOf(id)) {
+            case "room" -> family + "/room/" + kindOf(id);
+            case "floor", "ceiling", "base", "edge", "parapet" -> family + "/" + dirOf(id);
+            case "wall" -> family + "/wall/" + wallSize(id);
+            default -> family + "/other";
+        };
     }
 
-    /** 件少、又不按体型比的那几个角色：单独各占一块 */
-    private static final java.util.Set<String> LONE_ROLES =
-            java.util.Set.of("empty", "chest", "rope", "stair", "stairtop", "drop");
+    /** 井段件：{@code post/well}、{@code post/well_ladder}，件里是要附着面的梯子与活板门 */
+    private static boolean wellPiece(ResourceLocation id) {
+        return id.getPath().contains("/post/well");
+    }
 
     /** 件名去掉序号：{@code furn_04} → {@code furn}，{@code stair} → {@code stair} */
     private static String roleOf(String name) {
@@ -309,36 +397,42 @@ public final class GridPlacer {
     }
 
     /**
-     * 红羊毛垫：整块铺满格子，画在原点下面一格，免得压住件最底那一层
+     * 垫层：边框红羊毛、中间玻璃，画在件底下面 {@value #PAD_DEPTH} 格
      *
-     * <p>要铺满不要只画一圈：件里常有一格是空的（凹角件的凹口、带洞的楼板），
+     * <p>整格都要铺满不要只画一圈：件里常有一格是空的（凹角件的凹口、带洞的楼板），
      * 空心时往下摆方块会直接掉进去，改件的人得先自己垫一层。
+     *
+     * <p>中间用玻璃是为了看见件的底面与最底那一层：玻璃是实心的，掉下来的方块与手滑放的方块都有人接住，
+     * 又透光。红羊毛那一圈留着当格子的边界。
      */
     private static void frame(ServerLevel level, BlockPos min, Vec3i size) {
         int x0 = min.getX() - 1;
         int x1 = min.getX() + size.getX();
         int z0 = min.getZ() - 1;
         int z1 = min.getZ() + size.getZ();
-        int y = min.getY() - 1;
+        int y = min.getY() - PAD_DEPTH;
         for (int x = x0; x <= x1; x++) {
             for (int z = z0; z <= z1; z++) {
-                level.setBlockAndUpdate(new BlockPos(x, y, z), Blocks.RED_WOOL.defaultBlockState());
+                boolean border = x == x0 || x == x1 || z == z0 || z == z1;
+                level.setBlock(new BlockPos(x, y, z), (border ? Blocks.RED_WOOL : Blocks.GLASS).defaultBlockState(), 2);
             }
         }
     }
 
     /**
-     * 两个结构方块：躺在件对角线两端、各出格一格（y 也一样）
+     * 两个结构方块：躺在件对角线两端、各出格一格（y 也一样），每个上面一块告示牌
      *
      * <p>一头是 SAVE：名字就是件的 id，原点与尺寸都按件的包围盒填好，点 SAVE 直接写对。
      * 另一头是 CORNER，点 DETECT 时用来复核同一个盒子。
-     * 两个都在件的外面，不会被存进件里。
+     * 两个都在件的外面，不会被存进件里；牌子立在方块上面，朝向跟摆命令的人一样。
      */
-    private static void marker(ServerLevel level, ResourceLocation id, BlockPos min, Vec3i size) {
+    private static void marker(ServerLevel level, ResourceLocation id, BlockPos min, Vec3i size, Direction facing) {
         BlockPos save = min.offset(-1, -1, -1);
         BlockPos corner = min.offset(size.getX(), size.getY(), size.getZ());
         structureBlock(level, save, StructureMode.SAVE, id, save, min, size);
         structureBlock(level, corner, StructureMode.CORNER, id, save, min, size);
+        sign(level, id, save.above(), size, facing);
+        sign(level, id, corner.above(), size, facing);
     }
 
     private static void structureBlock(
@@ -369,11 +463,12 @@ public final class GridPlacer {
     /**
      * 告示牌：中文名 / 分类与件名 / 尺寸
      *
-     * <p>牌子摆在格子的西北角，正面向外转 180 度（`ROTATION = 8`，朝北），
-     * 站在红羊毛垫外面就能读，不用绕到件里去看
+     * <p>牌子立在结构方块上面，正面朝着摆命令的人：网格往你面朝的方向铺，你站在原点这边看，
+     * 每块牌子都正对着你
      */
-    private static void sign(ServerLevel level, ResourceLocation id, BlockPos pos, Vec3i size) {
-        level.setBlockAndUpdate(pos, Blocks.OAK_SIGN.defaultBlockState().setValue(StandingSignBlock.ROTATION, 8));
+    private static void sign(ServerLevel level, ResourceLocation id, BlockPos pos, Vec3i size, Direction facing) {
+        level.setBlockAndUpdate(
+                pos, Blocks.OAK_SIGN.defaultBlockState().setValue(StandingSignBlock.ROTATION, signRotation(facing)));
         if (level.getBlockEntity(pos) instanceof SignBlockEntity sign) {
             String path = id.getPath();
             int slash = path.lastIndexOf('/');
@@ -385,6 +480,21 @@ public final class GridPlacer {
             sign.setChanged();
             level.sendBlockUpdated(pos, level.getBlockState(pos), level.getBlockState(pos), 3);
         }
+    }
+
+    /**
+     * 告示牌的 {@code ROTATION}：与「玩家自己放牌子」同一套
+     *
+     * <p>原版是 {@code RotationSegment.convertToSegment(玩家 yaw + 180)}，四个朝向换算下来就是这四个值。
+     */
+    private static int signRotation(Direction facing) {
+        return switch (facing) {
+            case NORTH -> 0;
+            case EAST -> 4;
+            case SOUTH -> 8;
+            case WEST -> 12;
+            default -> 8;
+        };
     }
 
     /**
@@ -424,11 +534,9 @@ public final class GridPlacer {
             Map.entry("ceiling", "天花板"),
             Map.entry("floor", "楼板"),
             Map.entry("base", "地基"),
-            Map.entry("foot", "墙脚"),
             Map.entry("edge", "外挑"),
             Map.entry("post", "柱子"),
-            Map.entry("shaft", "梯井"),
-            Map.entry("climb", "攀爬"),
+            Map.entry("well", "绳梯井"),
             Map.entry("air", "空气"),
             // 体型与角色
             Map.entry("large", "大型"),
@@ -441,7 +549,6 @@ public final class GridPlacer {
             Map.entry("drop", "掉落口"),
             Map.entry("rope", "绳梯"),
             Map.entry("stair", "楼梯"),
-            Map.entry("stairtop", "楼梯口"),
             Map.entry("corner", "内角"),
             Map.entry("notch", "凹口"),
             Map.entry("column", "柱"),
