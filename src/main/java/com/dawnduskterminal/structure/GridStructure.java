@@ -734,10 +734,6 @@ public class GridStructure extends Structure {
             if (plan.doorCells.contains(cell)) {
                 continue;
             }
-            // 楼梯两端的格子要留空走路，宝箱房占着的那格不能让楼梯压上来
-            if (allowed.contains(Role.STAIR) && stairHitsChest(levels, k, cell, plan)) {
-                continue;
-            }
             if (placeClimb(manager, levels, plans, noClimb, forceEmpty, k, cell, plan, allowed, random)) {
                 return true;
             }
@@ -789,6 +785,12 @@ public class GridStructure extends Structure {
             }
         }
         possible.retainAll(allowed);
+        // 楼梯两端的格子要留空走路，宝箱房占着的那格不能让楼梯压上来。
+        // 这条要在挑定真放哪一件的地方拦：补名额那一轮不走 `climb`，直接调本方法，
+        // 拦在 `climb` 里时它拦不到——宝箱房会正好落在楼梯出入口上。
+        if (possible.contains(Role.STAIR) && stairHitsChest(levels, k, cell, plan)) {
+            possible.remove(Role.STAIR);
+        }
         if (possible.isEmpty()) {
             return false;
         }
@@ -838,16 +840,40 @@ public class GridStructure extends Structure {
         }
     }
 
-    /** 同一层里贴着这一格、往 (dx, dz) 方向的那一格；相邻两格共用一条框架线，所以步进是边长减一 */
+    /**
+     * 同一层里贴着这一格、往 (dx, dz) 方向的那一格
+     *
+     * <p>相邻两格共用一条框架线，但两格的跨度不一定一样（一行里是 5、7、5），
+     * 往负方向挪的距离是<b>邻格</b>的跨度减一，不是这一格自己的。
+     * 拿这一格自己的跨度去算，5 与 7 相接的那一侧整整差 2 格，查出来永远是 null——
+     * 楼梯进出口就这样拿不到「必须是空地」，家具照旧摆进去。按共用框架线找没有这个问题，两侧对称。
+     */
     private static GridFrame.Cell neighbour(List<GridFrame.Cell> level, GridFrame.Cell cell, int dx, int dz) {
-        int x = cell.x() + dx * (cell.w() - 1);
-        int z = cell.z() + dz * (cell.d() - 1);
         for (GridFrame.Cell other : level) {
-            if (other.x() == x && other.z() == z) {
-                return other;
+            if (other.equals(cell)) {
+                continue;
+            }
+            if (dx != 0) {
+                // 共用框架线：往正方向是这一格的末格，往负方向是这一格的首格
+                int frame = dx > 0 ? cell.maxX() - 1 : cell.x() + 1;
+                boolean touches = (dx > 0 ? other.x() : other.maxX()) == frame;
+                if (touches && overlap(other.z(), other.maxZ(), cell.z(), cell.maxZ()) >= 2) {
+                    return other;
+                }
+            } else {
+                int frame = dz > 0 ? cell.maxZ() - 1 : cell.z() + 1;
+                boolean touches = (dz > 0 ? other.z() : other.maxZ()) == frame;
+                if (touches && overlap(other.x(), other.maxX(), cell.x(), cell.maxX()) >= 2) {
+                    return other;
+                }
             }
         }
         return null;
+    }
+
+    /** 两段区间重叠几格；只搭上一格的算共角，{@link GridFrame#adjacent} 用的是同一个阈值 */
+    private static int overlap(int minA, int maxA, int minB, int maxB) {
+        return Math.min(maxA, maxB) - Math.max(minA, minB);
     }
 
     /** 把这一格上下与四周的格子都记成“不许再放穿越两层的房间” */
@@ -1199,7 +1225,7 @@ public class GridStructure extends Structure {
         BlockPos floor = origin.offset(0, k * STOREY_HEIGHT, 0);
         int floorY = floor.getY();
         StructureTemplateManager manager = context.structureTemplateManager();
-        for (GridFrame.Cell cell : plan.cells) {
+        for (GridFrame.Cell cell : plan.order) {
             ResourceLocation id = plan.rooms.get(cell);
             if (id == null) {
                 continue;
@@ -1208,7 +1234,7 @@ public class GridStructure extends Structure {
             Rotation rotation = plan.rotations.get(cell);
             String path = relative(id).substring("room/".length());
             BlockPos cellFloor = floor.offset(cell.x(), 0, cell.z());
-            // 地板与天花板共用 plane（ceiling/<体型>）；带开口的格子换成卡口件
+            // 楼板：平铺件按体型共用（floor/<体型>），带开口的格子换成自己的卡口件
             ResourceLocation plane = planeOf(manager, plan, cell, id);
             // 共用的地板/天花板件按格子自己的朝向转：rect 是 5 宽 7 深，7 宽 5 深的格子不转就只盖住一半。
             // 自己的卡口地板要跟着房间转，洞口才对得上
@@ -1219,7 +1245,7 @@ public class GridStructure extends Structure {
                 placeAll(context, pieces, piece("shaft/" + path), rotation, cellFloor, phase);
             }
             // 地基只在地基露出来的时候摆
-            ResourceLocation ground = near ? null : baseOf(cell, id);
+            ResourceLocation ground = near ? null : baseOf(cell);
             if (ground != null) {
                 placeAll(
                         context,
@@ -1238,7 +1264,25 @@ public class GridStructure extends Structure {
                         cellFloor.offset(0, PARAPET_Y, 0),
                         phase);
             }
-            // 房间件只剩家具与内空，地板已经在上面单独摆过了
+            // 内空：这一格的四行整块清一遍，用 air/<体型> 而不是房间件自己存的空气。
+            // 房间件在这一遍里落下的话，件里的实体会被 spawn 一遍（处理器只管方块，管不到实体），
+            // 而实体方块那一遍还要再 spawn 一次——件里两辆宝箱矿车会变成四辆
+            if (phase == BandProcessor.Phase.AIR) {
+                clearBand(
+                        context,
+                        pieces,
+                        piece("air/" + airKind(cell)),
+                        ROTATIONS[cell.turns()],
+                        cellFloor,
+                        ROOM_Y,
+                        ROOM_Y + 3);
+                continue;
+            }
+            // 房间件只剩家具，地板与内空都已经单独摆过/清过了。
+            // 带边框家具的格子，实体方块留给 placeBorder 在墙之后落一遍，这里不能再落第二遍
+            if (plan.border.contains(cell)) {
+                continue;
+            }
             placeAll(context, pieces, id, rotation, cellFloor.offset(0, ROOM_Y, 0), phase);
         }
     }
@@ -1312,11 +1356,16 @@ public class GridStructure extends Structure {
     }
 
     /**
-     * 凹角的凹口：把那一列（局部 6,0,6 到 6,4,6）擦成空气
+     * 凹角的凹口：那一列（局部 6,0,6 到 6,4,6）最后按件里的内容重写一遍
      *
-     * <p>凹口在凹角件自己的格子内部，写得到这里的也只有这一格自己的件：天花板件（`ceiling/large` 的角上
-     * 就是一根原木）、女儿墙件。它们比房间件落笔晚，会把凹角件里存的空气盖回去，
-     * 所以整个结构摆完之后再统一擦一次，谁后摆都一样。范围从这个格子的第一行楼面一直到女儿墙顶。
+     * <p>凹口在凹角件自己的格子内部，写得到这一列的有三类：这一格自己的天花板件与女儿墙件、
+     * 紧邻两格画在共用框架线上的框架、以及上一层的地板。它们各自按自己的需要落笔，
+     * 最后谁落在这一列全看摆的先后。
+     *
+     * <p>所以整座结构摆完之后，用家族自己的 {@code air/notch} 把这一列（楼面往上到女儿墙顶）
+     * 再写一遍，由件决定这一列到底长什么样：
+     * 橡木那族整列是空气（凹口本来就该是空的），塔木那族在楼板/天花板那一行是警示塔木。
+     * 因为楼板与上一层的天花板就是同一行，那一行也是两块警示塔木共用的位置。
      */
     private void placeNotches(
             Structure.GenerationContext context, StructurePiecesBuilder pieces, Plan plan, int k, BlockPos origin) {
@@ -1331,6 +1380,7 @@ public class GridStructure extends Structure {
             BlockPos originOf = pieceOrigin(context, room, rotation, cellFloor.offset(0, ROOM_Y, 0));
             BlockPos at = StructureTemplate.transform(
                     new BlockPos(NOTCH_X, 0, NOTCH_Z), Mirror.NONE, rotation, BlockPos.ZERO);
+            // 这一遍既可能落空气也可能落方块（塔木那族的警示塔木），所以是 ALL 而不是 AIR
             place(
                     context,
                     pieces,
@@ -1339,13 +1389,22 @@ public class GridStructure extends Structure {
                     originOf.offset(at),
                     Integer.MIN_VALUE,
                     Integer.MAX_VALUE,
-                    BandProcessor.Phase.AIR);
+                    BandProcessor.Phase.ALL);
         }
     }
 
     /**
-     * 地板件：楼梯口先用登记过的卡口件，其次有 floor/<房间件名> 就用它（卡口、凹角），
-     * 都没有就用与天花板共用的 plane
+     * 地板件：三档回落，先存在先用
+     *
+     * <ol>
+     *   <li>楼梯口的卡口楼板（规划阶段就登记好的那件）；
+     *   <li>房间自己的卡口件：`floor/<房间相对路径>`，洞口跟着房间的朝向走；
+     *   <li>按体型共用的平铺楼板：`floor/<体型>`，凹角格是 `floor/inner_corner`；
+     *   <li>都没有才退回天花板件。
+     * </ol>
+     *
+     * <p>最后一档只是兜底：天花板与地板是两套纹理（天花是倒扣台阶，地板是平铺板材），
+     * 一旦回落过去，脚底下铺的就是天花纹。
      */
     private ResourceLocation planeOf(
             StructureTemplateManager manager, Plan plan, GridFrame.Cell cell, ResourceLocation room) {
@@ -1353,12 +1412,24 @@ public class GridStructure extends Structure {
         if (arrival != null) {
             return arrival;
         }
-        ResourceLocation own = piece("floor/" + relative(room).substring("room/".length()));
-        return manager.get(own).isPresent() ? own : ceiling(cell);
+        for (String candidate : List.of("floor/" + relative(room).substring("room/".length()), floorKind(cell))) {
+            ResourceLocation id = piece(candidate);
+            if (manager.get(id).isPresent()) {
+                return id;
+            }
+        }
+        return ceiling(cell);
+    }
+
+    /** 按体型共用的平铺楼板；凹角格的大件叫 `floor/inner_corner` */
+    private static String floorKind(GridFrame.Cell cell) {
+        return cell.kind() == GridFrame.Kind.INNER_CORNER
+                ? "floor/inner_corner"
+                : "floor/" + cell.kind().path();
     }
 
     /**
-     * 地基件：按体型共用；楼梯格没有往下跨越的结构，不摆地基
+     * 地基件：按体型共用
      *
      * <p>外墙的踢脚（脚）画在 base 件里，所以这里的地基比格子大一圈：
      * {@code base/rect} 是 6×3×7（本地东侧多一列）、{@code base/small} 是 6×3×6（本地南 + 东各多一列），
@@ -1410,10 +1481,7 @@ public class GridStructure extends Structure {
         return cellMin.offset(-minX, FLOOR_Y - piece.getY(), -minZ);
     }
 
-    private ResourceLocation baseOf(GridFrame.Cell cell, ResourceLocation room) {
-        if (isStairRoom(room)) {
-            return null;
-        }
+    private ResourceLocation baseOf(GridFrame.Cell cell) {
         return switch (cell.kind()) {
             case RECT -> piece("base/rect");
             case SMALL -> piece("base/small");
@@ -1432,15 +1500,6 @@ public class GridStructure extends Structure {
         String relative = relative(id);
         int slash = relative.lastIndexOf('/');
         return slash < 0 ? relative : relative.substring(slash + 1);
-    }
-
-    /** 楼梯相关的那两格：楼梯下段与楼梯口。这两格都没有往下跨越的结构 */
-    private boolean isStairRoom(ResourceLocation room) {
-        if (room == null) {
-            return false;
-        }
-        String name = lastName(room);
-        return name.equals(Role.STAIR.tag()) || name.equals(Role.STAIR.tag() + "top");
     }
 
     /** 件名最后一段是不是这个角色：{@code chest}、{@code chest_01}、{@code furn_04} */
@@ -1471,28 +1530,48 @@ public class GridStructure extends Structure {
             BlockPos origin,
             BandProcessor.Phase phase) {
         BlockPos floor = origin.offset(0, k * STOREY_HEIGHT, 0);
-        for (GridFrame.Cell cell : plan.cells) {
-            ResourceLocation id = plan.rooms.get(cell);
-            if (id == null) {
-                continue;
-            }
-            // 楼梯格的 y=8 是楼梯口，上一层的地板就落在同一个平面上，这里不摆天花板
-            if (true) {
-                // 天花板件只有 y=8 这一层，直接摆在地板行上方的第 8 行
-                place(
-                        context,
-                        pieces,
-                        ceiling(cell),
-                        ROTATIONS[cell.turns()],
-                        floor.offset(cell.x(), CEIL_Y, cell.z()),
-                        Integer.MIN_VALUE,
-                        Integer.MAX_VALUE,
-                        phase);
+        // 普通格的天花板先摆，墙随后，凹角格的天花板最后。
+        // 墙件最上面那一行（+8）是錾制/封装塔木梁，正压在框架线上，比普通格的天花板落笔晚；
+        // 凹角件在凹口那一角摆的警示塔木就在同一行，得排在墙后面才盖得住
+        for (GridFrame.Cell cell : plan.order) {
+            if (cell.kind() != GridFrame.Kind.INNER_CORNER) {
+                placeCeiling(context, pieces, plan, cell, floor, phase);
             }
         }
         for (WallRun run : plan.runs) {
             placeWall(context, pieces, levels, k, run, floor, plan.doorRuns.contains(run), phase);
         }
+        for (GridFrame.Cell cell : plan.order) {
+            if (cell.kind() == GridFrame.Kind.INNER_CORNER) {
+                placeCeiling(context, pieces, plan, cell, floor, phase);
+            }
+        }
+    }
+
+    /**
+     * 一格的天花板：件只有 y=8 这一行，直接摆在地板行上方的第 8 行
+     *
+     * <p>楼梯格的 y=8 是楼梯口，上一层的地板就落在同一个平面上；那一行最终由上一层的地板件盖掉。
+     */
+    private void placeCeiling(
+            Structure.GenerationContext context,
+            StructurePiecesBuilder pieces,
+            Plan plan,
+            GridFrame.Cell cell,
+            BlockPos floor,
+            BandProcessor.Phase phase) {
+        if (plan.rooms.get(cell) == null) {
+            return;
+        }
+        place(
+                context,
+                pieces,
+                ceiling(cell),
+                ROTATIONS[cell.turns()],
+                floor.offset(cell.x(), CEIL_Y, cell.z()),
+                Integer.MIN_VALUE,
+                Integer.MAX_VALUE,
+                phase);
     }
 
     /** 悬空的地基往下接柱子 */
@@ -1911,6 +1990,9 @@ public class GridStructure extends Structure {
     /** 一层摆什么：房间、墙段、门与上下楼的格子 */
     private static final class Plan {
         private final List<GridFrame.Cell> cells;
+        /** 落笔顺序：凹角格排在最后，它的件才盖得住邻居的框架 */
+        private final List<GridFrame.Cell> order;
+
         private final List<WallRun> runs = new ArrayList<>();
         private final Map<GridFrame.Cell, ResourceLocation> rooms = new HashMap<>();
         private final Map<GridFrame.Cell, Rotation> rotations = new HashMap<>();
@@ -1934,7 +2016,30 @@ public class GridStructure extends Structure {
 
         private Plan(List<GridFrame.Cell> cells) {
             this.cells = cells;
+            this.order = innerCornersLast(cells);
         }
+    }
+
+    /**
+     * 落笔顺序：凹角格排到序列末尾
+     *
+     * <p>凹角件在凹口那一角摆的方块（塔木那族是警示塔木）正好压在两条框架线上，
+     * 而紧邻的两格自己也要画那两条线，谁后摆谁赢。按规划顺序摆，凹角格常常排在前面
+     * （西北角就是第一格），它的角就被邻居的框架盖掉。换成最后摆，就是它盖住框架。
+     */
+    private static List<GridFrame.Cell> innerCornersLast(List<GridFrame.Cell> cells) {
+        List<GridFrame.Cell> out = new ArrayList<>(cells.size());
+        for (GridFrame.Cell cell : cells) {
+            if (cell.kind() != GridFrame.Kind.INNER_CORNER) {
+                out.add(cell);
+            }
+        }
+        for (GridFrame.Cell cell : cells) {
+            if (cell.kind() == GridFrame.Kind.INNER_CORNER) {
+                out.add(cell);
+            }
+        }
+        return out;
     }
 
     /** 一段墙：哪一格的哪条边、从第几格起、多长 */
