@@ -119,16 +119,29 @@ public final class SkyIslandCloudTests {
         helper.succeed();
     }
 
+    /**
+     * 单列岛也得长云
+     *
+     * <p>云体密度取的是 {@code ImprovedNoise} 在世界坐标上的值，所以「这一列一定长云」其实是个概率断言：
+     * 恰好落在噪声谷底的那一格一格都长不出来，与岛是几列无关。原来只挑了一个坐标，
+     * 结构在场上的落点一变（用例数量一变，网格就重排）就可能正好落进谷底。这里并排试四个互不相邻的坐标，
+     * 只要有一个长出来就算通过——判的仍是「单列岛进得了长云那段路」，不是某个坐标的运气
+     */
     @GameTest(template = "ddt_empty")
     public static void singleColumnIslandStillGetsClouds(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         BlockState cloud = cloud(helper);
-        BlockPos base = base(helper, 240, 0);
-        fill(level, base, 1, 1, 3);
+        int[][] corners = {{240, 0}, {240, 40}, {280, 0}, {280, 40}};
+        int placed = 0;
+        for (int[] corner : corners) {
+            BlockPos base = base(helper, corner[0], corner[1]);
+            fill(level, base, 1, 1, 3);
+            placed += run(level, base, 1, 1, 3, cloud, (x, y, z) -> true);
+        }
 
-        int placed = run(level, base, 1, 1, 3, cloud, (x, y, z) -> true);
-
-        helper.assertTrue(placed > 0, "even a one column island must get cloud, got " + placed);
+        helper.assertTrue(
+                placed > 0,
+                "even a one column island must get cloud, got " + placed + " over " + corners.length + " spots");
         helper.succeed();
     }
 

@@ -7,6 +7,7 @@ import com.dawnduskterminal.entity.GhastElitePopulation;
 import com.dawnduskterminal.entity.GhastFruityEntity;
 import com.dawnduskterminal.entity.GhastFruityPopulation;
 import com.dawnduskterminal.entity.GhastKin;
+import com.dawnduskterminal.entity.GhastVoice;
 import com.dawnduskterminal.item.FireJetProcess;
 import com.dawnduskterminal.registry.ModBlocks;
 import com.dawnduskterminal.registry.ModEntities;
@@ -94,6 +95,18 @@ public final class GhastFruityTests {
                 "a natural batch must be a single ghastfruity (the 4 cap is a population cap), was "
                         + ghast.getMaxSpawnClusterSize());
         helper.assertTrue(ghast.getType().fireImmune(), "a fireball spitting ghast must be immune to fire");
+        // 常驻音、受伤、死亡这三声的音量：客户端按 max(音量, 1) × 16 算可听半径，1.5 就是 24 格
+        helper.assertTrue(
+                Math.abs(ghast.getSoundVolume() - GhastFruityEntity.VOICE_VOLUME) < 1.0E-6F,
+                "the everyday voice must play at " + GhastFruityEntity.VOICE_VOLUME + ", got "
+                        + ghast.getSoundVolume());
+        helper.assertTrue(
+                Math.abs(GhastFruityEntity.VOICE_VOLUME * 16.0F - 24.0F) < 1.0E-6F,
+                "the everyday voice must fade out at 24 blocks, got " + GhastFruityEntity.VOICE_VOLUME * 16.0F);
+        // 攻击（蓄力、喷吐）与反弹另走 GhastVoice，仍旧是原版恶魂那 5（80 格）
+        helper.assertTrue(
+                GhastVoice.VOLUME == 5.0F,
+                "the attack and deflect voice must keep the vanilla volume of 5 (80 blocks), got " + GhastVoice.VOLUME);
         helper.assertTrue(
                 ghast.getType().getCategory() == MobCategory.MONSTER,
                 "ghastfruity must spawn through the monster channel");

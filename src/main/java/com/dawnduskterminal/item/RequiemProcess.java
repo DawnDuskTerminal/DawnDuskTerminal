@@ -31,10 +31,12 @@ import net.neoforged.neoforge.network.PacketDistributor;
  * 而这里每次结束都要给客户端发一颗停止包（否则那只循环音会一直响下去）。挂在服务端 tick 上就不必
  * 依赖任何一个回调，自己每 tick 看一眼还在不在按着就够了，与 043、066 是同一个做法
  *
- * <p>每 tick 做的事：对 32 格内除自己以外的活物调一次 {@code hurt}（伤害
+ * <p>每 tick 做的事：开场先充能 {@value #CHARGE_TICKS} tick（1 秒，这段时间只放曲子、甩音符，不出伤害），
+ * 之后才对 32 格内除自己以外的活物调一次 {@code hurt}（伤害
  * {@code 0.5 × (32 - 距离)}，见 {@link #damageAt}，不绕无敌帧，所以实际节拍是原版那 0.5 秒一下）；
  * 每 {@value #RING_INTERVAL} tick 甩出一圈 {@value #RING_POINTS} 颗音符；每 {@value #CHARGE_INTERVAL} tick
- * 扣 1 点耐久，并把「开始放」那颗包重发一遍
+ * 扣 1 点耐久，并把「开始放」那颗包重发一遍。充能那 1 秒同时是「连点白打」的堵口：只点一下松手，
+ * 伤害一 tick 都打不出去
  */
 public final class RequiemProcess {
     /** 作用半径：伤害与音符都认这个数 */
@@ -59,6 +61,15 @@ public final class RequiemProcess {
     public static final double SPAWN_LIFT = 0.8D;
     /** 每颗的竖直初速：只给一点点随机，真正的上飘交给粒子自己每 tick 往上托 */
     public static final double SPAWN_RISE = 0.06D;
+    /**
+     * 起手到第一下伤害之间的充能时间，20 tick 正好 1 秒
+     *
+     * <p>没有这一段，连点右键就能白打：一下单击只按了不到一秒，伤害每 tick 都照打，而扣耐久是
+     * {@link #CHARGE_INTERVAL} 才结算一次，于是「点一下松手」永远扣不到耐久。
+     * 充能期间只放曲子、甩音符，不出伤害；一起手就按住不放的人，第一下伤害与第一次扣耐久
+     * 落在同一 tick（{@code age == CHARGE_INTERVAL}）
+     */
+    public static final int CHARGE_TICKS = 20;
     /** 扣耐久与重发启动包的间隔，20 tick 正好 1 秒 */
     public static final int CHARGE_INTERVAL = 20;
     /** 「周围 32 格内可以听见」，与 {@code sounds.json} 里每条曲子的 {@code attenuation_distance} 同一个数 */
@@ -143,7 +154,10 @@ public final class RequiemProcess {
             return;
         }
         this.age++;
-        this.strike();
+        // 充能期间只出声、只甩音符；伤害要等这一整秒走完，见 CHARGE_TICKS
+        if (this.age >= CHARGE_TICKS) {
+            this.strike();
+        }
         if (this.age % RING_INTERVAL == 0) {
             this.emitRing();
         }

@@ -1,0 +1,27 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    " ab",
+    "ab ",
+    "cd "
+  ],
+  "key": {
+    "a": {
+      "item": "dawnduskterminal:fragile_canopy"
+    },
+    "b": {
+      "item": "dawnduskterminal:frozen_canopy"
+    },
+    "c": {
+      "item": "dawnduskterminal:canopy_sword"
+    },
+    "d": {
+      "item": "twilightforest:wrought_iron_bar"
+    }
+  },
+  "result": {
+    "id": "twilightforest:glass_sword",
+    "count": 1
+  }
+}

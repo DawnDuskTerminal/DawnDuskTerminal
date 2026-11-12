@@ -138,7 +138,13 @@ public final class ExperimentItemTests {
         helper.succeed();
     }
 
-    /** 裸近战武器的面板规格：攻击伤害 {@code damage}、攻速 {@code speed} */
+    /**
+     * 裸近战武器的面板规格：攻击伤害 {@code damage}、攻速 {@code speed}
+     *
+     * <p>顺带钉住「面板直接显示数值」这一条：物品提示只认原版那两个修饰符 ID
+     * （{@link Item#BASE_ATTACK_DAMAGE_ID} / {@link Item#BASE_ATTACK_SPEED_ID}）才把「玩家底数 + 修饰符」
+     * 显示成最终值，换成自定义 ID 就退化成「+3 / +1」——这正是 036、057 与这两把的区别
+     */
     static void assertMeleeSpec(GameTestHelper helper, Item item, double damage, double speed) {
         Player player = helper.makeMockPlayer(GameType.SURVIVAL);
         ItemStack weapon = new ItemStack(item);
@@ -150,6 +156,20 @@ public final class ExperimentItemTests {
         helper.assertTrue(
                 Math.abs(actualSpeed - speed) < 1.0E-6D,
                 item.getDescriptionId() + " must swing " + speed + " times a second, got " + actualSpeed);
+        ItemAttributeModifiers attributes =
+                weapon.getOrDefault(DataComponents.ATTRIBUTE_MODIFIERS, ItemAttributeModifiers.EMPTY);
+        helper.assertTrue(
+                attributes.modifiers().stream()
+                        .anyMatch(entry -> entry.attribute().value() == Attributes.ATTACK_DAMAGE.value()
+                                && entry.modifier().id().equals(Item.BASE_ATTACK_DAMAGE_ID)),
+                item.getDescriptionId() + " must carry the vanilla base attack damage id, otherwise the tooltip shows"
+                        + " \"+3 attack damage\" instead of the final value, got " + attributes.modifiers());
+        helper.assertTrue(
+                attributes.modifiers().stream()
+                        .anyMatch(entry -> entry.attribute().value() == Attributes.ATTACK_SPEED.value()
+                                && entry.modifier().id().equals(Item.BASE_ATTACK_SPEED_ID)),
+                item.getDescriptionId() + " must carry the vanilla base attack speed id, otherwise the tooltip shows"
+                        + " \"+1 attack speed\" instead of the final value, got " + attributes.modifiers());
     }
 
     /**

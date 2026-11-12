@@ -1,5 +1,6 @@
 package com.dawnduskterminal.portal;
 
+import com.dawnduskterminal.entity.CanopyBoatEntity;
 import com.dawnduskterminal.registry.ModDamageTypes;
 import com.dawnduskterminal.registry.ModEffects;
 import com.dawnduskterminal.registry.ModItems;
@@ -51,6 +52,12 @@ public class PortalBlock extends LiquidBlock {
             return;
         }
         if (entity instanceof LivingEntity living) {
+            // 坐在苍穹船上的乘客不算「碰着不稳定液体」：这条船就是造来在上面行船的，
+            // 船浮在液面上、乘客的箱子却仍然压进这一格（脚底在液面之上，仍与方块格子相交），
+            // 不挡这一下就会每 2 秒挨一次 stability 伤害，站在真门前还会被传送走
+            if (living.getVehicle() instanceof CanopyBoatEntity) {
+                return;
+            }
             boolean teleports = living instanceof Player
                     ? !living.hasEffect(ModEffects.STABILITY)
                     : living.hasEffect(ModEffects.STABILITY);

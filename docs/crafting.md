@@ -172,3 +172,45 @@ NeoForge 自带 191 个原版配方覆盖，其中 13 条与本模组需要修�
 
 如果某个模组提供了银锭却没有把银锭加进 `c:ingots/silver`，那条配方就烧不出来，需要在那边补标签。
 
+## 八 苍穹船与狄拉克精炼粉
+
+三条新配方都在 `data/dawnduskterminal/recipe/` 下，另有一条为暮色森林的玻璃剑。
+
+### 苍穹船
+
+| 配方 | 摆法 | 产物 |
+|---|---|---|
+| `canopy_boat` | 原版船那个 U 形，五块苍穹锭（`"a a"` / `"aaa"`） | `canopy_boat` |
+
+船体照竹筏做：实体 `entity/CanopyBoatEntity`、物品 `item/CanopyBoatItem`，
+能浮在水、岩浆与 `portal_fluid` 上，细节见 `architecture.md` 的「苍穹船」一节。
+
+### 狄拉克精炼粉
+
+| 配方 | 内容 | 产物 |
+|---|---|---|
+| `dirac_mix` | 无序：苍穹锭 + 混乱石 + 狄拉克 + 弦 | `dirac_mix` |
+| `dirac_mix_smelting` | 烧炼，200 tick、0.7 经验 | `dirac_ingot` |
+
+狄拉克锭**只能**从这条链得到：原先那两条「狄拉克直接烧成狄拉克锭」的配方
+（`dirac_ingot_smelting` 与 `dirac_ingot_blasting`）已经删掉，别再补回去，否则精炼粉这一步就形同虚设。
+
+「弦」是本模组那只怪掉的材料（`dawnduskterminal:string`），不是原版的线。
+
+### 玻璃剑
+
+暮色森林的 `twilightforest:glass_sword` 原本只能靠拆解得到，这里补一条有序配方：
+
+```text
+        易碎的苍穹  凝固的苍穹
+易碎的苍穹  凝固的苍穹
+苍穹剑      锻铁锭
+```
+
+对应 `glass_sword.json` 的 `" ab"` / `"ab "` / `"cd "`：`a` 是 `fragile_canopy`，
+`b` 是 `frozen_canopy`，`c` 是 `canopy_sword`，`d` 是 `twilightforest:wrought_iron_bar`（锻铁锭）。
+
+`gametest/CanopyBoatTests` 通过 `RecipeManager` 取这四条最终生效的配方，逐条核对产物与每一种原料；
+产物是暮色森林的物品也照查，因此那边改 ID 时这里会先红。
+
+

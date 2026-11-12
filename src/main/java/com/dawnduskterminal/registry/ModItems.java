@@ -2,8 +2,10 @@ package com.dawnduskterminal.registry;
 
 import com.dawnduskterminal.DawnDuskTerminal;
 import com.dawnduskterminal.block.SusCakeBlock;
+import com.dawnduskterminal.entity.CanopyBoatEntity;
 import com.dawnduskterminal.entity.GhastPaintingEntity;
 import com.dawnduskterminal.item.CanocanItem;
+import com.dawnduskterminal.item.CanopyBoatItem;
 import com.dawnduskterminal.item.CarminiteGhastMeatItem;
 import com.dawnduskterminal.item.CarminiteStaffItem;
 import com.dawnduskterminal.item.Experiment012Item;
@@ -144,7 +146,25 @@ public final class ModItems {
     public static final DeferredItem<Item> CANOPY_INGOT =
             ITEMS.registerSimpleItem("canopy_ingot", new Item.Properties());
 
+    /**
+     * 苍穹船：放到水、岩浆或不稳定液体上就能划走的那条船，实体见 {@link CanopyBoatEntity}
+     *
+     * <p>物品本身只负责摆船（{@link CanopyBoatItem}），漂浮与划水的判定全在实体与
+     * {@code mixin/CanopyBoatFluidMixin} 里。形状照原版船取 4 格宽 2 格高（1.375 x 0.5625），
+     * 所以身上最多坐两个人
+     */
+    public static final DeferredItem<CanopyBoatItem> CANOPY_BOAT =
+            ITEMS.register("canopy_boat", () -> new CanopyBoatItem(new Item.Properties()));
+
     public static final DeferredItem<Item> DIRAC = ITEMS.registerSimpleItem("dirac", new Item.Properties());
+
+    /**
+     * 狄拉克精炼粉：苍穹锭 + 混乱石 + 狄拉克 + 弦 无序合成，烧炼成 {@link #DIRAC_INGOT}
+     *
+     * <p>两条配方见 {@code data/dawnduskterminal/recipe/dirac_mix.json} 与
+     * {@code dirac_mix_smelting.json}
+     */
+    public static final DeferredItem<Item> DIRAC_MIX = ITEMS.registerSimpleItem("dirac_mix", new Item.Properties());
 
     public static final DeferredItem<Item> MIXED_CARMINITE =
             ITEMS.registerSimpleItem("mixed_carminite", new Item.Properties());
@@ -336,6 +356,25 @@ public final class ModItems {
      */
     public static final DeferredItem<BlockItem> ANTIBUILD_BLOCK_TYPE2 =
             ITEMS.registerSimpleBlockItem(ModBlocks.ANTIBUILD_BLOCK_TYPE2);
+
+    /**
+     * 砷铅铁建造器二型：照暮色森林砷铅铁建造器做的那台机器的物品形态，放下来就是
+     * {@link ModBlocks#TOWERDEV_BUILDER_TYPE2}
+     *
+     * <p>暮色森林那一台本来就有物品形态（{@code twilightforest:carminite_builder}），这一台照办
+     */
+    public static final DeferredItem<BlockItem> TOWERDEV_BUILDER_TYPE2 =
+            ITEMS.registerSimpleBlockItem(ModBlocks.TOWERDEV_BUILDER_TYPE2);
+
+    /**
+     * 砷铅铁构建方块二型：建造器二型建出来的那一格的物品形态，放下来就是
+     * {@link ModBlocks#TOWERDEV_BUILT_TYPE2}，摆下的那一档是暗的（{@code on=false}）
+     *
+     * <p>暮色森林的 {@code built_block} 没有物品形态、也挖不出东西；这一块两样都有，
+     * 主栏目里直接拿得到，挖掉掉自己
+     */
+    public static final DeferredItem<BlockItem> TOWERDEV_BUILT_TYPE2 =
+            ITEMS.registerSimpleBlockItem(ModBlocks.TOWERDEV_BUILT_TYPE2);
 
     /**
      * 试验物品 104 一口的数值：10 与 0.6，也就是 10 点饥饿、饱食度 12.0，等于两块烤马铃薯

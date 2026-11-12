@@ -233,7 +233,28 @@ public final class DdtClient {
         wrapGlassCtm(event, "wrought_iron_glass");
         wrapGlassTrapdoorCtm(event, "wrought_iron_glass_trapdoor");
         wrapLoopTile(event, "experiment_059", Experiment059Block::tileAt);
+        wrapTowerdevBuilt(event);
         wrapHueBands(event);
+    }
+
+    /**
+     * 砷铅铁构建方块二型的连接纹理：按 id 把<b>两档</b>的键都包一遍
+     *
+     * <p>这一块只有 {@code on} 一条状态，于是烘出来是两个键（{@code towerdev_built_type2#on=false} 与
+     * {@code #on=true}），各自指一份模型、各贴自己那一张 8x8 图集，不能像镶边塔木那样拿一个空变体去取。
+     *
+     * <p>包装器直接用 {@link MountedTowerWoodModel}：它按「邻居是同一种方块」算 47 格索引并逐面重映射 UV，
+     * 与这一块要的判据一样（暗的那一片与绿的那一片各自连成一片，两片挨着的时候互相也算接上，
+     * 各自的图集各画各的）。物品图标不在这条链上：{@code models/item/towerdev_built_type2.json} 是
+     * {@code item/generated} 加那张 16x16 单图，没有图集可裁
+     */
+    private static void wrapTowerdevBuilt(ModelEvent.ModifyBakingResult event) {
+        ResourceLocation id = DawnDuskTerminal.id("towerdev_built_type2");
+        event.getModels()
+                .replaceAll((location, model) ->
+                        location.id().equals(id) && !location.variant().equals(ModelResourceLocation.INVENTORY_VARIANT)
+                                ? new MountedTowerWoodModel(model)
+                                : model);
     }
 
     /**
@@ -416,6 +437,10 @@ public final class DdtClient {
         // 渲染层却不在那张表里，不补这一行火舌就会落到 solid 上、透明像素变成不透明的黑块
         ItemBlockRenderTypes.setRenderLayer(
                 ModBlocks.CAMP_CARMINITE_FIRE.get(), ChunkRenderTypeSet.of(RenderType.cutout()));
+        // 砷铅铁构建方块二型：那一层格子除了框线全是透明像素。方块那一侧靠模型里的 render_type 已经够，
+        // 手里那块物品走的是 ItemBlockRenderTypes 这张表，不在表里就落到 solid，透明像素渲染成不透明的黑底
+        ItemBlockRenderTypes.setRenderLayer(
+                ModBlocks.TOWERDEV_BUILT_TYPE2.get(), ChunkRenderTypeSet.of(RenderType.cutout()));
         // 加载 native 并跑启动探针 不要在第一次渲染高塔恶魂时才做文件 IO
         NativeMesh.preload();
     }
@@ -433,6 +458,8 @@ public final class DdtClient {
      */
     private static void onRegisterEntityRenderers(EntityRenderersEvent.RegisterRenderers event) {
         event.registerEntityRenderer(ModEntities.CARMINITE_BALL.get(), ThrownItemRenderer::new);
+        // 苍穹船：竹筏那套模型 + 自己那张 128x64 贴图，见 CanopyBoatRenderer
+        event.registerEntityRenderer(ModEntities.CANOPY_BOAT.get(), CanopyBoatRenderer::new);
         event.registerEntityRenderer(ModEntities.CARMINITE_FIELD.get(), NoopRenderer::new);
         // 试验物品 052 的碎片不画贴图，外观只有每 tick 那几颗红石粒子，见 CarminiteShrapnelEntity
         event.registerEntityRenderer(ModEntities.CARMINITE_SHRAPNEL.get(), NoopRenderer::new);

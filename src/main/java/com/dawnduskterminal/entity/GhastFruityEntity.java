@@ -214,6 +214,19 @@ public class GhastFruityEntity extends Ghast {
     private static final EntityDataAccessor<Byte> DATA_HELD_BLOCK =
             SynchedEntityData.defineId(GhastFruityEntity.class, EntityDataSerializers.BYTE);
 
+    /**
+     * 恶果那几声「不是攻击、也不是反弹」的音效的播放音量，对应 24 格的可听半径
+     *
+     * <p>原版 {@code LivingEntity} 那一路（常驻音、受伤、死亡）的音量取
+     * {@code getSoundVolume()}，{@code Ghast} 把它覆写成 5；客户端 {@code SoundEngine} 按
+     * {@code max(音量, 1) × 衰减距离} 算可听半径，而 {@code sounds.json} 里没写
+     * {@code attenuation_distance} 的事件一律是 16，于是 5 就是 80 格。
+     * 24 / 16 = 1.5，这一只因此只传到 24 格
+     *
+     * <p>攻击（蓄力与喷吐）与反弹走 {@link GhastVoice#VOLUME}，不经过这里，仍是 80 格
+     */
+    public static final float VOICE_VOLUME = 1.5F;
+
     /** 052 变体剩下的引信 tick；{@code -1} 表示没点着。只在服务端有意义 */
     private int fuse = -1;
 
@@ -302,6 +315,8 @@ public class GhastFruityEntity extends Ghast {
 
     @Override
     protected void registerGoals() {
+        // 会伤人的流体排在攻击前面：不进寻路的那几只靠这个自己退开，见 AvoidHazardousFluidGoal
+        this.goalSelector.addGoal(3, new AvoidHazardousFluidGoal(this));
         // 变体的近战 / 喷火 / 陷阱都在这一个目标里，优先级压过游荡，游荡只在没有目标时跑
         this.goalSelector.addGoal(4, new VariantCombatGoal(this));
         this.goalSelector.addGoal(5, new RandomFloatAroundGoal(this));
@@ -442,7 +457,7 @@ public class GhastFruityEntity extends Ghast {
                         this.getZ(),
                         ModSounds.EXPERIMENT_052_IGNITE.get(),
                         SoundSource.HOSTILE,
-                        2.0F,
+                        VOICE_VOLUME,
                         1.0F);
     }
 
@@ -552,6 +567,16 @@ public class GhastFruityEntity extends Ghast {
     @Override
     protected SoundEvent getDeathSound() {
         return ModSounds.GHAST_UNIVERSAL_DEATH.get();
+    }
+
+    /**
+     * 常驻音、受伤、死亡这三声走的是 {@code LivingEntity#makeSound} / {@code hurt} / {@code die}，
+     * 音量一律取这里；原版 {@code Ghast} 给的是 5（80 格），恶果收到 {@link #VOICE_VOLUME}（24 格）。
+     * 攻击与反弹另外由 {@link GhastVoice} 播，不受影响
+     */
+    @Override
+    public float getSoundVolume() {
+        return VOICE_VOLUME;
     }
 
     /**

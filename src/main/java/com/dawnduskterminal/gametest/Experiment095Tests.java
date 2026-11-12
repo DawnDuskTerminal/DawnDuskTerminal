@@ -32,6 +32,7 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
  *
  * <p>钉住：95 号不再是占位、{@value Experiment095Item#DURABILITY} 点耐久且不可堆叠、
  * 伤害是 {@code 0.5 × (32 - 距离)}（贴脸 16 点、16 格 8 点、31 格 0.5 点、32 格起 0 点）、
+ * 起手有 {@value RequiemProcess#CHARGE_TICKS} tick 的充能（这 1 秒里不出伤害，所以连点右键点不出伤害）、
  * 按住时圈里的活物每 tick 试一次而<b>节奏由无敌帧自己定成每 0.5 秒一下</b>、施放者自己不吃自己的圈、
  * 松手即收场、每秒扣 1 点耐久、每支曲子各自在 ddt 资源里并带 {@code stream} 与 {@code attenuation_distance: 32}、
  * 伤害类型在 no_knockback 里而<b>不在</b> bypasses_cooldown 里、两条语言键与死亡信息齐备
@@ -45,9 +46,8 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 @GameTestHolder("dawnduskterminal")
 @PrefixGameTestTemplate(false)
 public final class Experiment095Tests {
-    private static final float GOLEM_HEALTH = 100.0F;
 
-    @GameTest(template = "ddt_empty")
+    @GameTest(template = "ddt_empty", batch = "experiment_095")
     public static void itemReplacesThePlaceholder(GameTestHelper helper) {
         helper.assertFalse(
                 ModExperimentItems.placeholders().containsKey(Integer.valueOf(95)),
@@ -69,7 +69,7 @@ public final class Experiment095Tests {
     }
 
     /** 伤害只由距离决定，所以这条是纯算术，不用起过程 */
-    @GameTest(template = "ddt_empty")
+    @GameTest(template = "ddt_empty", batch = "experiment_095")
     public static void damageFallsOffWithDistance(GameTestHelper helper) {
         helper.assertTrue(
                 RequiemProcess.RADIUS == 32.0D, "the field must reach 32 blocks, got " + RequiemProcess.RADIUS);
@@ -87,7 +87,7 @@ public final class Experiment095Tests {
         helper.succeed();
     }
 
-    @GameTest(template = "ddt_empty")
+    @GameTest(template = "ddt_empty", batch = "experiment_095")
     public static void holdingHurtsEverythingAroundAndNeverTheCaster(GameTestHelper helper) {
         Player caster = usingPlayer(helper);
         // 32 格在测试场里横跨好几个相邻用例，别的用例留下的活物会一起被圈进来（066 那条走廊就是这么被搅红的），
@@ -100,23 +100,37 @@ public final class Experiment095Tests {
         helper.assertTrue(
                 Math.abs(distance - 4.0F) < 1.0E-4F, "the golem must stand exactly 4 blocks away, got " + distance);
         float pulse = RequiemProcess.damageAt(distance);
-        float expected = GOLEM_HEALTH - pulse;
+        // 血条基线取「充能开始那一刻」，不写死 100：同一个批次里并排跑的其它用例可能给木桩留下外来伤害
+        float beforeCharge = golem.getHealth();
 
+        // 起手那 1 秒是充能：一点伤害都不出，连点右键因此白不了打。这 19 tick 只推过程、不推木桩——
+        // 木桩是「同一个批次里并排跑的其它用例」的活靶子（32 格内什么都有），多 tick 十几下就会吃到外来伤害
+        tickOnly(process, RequiemProcess.CHARGE_TICKS - 1);
+        helper.assertTrue(
+                Math.abs(golem.getHealth() - beforeCharge) < 1.0E-4F,
+                "the " + RequiemProcess.CHARGE_TICKS + " tick charge must deal no damage, the golem went from "
+                        + beforeCharge + " to " + golem.getHealth() + " (tries " + process.strikeTries()
+                        + ", last damage " + golem.getLastDamageSource() + ")");
+        helper.assertTrue(
+                process.strikeTries() == 0,
+                "nothing may even try to hurt during the charge, tried " + process.strikeTries() + " times");
         tickTogether(process, 1, golem);
+        float expected = beforeCharge - pulse;
         helper.assertTrue(
                 Math.abs(golem.getHealth() - expected) < 1.0E-4F,
-                "4 blocks out must take " + pulse + " on the first tick, expected " + expected
+                "4 blocks out must take " + pulse + " once the charge is over, expected " + expected
                         + " got " + golem.getHealth() + " (tries " + process.strikeTries()
                         + ", landed " + process.strikesLanded() + ")");
         helper.assertTrue(
                 caster.getHealth() == 20.0F, "the caster must never catch its own requiem, got " + caster.getHealth());
 
         // 第二下不能马上就落：原版无敌帧（打出一击后 invulnerableTime 从 20 往下数，数到 10 之前再打不算）
-        // 会把连续的施压排成大约每 0.5 秒一下。数出它到底是第几 tick 落的，比写死一个数更抗版本差异
+        // 会把连续的施压排成大约每 0.5 秒一下。数出它到底是第几 tick 落的，比写死一个数更抗版本差异。
+        // 判据取「掉了半发以上」而不是「掉了一点」：并排跑的其它用例可能给木桩留两点外来伤害
         int secondPulseAt = -1;
         for (int tick = 1; tick <= 20 && secondPulseAt < 0; tick++) {
             tickTogether(process, 1, golem);
-            if (golem.getHealth() < expected - 1.0E-4F) {
+            if (golem.getHealth() <= expected - pulse * 0.5F) {
                 secondPulseAt = tick;
             }
         }
@@ -134,7 +148,7 @@ public final class Experiment095Tests {
         helper.succeed();
     }
 
-    @GameTest(template = "ddt_empty")
+    @GameTest(template = "ddt_empty", batch = "experiment_095")
     public static void lettingGoEndsTheRequiem(GameTestHelper helper) {
         Player caster = usingPlayer(helper);
         RequiemProcess process = RequiemProcess.detached(helper.getLevel(), caster, 0);
@@ -150,7 +164,7 @@ public final class Experiment095Tests {
         helper.succeed();
     }
 
-    @GameTest(template = "ddt_empty")
+    @GameTest(template = "ddt_empty", batch = "experiment_095")
     public static void durabilityIsChargedOncePerSecond(GameTestHelper helper) {
         Player caster = usingPlayer(helper);
         ItemStack stack = caster.getUseItem();
@@ -180,7 +194,7 @@ public final class Experiment095Tests {
      * <p><b>不写死支数</b>：曲目是按目录增删的，测试只钉「表里有几支、这三处就得几支一一对上」，
      * 免得换一批曲子就得改测试
      */
-    @GameTest(template = "ddt_empty")
+    @GameTest(template = "ddt_empty", batch = "experiment_095")
     public static void everyTrackShipsWithItsOwnOgg(GameTestHelper helper) {
         int count = ModSounds.requiemTrackCount();
         helper.assertTrue(count >= 1, "the requiem must ship at least one track");
@@ -214,7 +228,7 @@ public final class Experiment095Tests {
         helper.succeed();
     }
 
-    @GameTest(template = "ddt_empty")
+    @GameTest(template = "ddt_empty", batch = "experiment_095")
     public static void dataAndLanguageArePinned(GameTestHelper helper) {
         JsonObject damageType = readJson(helper, "/data/dawnduskterminal/damage_type/experiment_095.json");
         helper.assertTrue(
@@ -271,13 +285,16 @@ public final class Experiment095Tests {
         return player;
     }
 
-    /** 把这一圈（32 格）里别的用例留下的活物清掉，断言只落在自己摆的木桩上 */
+    /**
+     * 只清自己这座结构里的活物
+     *
+     * <p><b>不能按半径清</b>：同一批次里并排跑的用例只隔十几格，按 32 格清会把隔壁用例的木桩、羊一起清掉
+     * （{@code EquipmentTests#carminiteFieldIsCylindrical} 隔着十几格摆羊，清掉之后它等满 20 tick 也看不到伤害）。
+     * 自己的木桩都在结构里，所以结构范围就是该清的边界
+     */
     private static void clearAround(GameTestHelper helper, Player caster) {
         for (LivingEntity stray : helper.getLevel()
-                .getEntitiesOfClass(
-                        LivingEntity.class,
-                        caster.getBoundingBox().inflate(RequiemProcess.RADIUS),
-                        other -> other != caster)) {
+                .getEntitiesOfClass(LivingEntity.class, helper.getBounds().deflate(0.5D), other -> other != caster)) {
             stray.discard();
         }
     }

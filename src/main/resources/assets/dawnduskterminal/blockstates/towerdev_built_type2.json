@@ -1,0 +1,10 @@
+{
+  "variants": {
+    "on=false": {
+      "model": "dawnduskterminal:block/towerdev_built_type2_off"
+    },
+    "on=true": {
+      "model": "dawnduskterminal:block/towerdev_built_type2_on"
+    }
+  }
+}

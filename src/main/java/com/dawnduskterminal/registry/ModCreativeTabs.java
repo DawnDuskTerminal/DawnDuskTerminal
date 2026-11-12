@@ -93,7 +93,9 @@ public final class ModCreativeTabs {
                         accept(output, ModItems.CARID.get());
                         accept(output, ModItems.AOI.get());
                         accept(output, ModItems.CANOPY_INGOT.get());
+                        accept(output, ModItems.CANOPY_BOAT.get());
                         accept(output, ModItems.DIRAC.get());
+                        accept(output, ModItems.DIRAC_MIX.get());
                         accept(output, ModItems.MIXED_CARMINITE.get());
                         accept(output, ModItems.CARMINITE_INGOT.get());
                         accept(output, ModItems.SCARLET_MOLYBDENUM_INGOT.get());
@@ -115,6 +117,9 @@ public final class ModCreativeTabs {
                         // 它生出来的反建方块二型紧跟在后，两块都能直接拿
                         accept(output, ModItems.ANTIBUILDER_TYPE2.get());
                         accept(output, ModItems.ANTIBUILD_BLOCK_TYPE2.get());
+                        // 砷铅铁建造器二型与它建出来的那一格：同样没有编号，紧跟在反建器那一对后面
+                        accept(output, ModItems.TOWERDEV_BUILDER_TYPE2.get());
+                        accept(output, ModItems.TOWERDEV_BUILT_TYPE2.get());
                         accept(output, ModItems.E_115_REGENERATOR.get());
                         accept(output, ModItems.TOWER_GHAST_SPAWN_EGG.get());
                         accept(output, ModItems.STRING_SPAWN_EGG.get());

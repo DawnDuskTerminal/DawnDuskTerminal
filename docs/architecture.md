@@ -1995,6 +1995,111 @@ thirdperson 为 [-80,260,-40] / [-80,-280,40] 与 -1,-2,2.5 的位移，firstper
 十六个变体、两层模型与关机模型、逐面的贴图引用都解析得到、两层贴图的发光档位、两个物品模型、
 两个方块都没有战利品表、服务端没有 ticker。
 
+## 砷铅铁建造器二型（构建方块）
+
+暮色森林 `twilightforest:carminite_builder` 的第二型。
+方块在 `block/TowerdevBuilderType2Block`，建造进度在 `block/entity/TowerdevBuilderType2BlockEntity`，
+产物是 `block/TowerdevBuiltType2Block`（`dawnduskterminal:towerdev_built_type2`）。
+
+与那一台只差三条：不会超时（没有格数上限，也没有 `timeout` 那一档）、产物换成上面那一块、
+产物稳定存在且能挖能右键换档。其余一律照抄，包括方块属性（`pushReaction(BLOCK)`、`mapColor(SAND)`、
+`requiresCorrectToolForDrops`、`WOOD` 音效、10 点硬度 6 点抗性、通着电 4 级光）、
+`#minecraft:mineable/pickaxe`、开机与关机的两条音效、通着电时冒的红石粉粒子。
+
+### 不超时
+
+方块状态只有一条 `ACTIVE`（`active`），由红石信号定：摆下那一刻按当时的信号给初值
+（`getStateForPlacement`），之后由 `neighborChanged` 跟着信号变。没有 `RANGE`，也没有 `timeout` 那一档。
+
+每 10 tick 造一格，判据与那一台一致：附近最近的那位玩家（`PLAYER_RADIUS` 16 格，创造与旁观之外的都算）的
+俯仰角按 90 度一档折成四份——正上看朝上、正下看朝下，其余按水平朝向；
+目标格必须是空气，被占了就在原地等，玩家转向或那一格空出来才继续。
+游标（`cursor`）记着上一格造在哪，下一格从那里往外推，所以人走开又回来时是从断掉的地方接着走。
+
+产物不会消失，所以再次开机时前方那一段上一次造出来的格子还在。`tick` 因此先把游标沿当前方向
+逐格推过「已经是本模组构建方块」的那一段（两档都算），从末端接着造；游标边走边记下，
+一条很长的老线也是每 tick 走 `SCAN_PER_TICK` 格、几拍走完，不会一口气扫到底。走到头才是
+「空格就造、非空就等」那一套。
+
+两条差别都在 `TowerdevBuilderType2BlockEntity#tick` 里：没有 `blocksMade` 的上限，也没有
+`blockedCounter` 引发的停摆与 60 tick 后的 `timeout`。所以「前路被堵住」只表现为原地不动，机器仍是开着的。
+造到没载入的区块边上会停一停（`Level#isLoaded`）：那里 `setBlock` 会把区块读进来，一路造下去就是一台撞穿世界的机器。
+
+关机（`active` 变假）当场把 tick 计数与游标清空，重新通电从本方块那一格起头，再靠上面那段扫描走到末端。
+进度不落盘，区块重新载入后同样从本方块起头，与那一台一致。
+
+`tick` 有两个入口：方块 ticker 用的四参数版本自己去问最近玩家，五参数版本把玩家递进来。
+后者只为测试，生产那条路只有前者，语义不变——gametest 的 `makeMockPlayer` 造出来的玩家不在世界的玩家表里，
+`getNearestPlayer` 找不到它，一段「附近的玩家」逻辑没有这个接缝就测不到。
+
+### 两档的构建方块
+
+`TowerdevBuiltType2Block` 是**一块方块两个状态**（`ON`，序列化成 `on`），不是两块方块：
+挖掘、战利品表与物品形态因此只写一份，摆下时是暗的那一档。这一点与暮色森林的
+`built_block` + `ACTIVE` 同构。
+
+与那一块的四条差别：
+
+- 不会自己消失。那一块被点亮成绿的之后排一次 10 tick 的刻，到点整格删掉并把邻格也点亮，整片会像涟漪一样化掉；
+  这一块两档都一直留着。
+- 可以挖。那一块 `noLootTable`，这一块带战利品表掉自己；硬度也换成本模组反建方块二型那一档 0.3
+  （那一块是 50）：建造器停不下来、方格会一片一片铺开，50 点硬度意味着拆一格要九秒多。抗性仍是 2000。
+- 两档都能交互：右键把<b>连在一起、而且档位相同</b>的那一片整片翻到另一档，一次最多 64 格
+  （`MAX_CONNECTED`）。搜索是六面广度优先、凑够 64 格就停，所以一大片连着的格子要多右键几次才翻得完；
+  斜角挨着的两格不算相连。手上正好是本方块自己的方块物品时让开放置：
+  `useItemOn` 返回 `SKIP_DEFAULT_BLOCK_INTERACTION`，不是 `PASS_TO_DEFAULT_BLOCK_INTERACTION`——
+  后者在 `ServerPlayerGameMode#useItemOn` 与客户端 `MultiPlayerGameMode#performUseItemOn` 里是
+  「接着调 `useWithoutItem`」，也就是换档本身，点击会在放置之前被吃掉（上一版就是这么坏掉的）。
+  跳过默认交互之后才轮到 `BlockItem#useOn`，落点是点击面的邻格
+  （`BlockPlaceContext#getClickedPos` 在点到的方块不可替换时给相邻格）。
+- 绿的那一档没有碰撞（`getCollisionShape` 返回空），并且可以往上爬（`isLadder` 只看绿的那一档）。
+
+内部面剔除走 `skipRendering`：邻格也是本方块时不画中间那一面，否则并排的两格在同一平面上叠两份格线。
+`Block#shouldRenderFace` 第一件事就是问 `skipRendering`，所以这条不用碰模型；判据不分档位，
+暗的挨着绿的也并起来。
+
+轮廓形状不跟着碰撞变：`BlockBehaviour#getShape` 的默认值就是整方块，与 `getCollisionShape` 无关，
+所以穿过去的格子照样点得到，右键才换得回来。
+
+爬梯判定走的是 NeoForge 的 `IBlockExtension#isLadder`（`LivingEntity#onClimbable` 经
+`CommonHooks#isLivingOnLadder` 问到它），不是原版那张 `#minecraft:climbable` 标签：
+标签管不到状态，而这里只有绿的那一档该能爬。站在绿格里按跳就得到原版梯子那一下 +0.2 的垂直速度，
+`handleOnClimbable` 同时把下落钳在 -0.15。
+
+换档的音效照抄暮色森林「重现方块」那一对（`VanishingBlock#tick` 里那几个参数一字不改）：
+暗转绿是重现（`TFSounds.REAPPEAR_BLOCK`，`block.twilightforest.reappearing_block.reappear`，
+音源 `BLOCKS`、音量 0.3、音高 0.6）；绿转暗是那一声消失（`TFSounds.REAPPEAR_POOF`，
+`block.twilightforest.reappearing_block.vanish`，音源 `BLOCKS`、音量 0.3、音高 0.5）。
+一条右键只在起点播一声。
+
+### 资源
+
+建造器两层模型：`towerdev_builder_type2_on` 与 `_off` 是底座，各自的 `_glow` 是发光层，
+发光层按满亮画（`block_light` 与 `sky_light` 都是 15），`render_type` 是 `minecraft:cutout`；
+方块状态两个变体（`active`），物品模型指向 `_off` 那一份——拿在手上的是它摆下来时的样子，不是通电运行时那副。
+
+构建方块一份模型、两档各一张：`towerdev_built_type2_off` 与 `_on`。
+贴的是 128x128 的 8x8 连接图集（`_connected`），邻格判定与 UV 重映射复用
+`client/model/MountedTowerWoodModel`（「邻居是同一种方块」那条 47 格判据），
+`DdtClient#wrapTowerdevBuilt` 把这一块的两个变体键都包一遍。
+两档的 16x16 单图是图集里「四面都不接」的那一格，给粒子（`particle`）与物品用：
+物品模型是一颗整方块——`minecraft:block/block` 底下自带的那套 `display` 变换加六个面都贴那张单图、
+六面 `neoforge_data` 同样写满 15，所以拿在手里是一块透光的格子而不是一张扁图；
+这一份不能指回 `block/towerdev_built_type2_off`，那是图集，物品没有邻格可算，会糊成一整张 8x8。
+渲染层在 `DdtClient#onClientSetup` 里补了 `ItemBlockRenderTypes.setRenderLayer(cutout)`：
+方块那一侧靠模型的 `render_type` 就够，手里那块物品走的是那张表，不在表里透明像素会变成黑底。
+「满亮度」在两档都用模型的 `neoforge_data` 写满（六面 `block_light` 与 `sky_light` 都是 15）并关掉 `shade`，
+方块自己不发光（`lightLevel` 为 0），两档一样亮。
+
+`gametest/TowerdevType2Tests` 覆盖：两条方块与物品形态、名称、`active`/`on` 各只一条状态、
+运行中 4 级光与停机熄灯、`#minecraft:mineable/pickaxe`（建造器进、构建方块不进）、方块实体已注册、
+两个方块都在主栏目里；建造 21 格不停（超过那一台 16 格的上限）、没人时一格不造且机器仍开着、人回来接着造、
+再次开机跨过已有产物从末端接着造、视线四档折算、前路被占住时原地等、红石开机断信号关机、
+右键整片翻档并翻回、斜角不算相连、一次最多 64 格、手上拿着本方块时按原版那一段顺序走一遍并且方块真的摆到了点击面那一格；
+并排两格不画中间那一面（暗的挨着绿的也剔）、绿档无碰撞可爬、轮廓仍在；
+两个变体的模型与贴图键、满亮档位、连接图集与单图的用途、物品是整方块那一份 `_off` 单图模型、
+两个方块各自的战利品表、服务端有 ticker。
+
 ## 装饰画
 
 十幅画，尺寸从 1 格宽 2 格高（`painting_ghast_2_sub`）到 6 格宽 4 格高（`painting_ghast_9`）。
@@ -2169,6 +2274,33 @@ thirdperson 为 [-80,260,-40] / [-80,-280,40] 与 -1,-2,2.5 的位移，firstper
 `portal/PortalState` 是玩家附件，存储回程维度与坐标。
 
 细节见 `portal.md`。
+
+## 苍穹船
+
+`entity/CanopyBoatEntity` 是原版 `Boat` 的子类，物品 `dawnduskterminal:canopy_boat` 由 `item/CanopyBoatItem` 摆出来。
+
+整条船的行为都继承自 `Boat`，只改三处：
+
+- 变体固定 `Boat.Type.BAMBOO`：竹筏那套模型与 128x64 贴图展开就是 `textures/entity/boat/canopy_boat.png` 的底稿，
+  客户端渲染用竹筏的 `RaftModel`，只换贴图（`client/CanopyBoatRenderer`）；
+- 敲碎掉自己，父类按变体掉的是竹筏；
+- `canBoatInFluid` 交给 `world/BoatFloatingFluid`：水、岩浆、`portal_fluid` 三种都托得住，热情的暮光不算。
+
+漂浮判定没有一处 mixin：NeoForge 的 `IBoatExtension` 已经把原版那三处写死的 `FluidTags.WATER`
+抽成了 `canBoatInFluid(FluidState)` 钩子（默认实现是 `FluidState#supportsBoating`），覆写它即可。
+只对苍穹船生效，原版船与别的模组的船不受影响。
+
+岩浆那一条还有两个前提：
+
+- **实体类型必须 `fireImmune()`**。岩浆里的非生物实体照样走 `Entity#lavaHurt`：点燃 15 秒、再挨 4 点
+  `lava` 伤害，而船的耐久只有 40 点、每 tick 结算一次，十来个 tick 就被 `destroy()`。免火之后这条整路都不进来。
+- **乘客不受不稳定液体影响**。船浮在液面上时乘客的脚底在液面之上，但方块判定只看「箱子有没有压进这一格」，
+  乘客的箱子仍然与液体那一格相交，`PortalBlock#entityInside` 于是照样触发——每 2 秒 2 点 `stability` 伤害，
+  站在真门前还会被传送走。所以那里对「坐在苍穹船上的人」直接放行，见 `PortalBlock`。
+
+`gametest/CanopyBoatTests` 钉住：实体与物品都在、变体是竹筏、掉自己、免火；三种液体各摆一池子放船推 40 tick，
+船停在水面（相对高度约 1.4）、没沉底、也没被岩浆烧掉；坐在船上的猪挨不到不稳定液体的伤害而对照组会挨；
+以及那几条配方。
 
 ## 流体
 

@@ -85,22 +85,24 @@ public final class ModExperimentItems {
      * <p>玩家自身的底数是攻击力 1、攻速 4，所以两个修饰符分别给 +3 与 +1，面板上就是「4 攻击伤害、
      * 5 攻击速度」，每 0.2 秒一刀。两条都写全：属性表里没有 {@code ATTACK_SPEED} 这一项，面板就不显示攻速
      *
+     * <p>修饰符的 ID 必须是原版的 {@link Item#BASE_ATTACK_DAMAGE_ID} 与 {@link Item#BASE_ATTACK_SPEED_ID}，
+     * 面板才会像 036、057 那样直接报「4 攻击伤害 / 5 攻击速度」；换个自定义 ID 就退化成「+3 / +1」，
+     * 见 {@code ItemStack#addModifierTooltip}（{@code ItemStack.java:809}）
+     *
      * <p>不挂 tool tier，所以它没有耐久、挖不动方块、也不在五个原版工具标签里；要的就是一件只拿来比
      * 伤害与攻速尺子的裸武器，规格由 {@code ExperimentItemTests#experiment007IsAFourFiveWeapon} 钉住
      */
-    public static final DeferredItem<Item> EXPERIMENT_007 = ITEMS.register(
-            "experiment_007",
-            () -> new Item(new Item.Properties().attributes(meleeAttributes("experiment_007", 3.0D, 1.0D))));
+    public static final DeferredItem<Item> EXPERIMENT_007 =
+            ITEMS.register("experiment_007", () -> new Item(new Item.Properties().attributes(meleeAttributes())));
 
     /**
      * 试验物品 017：近战伤害 4、攻速 5，与 {@link #EXPERIMENT_007} 同一副规格
      *
-     * <p>两件物品共用 {@link #meleeAttributes}，只有修饰符的 ID 前缀不同——同一个属性上挂两个同 ID 的
-     * 修饰符会互相顶掉，所以 ID 必须按物品分开
+     * <p>两件物品共用 {@link #meleeAttributes}：各自拿着自己的属性表组件，所以同一个原版修饰符 ID
+     * 在两件物品上互不影响（玩家同一只手只可能拿着一件）
      */
-    public static final DeferredItem<Item> EXPERIMENT_017 = ITEMS.register(
-            "experiment_017",
-            () -> new Item(new Item.Properties().attributes(meleeAttributes("experiment_017", 3.0D, 1.0D))));
+    public static final DeferredItem<Item> EXPERIMENT_017 =
+            ITEMS.register("experiment_017", () -> new Item(new Item.Properties().attributes(meleeAttributes())));
 
     /**
      * 试验物品 008 的食物属性：5 点饥饿、5 点饱和度
@@ -520,26 +522,39 @@ public final class ModExperimentItems {
         return Collections.unmodifiableSortedMap(map);
     }
 
+    /** 007 与 017 的面板近战伤害 */
+    private static final double BARE_ATTACK_DAMAGE = 4.0D;
+
+    /** 007 与 017 的面板攻速：每秒 5 刀 */
+    private static final double BARE_ATTACK_SPEED = 5.0D;
+
+    /** 玩家自身的主手底数，原版写死在 {@code Player} 的初始属性里；修饰符是「面板值 − 底数」 */
+    private static final double PLAYER_ATTACK_DAMAGE = 1.0D;
+
+    private static final double PLAYER_ATTACK_SPEED = 4.0D;
+
     /**
-     * 裸近战武器的属性表：主手攻击力加 {@code attackDamage}、攻速加 {@code attackSpeed}
+     * 裸近战武器的属性表：主手攻击力与攻速，按面板值减掉玩家底数写成两个修饰符
      *
-     * <p>玩家底数是攻击力 1、攻速 4，所以「面板 4 伤害、5 攻速」对应的是 +3 与 +1。修饰符 ID 带上物品 ID
-     * 前缀，同一属性上挂两个同 ID 的修饰符会互相顶掉
+     * <p>面板 4 对应 {@code ATTACK_DAMAGE +3}、面板 5 对应 {@code ATTACK_SPEED +1}。与
+     * {@code Experiment057Item#createAttributes()} 同一个写法：ID 取原版的
+     * {@link Item#BASE_ATTACK_DAMAGE_ID} 与 {@link Item#BASE_ATTACK_SPEED_ID}，面板才会显示最终值，
+     * 否则会退化成「+3 / +1」（见 {@code ItemStack#addModifierTooltip}）
      */
-    private static ItemAttributeModifiers meleeAttributes(String itemPath, double attackDamage, double attackSpeed) {
+    private static ItemAttributeModifiers meleeAttributes() {
         return ItemAttributeModifiers.builder()
                 .add(
                         Attributes.ATTACK_DAMAGE,
                         new AttributeModifier(
-                                DawnDuskTerminal.id(itemPath + "_attack_damage"),
-                                attackDamage,
+                                Item.BASE_ATTACK_DAMAGE_ID,
+                                BARE_ATTACK_DAMAGE - PLAYER_ATTACK_DAMAGE,
                                 AttributeModifier.Operation.ADD_VALUE),
                         EquipmentSlotGroup.MAINHAND)
                 .add(
                         Attributes.ATTACK_SPEED,
                         new AttributeModifier(
-                                DawnDuskTerminal.id(itemPath + "_attack_speed"),
-                                attackSpeed,
+                                Item.BASE_ATTACK_SPEED_ID,
+                                BARE_ATTACK_SPEED - PLAYER_ATTACK_SPEED,
                                 AttributeModifier.Operation.ADD_VALUE),
                         EquipmentSlotGroup.MAINHAND)
                 .build();

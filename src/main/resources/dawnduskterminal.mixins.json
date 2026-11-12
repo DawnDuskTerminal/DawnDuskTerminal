@@ -21,6 +21,8 @@
     "LevelShapeUpdateSuppressMixin",
     "FluidStateUpdateSuppressMixin",
     "GhastlingShouldAttackMixin",
+    "HazardousFluidPathingMixin",
+    "CanopyBoatRiderMixin",
     "CampCarminiteFireExhaustionMixin",
     "LevelSetBlockReactionMixin"
   ],

@@ -1,6 +1,7 @@
 package com.dawnduskterminal.registry;
 
 import com.dawnduskterminal.DawnDuskTerminal;
+import com.dawnduskterminal.entity.CanopyBoatEntity;
 import com.dawnduskterminal.entity.CarminiteBallEntity;
 import com.dawnduskterminal.entity.CarminiteFieldEntity;
 import com.dawnduskterminal.entity.CarminiteShrapnelEntity;
@@ -273,6 +274,26 @@ public final class ModEntities {
                 Monster::checkMonsterSpawnRules,
                 RegisterSpawnPlacementsEvent.Operation.REPLACE);
     }
+
+    /**
+     * 「苍穹船」：原版 {@code Boat} 的子类，造型借竹筏那一套模型与贴图布局
+     *
+     * <p>尺寸照原版船取 1.375 x 0.5625，跟踪范围 10——船是给人坐的，远了就不用同步。
+     * 它没有属性、也不参与自然生成，所以 {@link #onEntityAttributeCreation} 与
+     * {@link #onRegisterSpawnPlacements} 里都没有它
+     *
+     * <p>能浮在什么上见 {@code world/BoatFloatingFluid}：水、岩浆与不稳定液体
+     *
+     * <p><b>{@code fireImmune()} 不能省</b>：岩浆里的非生物实体照样走 {@code Entity#lavaHurt}——
+     * 点燃 15 秒再挨 4 点 {@code lava} 伤害，而船的耐久只有 40 点、每 tick 结算一次，十来个 tick
+     * 就 {@code destroy()} 掉了。免火之后这一整条路都不再进来
+     */
+    public static final DeferredHolder<EntityType<?>, EntityType<CanopyBoatEntity>> CANOPY_BOAT =
+            ENTITIES.register("canopy_boat", () -> EntityType.Builder.of(CanopyBoatEntity::new, MobCategory.MISC)
+                    .fireImmune()
+                    .sized(1.375F, 0.5625F)
+                    .clientTrackingRange(10)
+                    .build("canopy_boat"));
 
     /**
      * 试验物品 011 摆下来的那只盘子

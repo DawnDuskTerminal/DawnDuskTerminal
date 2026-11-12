@@ -44,7 +44,7 @@ public final class Experiment055Tests {
     /** 满半径的场要在空中跑，免得扫到邻座结构里的实体 */
     private static final int LIFTED = 48;
 
-    @GameTest(template = "ddt_empty")
+    @GameTest(template = "ddt_empty", batch = "experiment_055")
     public static void itemReplacesThePlaceholder(GameTestHelper helper) {
         helper.assertFalse(
                 ModExperimentItems.placeholders().containsKey(Integer.valueOf(55)),
@@ -65,7 +65,7 @@ public final class Experiment055Tests {
         helper.succeed();
     }
 
-    @GameTest(template = "ddt_empty")
+    @GameTest(template = "ddt_empty", batch = "experiment_055")
     public static void growthIsLinearAndStopsAtFiveSeconds(GameTestHelper helper) {
         helper.assertTrue(
                 BeetrootProcess.CHARGE_TICKS == 100,
@@ -110,7 +110,7 @@ public final class Experiment055Tests {
         helper.succeed();
     }
 
-    @GameTest(template = "ddt_empty")
+    @GameTest(template = "ddt_empty", batch = "experiment_055")
     public static void fieldHurtsInsideAndTurnsTheCasterSour(GameTestHelper helper) {
         Player caster = usingPlayer(helper, LIFTED);
         BeetrootProcess process = BeetrootProcess.detached(helper.getLevel(), caster);
@@ -148,7 +148,7 @@ public final class Experiment055Tests {
         helper.succeed();
     }
 
-    @GameTest(template = "ddt_empty")
+    @GameTest(template = "ddt_empty", batch = "experiment_055")
     public static void chargingIsFreeForTheCaster(GameTestHelper helper) {
         Player caster = usingPlayer(helper);
         BeetrootProcess process = BeetrootProcess.detached(helper.getLevel(), caster);
@@ -183,7 +183,7 @@ public final class Experiment055Tests {
      * 来判——测试场里结构挨着排，别的用例也会改群系（052 的爆炸就刷半径 12 的一大片），
      * 直接读世界里的某一点分不清是谁改的
      */
-    @GameTest(template = "ddt_empty")
+    @GameTest(template = "ddt_empty", batch = "experiment_055")
     public static void biomeSpreadsAsASliceOnly(GameTestHelper helper) {
         Player caster = usingPlayer(helper);
         BlockPos under = caster.blockPosition();
@@ -225,7 +225,7 @@ public final class Experiment055Tests {
         helper.succeed();
     }
 
-    @GameTest(template = "ddt_empty")
+    @GameTest(template = "ddt_empty", batch = "experiment_055")
     public static void lettingGoEndsTheField(GameTestHelper helper) {
         Player caster = usingPlayer(helper);
         BeetrootProcess process = BeetrootProcess.detached(helper.getLevel(), caster);
@@ -240,7 +240,7 @@ public final class Experiment055Tests {
         helper.succeed();
     }
 
-    @GameTest(template = "ddt_empty")
+    @GameTest(template = "ddt_empty", batch = "experiment_055")
     public static void soundsAndDataArePinned(GameTestHelper helper) {
         JsonObject sounds = readJson(helper, "/assets/dawnduskterminal/sounds.json");
         for (String name : new String[] {"experiment_055_charge", "experiment_055_full", "experiment_055_geiger"}) {
@@ -338,13 +338,15 @@ public final class Experiment055Tests {
         return player;
     }
 
-    /** 把这一圈里别的用例留下的活物清掉，断言只落在自己摆的木桩上 */
+    /**
+     * 只清自己这座结构里的活物
+     *
+     * <p>不能按半径清：同一批次里并排跑的用例只隔十几格，按场半径清会把隔壁用例的木桩一起清掉。
+     * 自己的木桩都在结构里，所以结构范围就是该清的边界
+     */
     private static void clearAround(GameTestHelper helper, Player caster) {
         for (LivingEntity stray : helper.getLevel()
-                .getEntitiesOfClass(
-                        LivingEntity.class,
-                        caster.getBoundingBox().inflate(BeetrootProcess.MAX_RADIUS),
-                        other -> other != caster)) {
+                .getEntitiesOfClass(LivingEntity.class, helper.getBounds().deflate(0.5D), other -> other != caster)) {
             stray.discard();
         }
     }

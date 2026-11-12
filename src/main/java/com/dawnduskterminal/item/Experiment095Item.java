@@ -18,7 +18,9 @@ import net.minecraft.world.level.Level;
  *
  * <p>按住右键不放就在原地奏一支曲子：每 0.5 秒朝四周甩出一圈音符，曲子本身循环播放
  * （周围 32 格内都听得见，每次按住随机挑一支，见 {@link RequiemProcess} 与 {@code ModSounds#REQUIEM_TRACKS}），
- * 同时 32 格内除自己以外的活物每 tick 挨一次 {@code 0.5 × (32 - 距离)} 的伤害。每按住 1 秒扣 1 点耐久，
+ * 同时 32 格内除自己以外的活物每 tick 挨一次 {@code 0.5 × (32 - 距离)} 的伤害。
+ * 起手有 {@value RequiemProcess#CHARGE_TICKS} tick（1 秒）的充能，这 1 秒里只有曲子与音符、没有伤害，
+ * 所以连点右键点不出伤害；充能走完才开始结算。每按住 1 秒扣 1 点耐久，
  * 共 {@value #DURABILITY} 点——从头按到尾正好 5 分钟
  *
  * <p>伤害不绕无敌帧：过程每 tick 都调一次 {@code hurt}，原版那 0.5 秒的无敌帧自然把节拍排出来，

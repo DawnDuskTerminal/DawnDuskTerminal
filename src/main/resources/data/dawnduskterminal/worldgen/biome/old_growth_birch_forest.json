@@ -22,12 +22,6 @@
       "replace_current_music": true,
       "sound": "twilightforest:music.twilightforest.twilight_forest"
     },
-    "particle": {
-      "options": {
-        "type": "twilightforest:wandering_firefly"
-      },
-      "probability": 0.001
-    },
     "sky_color": 15251868,
     "water_color": 4159204,
     "water_fog_color": 329011,

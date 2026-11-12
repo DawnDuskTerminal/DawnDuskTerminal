@@ -189,6 +189,8 @@ public class GhastEliteEntity extends Ghast implements YsmPackUser {
 
     @Override
     protected void registerGoals() {
+        // 不走寻路的飞行生物只能自己躲会伤人的流体，见 AvoidHazardousFluidGoal
+        this.goalSelector.addGoal(4, new AvoidHazardousFluidGoal(this));
         this.goalSelector.addGoal(5, new RandomFloatAroundGoal(this));
         this.goalSelector.addGoal(7, new EliteLookGoal(this));
         this.goalSelector.addGoal(

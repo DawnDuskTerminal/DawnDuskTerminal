@@ -15,9 +15,11 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.BushBlock;
+import net.minecraft.world.level.block.FlowerPotBlock;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.MapColor;
@@ -140,6 +142,43 @@ public final class Experiment019Tests {
         helper.assertTrue(
                 model.get("render_type").getAsString().equals("minecraft:cutout"),
                 "block/experiment_019 must render as cutout, got " + model.get("render_type"));
+        helper.succeed();
+    }
+
+    /**
+     * 能栽进花盆里
+     *
+     * <p>原版花盆只认 {@code FlowerPotBlock} 构造时登记进那张私有静态表的内容，所以「能不能栽」这件事的
+     * 判据就是：一个 {@code potted_experiment_019} 方块存在，而且它里面栽的正是 019 那丛植物。
+     * 敲掉它得掉「空花盆 + 那丛植物」，那是刷怪蛋之外唯一能把它拿回来的路（它自己没有物品形态）
+     */
+    @GameTest(template = "ddt_empty")
+    public static void goesIntoAFlowerPot(GameTestHelper helper) {
+        Block potted = ModBlocks.POTTED_EXPERIMENT_019.get();
+        helper.assertTrue(
+                potted instanceof FlowerPotBlock,
+                "the potted variant must be a FlowerPotBlock, otherwise the flower pot cannot plant it, got "
+                        + potted.getClass().getSimpleName());
+        helper.assertTrue(
+                ((FlowerPotBlock) potted).getPotted() == ModBlocks.EXPERIMENT_019.get(),
+                "potted_experiment_019 must hold " + BLOCK_ID + ", it holds " + ((FlowerPotBlock) potted).getPotted());
+        helper.assertTrue(
+                potted.asItem() == Items.AIR,
+                "a potted variant must not have an item form, vanilla has none either, got " + potted.asItem());
+
+        ServerLevel level = helper.getLevel();
+        BlockPos pos = helper.absolutePos(new BlockPos(5, 2, 5));
+        level.setBlockAndUpdate(pos, potted.defaultBlockState());
+        List<ItemStack> drops = Block.getDrops(level.getBlockState(pos), level, pos, null);
+        helper.assertTrue(drops.size() == 2, "the potted plant must drop the pot and the plant, got " + drops);
+        boolean pot = false;
+        boolean plant = false;
+        for (ItemStack drop : drops) {
+            pot |= drop.is(Items.FLOWER_POT);
+            plant |= drop.is(ModItems.EXPERIMENT_019.get());
+        }
+        helper.assertTrue(pot, "the potted plant must give the empty flower pot back, got " + drops);
+        helper.assertTrue(plant, "the potted plant must give " + BLOCK_ID + " back, got " + drops);
         helper.succeed();
     }
 

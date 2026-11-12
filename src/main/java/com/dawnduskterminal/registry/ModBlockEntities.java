@@ -9,6 +9,7 @@ import com.dawnduskterminal.block.entity.Experiment051BlockEntity;
 import com.dawnduskterminal.block.entity.Experiment065BlockEntity;
 import com.dawnduskterminal.block.entity.Experiment069BlockEntity;
 import com.dawnduskterminal.block.entity.Experiment076BlockEntity;
+import com.dawnduskterminal.block.entity.TowerdevBuilderType2BlockEntity;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.neoforged.bus.api.IEventBus;
@@ -18,7 +19,7 @@ import net.neoforged.neoforge.registries.DeferredRegister;
 /**
  * 方块实体类型。目前有试验物品 004 那台熔炉、051 那台机器、065 那台不让人打伤害的机器、069 那台让更新不处理的机器、
  * 076 那个没有数据、只为挂客户端渲染器的异常方块、115 再生机那一格产物格加一个进度、红篝火那四格食材，
- * 以及反建器二型那个只为登记场心的方块实体
+ * 以及反建器二型那个只为登记场心的方块实体、砷铅铁建造器二型那个攒建造进度的方块实体
  */
 public final class ModBlockEntities {
     public static final DeferredRegister<BlockEntityType<?>> BLOCK_ENTITIES =
@@ -84,6 +85,15 @@ public final class ModBlockEntities {
     public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<AntibuilderType2BlockEntity>>
             ANTIBUILDER_TYPE2 = BLOCK_ENTITIES.register("antibuilder_type2", () -> BlockEntityType.Builder.of(
                     AntibuilderType2BlockEntity::new, ModBlocks.ANTIBUILDER_TYPE2.get())
+            .build(null));
+
+    /**
+     * 砷铅铁建造器二型的方块实体：建造进度（数到第几 tick、造到哪一格）都在它身上，
+     * 见 {@link TowerdevBuilderType2BlockEntity}
+     */
+    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<TowerdevBuilderType2BlockEntity>>
+            TOWERDEV_BUILDER_TYPE2 = BLOCK_ENTITIES.register("towerdev_builder_type2", () -> BlockEntityType.Builder.of(
+                    TowerdevBuilderType2BlockEntity::new, ModBlocks.TOWERDEV_BUILDER_TYPE2.get())
             .build(null));
 
     private ModBlockEntities() {}

@@ -123,6 +123,19 @@
 
 接触该流体的生物在每个受击窗口承受 6 点 `enthu_fluid` 伤害。
 
+## 生物躲避
+
+两种流体都会伤人，所以生物把它们当岩浆看：
+
+- 走寻路的生物经 `mixin/HazardousFluidPathingMixin` 改过的 `WalkNodeEvaluator` 判定，
+  两种流体在路径里的代价是 `-1`（`PathType.DAMAGE_OTHER`），路径不会穿过去。
+  返回 `DAMAGE_OTHER` 而不是 `BLOCKED`，是为了让已经泡在里面的生物还寻得出来。
+- 「弦」是例外：它就活在不稳定液体的液面上，仍可往流体里寻路。
+- 不走寻路的飞行生物（两只恶魂变体）由 `entity/AvoidHazardousFluidGoal` 自己退开：
+  每 10 tick 扫身边 4 格（竖直 ±3 格），发现危险流体就朝反方向退 6 格并抬高 2 格，连推 1 秒。
+
+`world/HazardousFluid` 是这份判定的唯一出处，两种流体的源与流动都在里面。
+
 ## 流体反应
 
 流体反应通过 NeoForge 的 `FluidInteractionRegistry` 注册，并在 `FMLCommonSetupEvent` 上执行。

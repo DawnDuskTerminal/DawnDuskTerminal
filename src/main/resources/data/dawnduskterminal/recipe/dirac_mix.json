@@ -1,0 +1,22 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "dawnduskterminal:canopy_ingot"
+    },
+    {
+      "item": "dawnduskterminal:chaos_stone"
+    },
+    {
+      "item": "dawnduskterminal:dirac"
+    },
+    {
+      "item": "dawnduskterminal:string"
+    }
+  ],
+  "result": {
+    "id": "dawnduskterminal:dirac_mix",
+    "count": 1
+  }
+}

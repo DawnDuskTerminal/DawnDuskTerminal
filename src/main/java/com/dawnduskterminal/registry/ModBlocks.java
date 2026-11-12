@@ -16,6 +16,8 @@ import com.dawnduskterminal.block.Experiment069Block;
 import com.dawnduskterminal.block.Experiment076Block;
 import com.dawnduskterminal.block.Experiment114Block;
 import com.dawnduskterminal.block.SusCakeBlock;
+import com.dawnduskterminal.block.TowerdevBuilderType2Block;
+import com.dawnduskterminal.block.TowerdevBuiltType2Block;
 import com.dawnduskterminal.portal.PortalBlock;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -26,6 +28,7 @@ import net.minecraft.tags.TagKey;
 import net.minecraft.world.level.block.AbstractFurnaceBlock;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.CraftingTableBlock;
+import net.minecraft.world.level.block.FlowerPotBlock;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.properties.NoteBlockInstrument;
@@ -90,6 +93,25 @@ public final class ModBlocks {
                     .sound(SoundType.GRASS)
                     .offsetType(BlockBehaviour.OffsetType.XZ)
                     .pushReaction(PushReaction.DESTROY));
+
+    /**
+     * 试验物品 019 栽进花盆里的样子
+     *
+     * <p>「能不能塞进花盆」在原版只有一条路：{@code FlowerPotBlock} 构造时把自己连同被栽的方块一起登记进
+     * 那张私有静态表 {@code POTTED_BY_CONTENT}，{@code useItemOn} 拿着手上的方块去查表，查不到就当空气。
+     * 所以这里注册的是原版的 {@link FlowerPotBlock}，被栽的方块是 {@link #EXPERIMENT_019}
+     *
+     * <p>方块属性照 {@code Blocks#flowerPot} 那一行：{@code instabreak}（空手一下就掉）、{@code noOcclusion}、
+     * {@code DESTROY} 推挤反应。模型 {@code models/block/potted_experiment_019.json} 继承
+     * {@code minecraft:block/flower_pot_cross} 并指向那丛植物自己的贴图，
+     * 敲下来掉「空花盆 + 那丛植物」，见 {@code data/dawnduskterminal/loot_table/blocks/potted_experiment_019.json}
+     *
+     * <p>没有物品形态：原版七个 {@code potted_*} 也都没有，取回走 {@code useWithoutItem}
+     */
+    public static final DeferredBlock<FlowerPotBlock> POTTED_EXPERIMENT_019 = BLOCKS.registerBlock(
+            "potted_experiment_019",
+            properties -> new FlowerPotBlock(EXPERIMENT_019.get(), properties),
+            BlockBehaviour.Properties.of().instabreak().noOcclusion().pushReaction(PushReaction.DESTROY));
 
     /**
      * 试验物品 001：属性和工作台完全一样（{@link net.minecraft.world.level.block.Blocks#CRAFTING_TABLE}
@@ -446,6 +468,49 @@ public final class ModBlocks {
             "antibuildblock_type2",
             BlockBehaviour.Properties.of()
                     .noLootTable()
+                    .noOcclusion()
+                    .pushReaction(PushReaction.BLOCK)
+                    .sound(SoundType.WOOD)
+                    .strength(0.3F, 2000.0F));
+
+    /**
+     * 砷铅铁建造器二型：照暮色森林的 {@code twilightforest:carminite_builder} 做的那台的第二型，
+     * 与那三条差别见 {@link TowerdevBuilderType2Block}
+     *
+     * <p>方块属性照抄暮色森林那一台的注册参数：{@code pushReaction(BLOCK)}、{@code mapColor(SAND)}、
+     * {@code requiresCorrectToolForDrops}、{@code WOOD} 音效、10 点硬度 6 点抗性、通着电时 4 级光。
+     * 进 {@code #minecraft:mineable/pickaxe}。那一台有战利品表（挖掉掉自己），这一台照办
+     *
+     * <p>贴图两层：{@code towerdev_builder_type2_on} 与 {@code towerdev_builder_type2_on_glow}，
+     * 后者在模型里按满亮画；关机时换成一整套 {@code _off} 的那两张
+     */
+    public static final DeferredBlock<TowerdevBuilderType2Block> TOWERDEV_BUILDER_TYPE2 = BLOCKS.registerBlock(
+            "towerdev_builder_type2",
+            TowerdevBuilderType2Block::new,
+            BlockBehaviour.Properties.of()
+                    .mapColor(MapColor.SAND)
+                    .pushReaction(PushReaction.BLOCK)
+                    .requiresCorrectToolForDrops()
+                    .sound(SoundType.WOOD)
+                    .strength(10.0F, 6.0F)
+                    .lightLevel(state -> state.getValue(TowerdevBuilderType2Block.ACTIVE) ? 4 : 0));
+
+    /**
+     * 砷铅铁构建方块二型：建造器二型建出来的那一格，与暮色森林那一块的差别见 {@link TowerdevBuiltType2Block}
+     *
+     * <p>与暮色森林的 {@code built_block} 相比，这一块去掉了 {@code noLootTable}（挖掉掉自己），
+     * 硬度也换成本模组反建方块二型那一档 0.3（那一块是 50）：建造器停不下来，方格会一片一片铺开，
+     * 50 点硬度意味着拆一格要九秒多。抗性仍是 2000，爆炸炸不掉。
+     * 其余照抄：{@code noOcclusion}（贴图带透明）、{@code pushReaction(BLOCK)}、{@code WOOD} 音效
+     *
+     * <p>贴图两档各一张 8x8 连接图集：{@code towerdev_built_type2_off_connected} 与
+     * {@code towerdev_built_type2_on_connected}，邻格判定与 UV 重映射在 {@code MountedTowerWoodModel}；
+     * 两档的 16x16 单图是那一张图集里「四面都不接」的那一格，供粒子与物品图标用
+     */
+    public static final DeferredBlock<TowerdevBuiltType2Block> TOWERDEV_BUILT_TYPE2 = BLOCKS.registerBlock(
+            "towerdev_built_type2",
+            TowerdevBuiltType2Block::new,
+            BlockBehaviour.Properties.of()
                     .noOcclusion()
                     .pushReaction(PushReaction.BLOCK)
                     .sound(SoundType.WOOD)
