@@ -19,6 +19,7 @@ import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.commands.arguments.ResourceLocationArgument;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
@@ -36,7 +37,8 @@ public final class DdtCommands {
      * `/ddt pieces` 的公共收尾：摆完把消息发回去
      *
      * <p>{@code GridPlacer} 用「消息是否以 {@code catalogue:} 开头」区分成功与失败，
-     * 失败的几种（结构不存在、不是 grid 类型、目录名不认识）都带一句为什么
+     * 失败的几种（结构不存在、不是 grid 类型、目录名不认识）都带一句为什么。
+     * 网格朝玩家面朝的方向铺：执行者不是实体（控制台、命令方块）时按南算。
      */
     private static int catalogue(
             CommandContext<CommandSourceStack> ctx,
@@ -44,7 +46,9 @@ public final class DdtCommands {
             BlockPos origin,
             @Nullable ResourceLocation structure,
             @Nullable String dir) {
-        String result = GridPlacer.placeCatalogue(level, origin, structure, dir);
+        Entity entity = ctx.getSource().getEntity();
+        Direction facing = entity == null ? Direction.SOUTH : entity.getDirection();
+        String result = GridPlacer.placeCatalogue(level, origin, structure, dir, facing);
         if (!result.startsWith("catalogue:")) {
             ctx.getSource().sendFailure(Component.literal(result));
             return 0;

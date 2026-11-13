@@ -664,12 +664,36 @@ Windows DLL 只依赖 UCRT 与 `kernel32.dll`，不需要 `libwinpthread-1.dll` 
 
 `roomsPlaceExactlyOnce` 数件列表：每格的房间件只该落一条。房间件落两遍有两个代价——
 箱子那类带 nbt 的方块会被「清掉再盖 barrier」，第一遍的内容物掉到地上；件里的实体会 spawn 两次。
+楼梯件是例外（`room/rect/stair` 不计重）：它整间落一遍，末尾 `placeStairs` 还要只重写自己那一行天花板，
+那一行里既没有方块实体也没有实体。
+
+`stairPieceCarriesAHoledCeiling` 钉住楼梯件的最后一行：件必须 5 高，天花板那一行中间是空气、
+洞口不碰件的边框列。洞口原来单独成一件（`floor/rect/stairtop`，落在上一层的地板上），
+现在并进楼梯件，由 `placeStairs` 在最后一遍用 `ALL` 重写那一行才切得开——件矮一行、
+洞里没空气，楼梯就永远上不去。
+
+`specialRoomsCarryTheirFloor` 钉住掉落口 / 绳梯的房间楼板行：件必须 5 高，
+最低那一行里要有下去的路（空气、结构空位、塔木那族的 `reappearing_block`，
+以及洞里挂着的那一格绳 / 梯子都算）。
+这两类的楼板原来按照房间路径另成一件（`floor/large/drop` 等），现在并进房间件，
+装配时不再单摆平铺楼板——少一件就少一处会不同步的命名。
+内角格不并：它的楼板与天花板本来就按体型共用（`floor/inner_corner`、`ceiling/inner_corner`）。
+
+井段件那三条：
+
+- `wellSitsUnderTheFloorRow`：井段件（`post/well*`）的顶行必须比绳梯房件的底行低一行，
+  而且整个落在房间件的 x/z 范围里——摆错一行就会盖掉地板行里的原木或台阶。
+- `wellFallsBackToTheBaseLayer`：落差超过柱子的上限（`SUPPORT_MAX_DROP`）时只铺 3 行
+  （`WELL_ROWS`，正好是地基那一层），不在虚空里吊一根到基岩的绳子。
+- `afterPlaceStaysInsideTheWritableArea`：井段件整体跨出区块时，区块外那一列的读要被跳过，
+  区块里那一列照样往下接一格、撞石头就停。
 
 `wallFamilyKeepsItsColumnCount` 钉住墙族件的列数（墙与女儿墙两列、外挑一列、墙脚三列），
 `wallPiecesSitOnTheFrameLine` 从房间件的包围盒取出框架线，要求每件墙的框列正好落在其中一条上——
 落笔角挪错一格时，偏得很像「本来就这样」，这条会先红。
 
-`catalogueStartsANewRowPerCategory` 钉住 `/ddt pieces` 的摆位：同一个分类排在同一段行里，换分类另起一行。
+`catalogueOrdersPiecesBySection` 钉住 `/ddt pieces` 的摆位：特殊件排最前，接着地板、天花板、地基、外挑、
+女儿墙各占一行，房间按体型分组（组内 空地 → 宝箱 → 楼梯 → 掉落口 → 绳梯 → 家具），墙按短边 / 长边两行。
 `catalogueIdsFollowTheFamilyAndCategory` 钉住筛件：指定家族只出那个家族目录下的件，再指定目录只出那个目录的件，
 不认识的目录挑不出任何件。两条都只算坐标与路径，不往世界里摆方块——摆一整套要铺上千格，会污染隔壁用例的场地。
 ### CampCarminiteFireTests

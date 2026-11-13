@@ -9,10 +9,13 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.util.StringRepresentable;
 import net.minecraft.world.level.LevelReader;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.TrapDoorBlock;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureProcessor;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureProcessorType;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
+import twilightforest.init.TFBlocks;
 
 /**
  * 按世界 y 取舍方块，并负责“只落空气 / 只落实体方块”这两遍
@@ -137,8 +140,14 @@ public final class BandProcessor extends StructureProcessor {
         if ((this.phase == Phase.AIR && !air) || (this.phase == Phase.SOLID && air)) {
             return null;
         }
-        // 随机缺失：只挑实体方块，带 nbt 的（宝箱）不碰
-        if (this.decayPermille > 0 && !air && raw.nbt() == null && current.nbt() == null) {
+        // 随机缺失：只挑实体方块，带 nbt 的（宝箱）不碰，绳梯那一列的方块也不碰——
+        // 缺一格整条绳/梯就断，而且会变成掉落物（往下延伸的大半段就全掉下来了）
+        if (this.decayPermille > 0
+                && !air
+                && raw.nbt() == null
+                && current.nbt() == null
+                && !isClimbable(raw.state())
+                && !(raw.state().getBlock() instanceof TrapDoorBlock)) {
             int roll = positionHash(current.pos(), this.webSeed);
             if (Math.floorMod(roll, 1000) < this.decayPermille) {
                 if (this.webSeed != 0L && Math.floorMod(roll >> 7, 4) == 0) {
@@ -149,6 +158,11 @@ public final class BandProcessor extends StructureProcessor {
             }
         }
         return current;
+    }
+
+    /** 绳梯列：Twilight Forest 的绳与原版的梯子都算 */
+    private static boolean isClimbable(BlockState state) {
+        return state.is(TFBlocks.ROPE.get()) || state.is(Blocks.LADDER);
     }
 
     /** 位置哈希：同一格世界坐标加上同一颗盐，永远得到同一个数 */
