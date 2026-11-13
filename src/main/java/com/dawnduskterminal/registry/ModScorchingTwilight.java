@@ -1,9 +1,9 @@
 package com.dawnduskterminal.registry;
 
 import com.dawnduskterminal.DawnDuskTerminal;
+import com.dawnduskterminal.item.CanocanBucketItem;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.item.BucketItem;
-import net.minecraft.world.item.Items;
 import net.minecraft.world.item.Rarity;
 import net.minecraft.world.level.block.LiquidBlock;
 import net.minecraft.world.level.block.state.BlockBehaviour;
@@ -61,14 +61,12 @@ public final class ModScorchingTwilight {
             // ScorchingTwilightBlock 里去掉了
             BlockBehaviour.Properties.ofFullCopy(net.minecraft.world.level.block.Blocks.LAVA));
 
+    /** 罐装的热情暮光：同样舀自苍穹罐，剩余物也是苍穹罐，见 {@code item/CanocanBucketItem} */
     public static final DeferredItem<BucketItem> BUCKET = ITEMS.register(
             "enthu_fluid_bucket",
-            () -> new BucketItem(
+            () -> new CanocanBucketItem(
                     SOURCE.get(),
-                    new net.minecraft.world.item.Item.Properties()
-                            .craftRemainder(Items.BUCKET)
-                            .stacksTo(1)
-                            .rarity(Rarity.UNCOMMON)));
+                    new net.minecraft.world.item.Item.Properties().stacksTo(1).rarity(Rarity.UNCOMMON)));
 
     private ModScorchingTwilight() {}
 

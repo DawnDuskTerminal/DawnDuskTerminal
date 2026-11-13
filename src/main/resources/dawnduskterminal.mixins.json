@@ -24,7 +24,10 @@
     "HazardousFluidPathingMixin",
     "CanopyBoatRiderMixin",
     "CampCarminiteFireExhaustionMixin",
-    "LevelSetBlockReactionMixin"
+    "LevelSetBlockReactionMixin",
+    "FluidReactionSuppressMixin",
+    "ThrownPotionLingeringMixin",
+    "BucketItemEmptySuccessMixin"
   ],
   "client": [
     "BiomeColorsPlantMixin",

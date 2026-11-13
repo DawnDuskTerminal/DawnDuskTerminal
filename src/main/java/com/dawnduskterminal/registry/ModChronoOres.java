@@ -73,6 +73,29 @@ public final class ModChronoOres {
     public static final DeferredItem<BlockItem> DIRAC_ORE_ITEM = ITEMS.registerSimpleBlockItem(DIRAC_ORE);
 
     /**
+     * 易矿：挖下来掉 {@link ModItems#TRANSFORE}，烧成暮色森林的转换粉（{@code twilightforest:transformation_powder}）
+     *
+     * <p>只长在上层那一档宿主石里（{@code dawnduskterminal:stone_ore_replaceables}），
+     * 高度带 y10~280、数量少，见 {@code data/dawnduskterminal/worldgen/placed_feature/ore_transfore.json}。
+     * 属性照苍穹石这一档的矿石抄：硬度 2.5、爆炸抗性 9、普通石头音效、需要正确工具（铁镐）
+     *
+     * <p>它不是 {@link DropExperienceBlock}：掉落物是材料而不是方块本身，与原版粗矿那一类一样不给经验，
+     * 战利品表在 {@code loot_table/blocks/transfore_ore.json}
+     */
+    public static final DeferredBlock<Block> TRANSFORE_ORE = BLOCKS.registerSimpleBlock(
+            "transfore_ore",
+            BlockBehaviour.Properties.of()
+                    .mapColor(MapColor.STONE)
+                    .instrument(NoteBlockInstrument.BASEDRUM)
+                    .requiresCorrectToolForDrops()
+                    // 爆炸抗性 9 就是下面 STONE_BLAST_RESISTANCE 那个值：常量的声明在这个字段之后，
+                    // 这里写自己的字面量，读的人不必去对声明顺序
+                    .strength(2.5F, 9.0F)
+                    .sound(SoundType.STONE));
+
+    public static final DeferredItem<BlockItem> TRANSFORE_ORE_ITEM = ITEMS.registerSimpleBlockItem(TRANSFORE_ORE);
+
+    /**
      * 一档宿主石：地图色、硬度与音效
      *
      * <p>矿石的属性按宿主石取，挖起来的手感与它埋着的那块石头一致

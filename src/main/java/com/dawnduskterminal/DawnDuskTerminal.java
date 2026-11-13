@@ -93,9 +93,14 @@ public final class DawnDuskTerminal {
         // 两件都要挂：Loading 是启动时配置刚生效那一刻，Reloading 是玩家改完配置重载
         modBus.addListener((ModConfigEvent.Loading event) -> DdtConfig.refreshCache());
         modBus.addListener((ModConfigEvent.Reloading event) -> DdtConfig.refreshCache());
-        modBus.addListener((FMLCommonSetupEvent event) -> FluidReactions.register());
+        modBus.addListener((FMLCommonSetupEvent event) -> {
+            FluidReactions.register();
+            ModPotions.registerDispenserBehaviors();
+        });
 
         NeoForge.EVENT_BUS.addListener(DdtServerEvents::onAnvilUpdate);
+        // 稳定药水的炼药配方：药水配方没有数据包形式，只能在事件里补，见 ModPotions#registerBrewingRecipes
+        NeoForge.EVENT_BUS.addListener(ModPotions::registerBrewingRecipes);
         NeoForge.EVENT_BUS.addListener(DdtServerEvents::onServerStarted);
         NeoForge.EVENT_BUS.addListener(DdtServerEvents::onServerStopped);
         NeoForge.EVENT_BUS.addListener(DdtServerEvents::onServerTick);

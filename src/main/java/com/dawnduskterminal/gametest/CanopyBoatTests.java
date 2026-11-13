@@ -133,19 +133,20 @@ public final class CanopyBoatTests {
         assertResult(helper, boat, ModItems.CANOPY_BOAT.get());
         assertAccepts(helper, boat, new ItemStack(ModItems.CANOPY_INGOT.get()));
 
-        // 狄拉克精炼粉：苍穹锭 + 混乱石 + 狄拉克 + 弦，无序
+        // 狄拉克精炼粉：苍穹锭 + 混乱石 + 狄拉克 + 弦 + 炼药锅，无序
         RecipeHolder<?> mix = recipe(helper, manager, "dirac_mix");
         helper.assertTrue(mix.value() instanceof ShapelessRecipe, "dirac_mix must be a shapeless recipe");
         assertResult(helper, mix, ModItems.DIRAC_MIX.get());
         helper.assertTrue(
-                mix.value().getIngredients().size() == 4,
-                "dirac_mix must take exactly four ingredients, got "
+                mix.value().getIngredients().size() == 5,
+                "dirac_mix must take exactly five ingredients, got "
                         + mix.value().getIngredients().size());
         for (ItemStack ingredient : List.of(
                 new ItemStack(ModItems.CANOPY_INGOT.get()),
                 new ItemStack(ModTerrainBlocks.CHAOS_STONE_ITEM.get()),
                 new ItemStack(ModItems.DIRAC.get()),
-                new ItemStack(ModItems.STRING.get()))) {
+                new ItemStack(ModItems.STRING.get()),
+                new ItemStack(Items.CAULDRON))) {
             assertAccepts(helper, mix, ingredient);
         }
 

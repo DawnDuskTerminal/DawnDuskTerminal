@@ -516,6 +516,40 @@ public final class ModBlocks {
                     .sound(SoundType.WOOD)
                     .strength(0.3F, 2000.0F));
 
+    /**
+     * 高塔恶魂皮摆下来的那一块：六种朝向随机
+     *
+     * <p>方块属性照原版羊毛：0.8 点硬度（连带 0.8 抗性）、{@code WOOL} 音效、不要求工具、挖掉掉自身。
+     * 地图色取皮革那档粉
+     *
+     * <p>朝向不存进方块状态：blockstate 里那一串带 {@code x}/{@code y} 旋转的变体是**按位置随机挑**的，
+     * 客户端拿方块位置算，服务端根本看不见，所以拆了重放、存档重进都不会跳。
+     * 做法与 {@code rosy_dirt} 那几块同一条路，见 {@code gametest/BlockStyleTests}
+     *
+     * <p>物品图标仍是它自己那张 16x16：{@code models/item/carminite_ghast_leather.json} 还是
+     * {@code item/generated}，拿在手上是皮革，摆下去才是方块
+     */
+    public static final DeferredBlock<Block> CARMINITE_GHAST_LEATHER = BLOCKS.registerSimpleBlock(
+            "carminite_ghast_leather",
+            BlockBehaviour.Properties.of()
+                    .mapColor(MapColor.COLOR_PINK)
+                    .strength(0.8F)
+                    .sound(SoundType.WOOL));
+
+    /**
+     * 活性恶魂皮摆下来的那一块：整块一条 47 格连接纹理
+     *
+     * <p>方块属性同上，照原版羊毛。贴图两张：16x16 的 {@code block/carminite_leather} 给粒子与物品图标，
+     * 128x128 的 {@code block/carminite_leather_connected} 是 8x8 图集，方块模型贴的是它，
+     * UV 由 {@code MountedTowerWoodModel} 按邻居逐面重映射（与 {@code mounted_towerwood} 同一套）
+     */
+    public static final DeferredBlock<Block> CARMINITED_LEATHER = BLOCKS.registerSimpleBlock(
+            "carminited_leather",
+            BlockBehaviour.Properties.of()
+                    .mapColor(MapColor.COLOR_RED)
+                    .strength(0.8F)
+                    .sound(SoundType.WOOL));
+
     private ModBlocks() {}
 
     public static void register(IEventBus bus) {

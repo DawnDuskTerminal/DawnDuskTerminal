@@ -42,6 +42,11 @@ public final class ModCreativeTabs {
                         accept(output, ModItems.PORTAL_BUCKET.get());
                         accept(output, ModScorchingTwilight.BUCKET.get());
                         accept(output, ModItems.STABILITY_POTION.get());
+                        accept(output, ModItems.STABILITY_SPLASH_POTION.get());
+                        accept(output, ModItems.STABILITY_LINGERING_POTION.get());
+                        accept(output, ModItems.COMPOUND_EROSION_POTION.get());
+                        accept(output, ModItems.COMPOUND_EROSION_SPLASH_POTION.get());
+                        accept(output, ModItems.COMPOUND_EROSION_LINGERING_POTION.get());
                         accept(output, ModItems.CHRONO_CRUST.get());
                         accept(output, ModTerrainBlocks.ROSY_GRASS_ITEM.get());
                         accept(output, ModTerrainBlocks.ROSY_DIRT_ITEM.get());
@@ -91,6 +96,10 @@ public final class ModCreativeTabs {
                         accept(output, ModItems.OCHRE.get());
                         accept(output, ModItems.CANOPY_FROST_BALL.get());
                         accept(output, ModItems.ILLUSTRIOUS_POWDER.get());
+                        accept(output, ModChronoOres.TRANSFORE_ORE_ITEM.get());
+                        accept(output, ModItems.TRANSFORE.get());
+                        accept(output, ModItems.POTENT_TRANSFORMATION_POWDER.get());
+                        accept(output, ModItems.REVERSED_TRANSFORMATION_POWDER.get());
                         accept(output, ModItems.CARID.get());
                         accept(output, ModItems.AOI.get());
                         accept(output, ModItems.CANOPY_INGOT.get());

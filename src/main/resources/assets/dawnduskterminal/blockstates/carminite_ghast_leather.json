@@ -1,0 +1,31 @@
+{
+  "variants": {
+    "": [
+      {
+        "model": "dawnduskterminal:block/carminite_ghast_leather"
+      },
+      {
+        "model": "dawnduskterminal:block/carminite_ghast_leather",
+        "x": 180
+      },
+      {
+        "model": "dawnduskterminal:block/carminite_ghast_leather",
+        "x": 90
+      },
+      {
+        "model": "dawnduskterminal:block/carminite_ghast_leather",
+        "x": 270
+      },
+      {
+        "model": "dawnduskterminal:block/carminite_ghast_leather",
+        "x": 90,
+        "y": 90
+      },
+      {
+        "model": "dawnduskterminal:block/carminite_ghast_leather",
+        "x": 90,
+        "y": 270
+      }
+    ]
+  }
+}

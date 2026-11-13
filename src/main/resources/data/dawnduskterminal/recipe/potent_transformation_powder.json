@@ -1,0 +1,22 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "dawnduskterminal:transfore"
+    },
+    {
+      "item": "dawnduskterminal:string"
+    },
+    {
+      "item": "dawnduskterminal:illustrious_powder"
+    },
+    {
+      "item": "dawnduskterminal:stability_potion"
+    }
+  ],
+  "result": {
+    "id": "dawnduskterminal:potent_transformation_powder",
+    "count": 1
+  }
+}

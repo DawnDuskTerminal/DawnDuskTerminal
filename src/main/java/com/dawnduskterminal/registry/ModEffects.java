@@ -1,6 +1,7 @@
 package com.dawnduskterminal.registry;
 
 import com.dawnduskterminal.DawnDuskTerminal;
+import com.dawnduskterminal.world.CompoundErosionEffect;
 import com.dawnduskterminal.world.PortalSicknessEffect;
 import com.dawnduskterminal.world.StabilityEffect;
 import net.minecraft.core.registries.Registries;
@@ -18,6 +19,10 @@ public final class ModEffects {
 
     public static final DeferredHolder<MobEffect, MobEffect> STABILITY =
             EFFECTS.register("stability", StabilityEffect::new);
+
+    /** 复方侵蚀：每 2 秒 3 点传送门流体的接触伤害，颜色与稳定一致 */
+    public static final DeferredHolder<MobEffect, MobEffect> COMPOUND_EROSION =
+            EFFECTS.register("compound_erosion", CompoundErosionEffect::new);
 
     private ModEffects() {}
 

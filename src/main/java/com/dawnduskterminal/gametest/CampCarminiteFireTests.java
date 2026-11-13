@@ -191,11 +191,15 @@ public final class CampCarminiteFireTests {
      * 规则一：16 格内，增加量不大于 1 的消耗度改成等量减少；走到 16 格外照旧算增加
      *
      * <p>边界按 1.0 卡：正好 1.0 算小增量，1.0001 就不算了
+     *
+     * <p>开头先清一遍气场表：那张表按维度全局共用，别的用例摆下的篝火还在世界里，
+     * 不清的话 18 格外的那个玩家可能正落在隔壁那团篝火的 16 格里，这条就变成看摆放顺序的脸色
      */
     @GameTest(template = "ddt_empty")
     public static void smallIncrementsAreInvertedWithinSixteenBlocks(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         BlockPos pos = helper.absolutePos(CENTRE);
+        CampCarminiteFireAura.clear();
         helper.setBlock(CENTRE, ModBlocks.CAMP_CARMINITE_FIRE.get());
         Vec3 centre = Vec3.atCenterOf(pos);
 

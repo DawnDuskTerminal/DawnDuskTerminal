@@ -4,6 +4,7 @@ import com.dawnduskterminal.DawnDuskTerminal;
 import com.dawnduskterminal.block.SusCakeBlock;
 import com.dawnduskterminal.entity.CanopyBoatEntity;
 import com.dawnduskterminal.entity.GhastPaintingEntity;
+import com.dawnduskterminal.item.CanocanBucketItem;
 import com.dawnduskterminal.item.CanocanItem;
 import com.dawnduskterminal.item.CanopyBoatItem;
 import com.dawnduskterminal.item.CarminiteGhastMeatItem;
@@ -17,6 +18,7 @@ import com.dawnduskterminal.item.PrismStaffItem;
 import com.dawnduskterminal.item.ScarletMolybdArmorItem;
 import com.dawnduskterminal.item.StringSpawnEggItem;
 import com.dawnduskterminal.item.SusCakeItem;
+import com.dawnduskterminal.item.TransformationPowderItem;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -31,9 +33,10 @@ import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.BucketItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
+import net.minecraft.world.item.LingeringPotionItem;
 import net.minecraft.world.item.PotionItem;
 import net.minecraft.world.item.Rarity;
+import net.minecraft.world.item.SplashPotionItem;
 import net.minecraft.world.item.TooltipFlag;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.common.DeferredSpawnEggItem;
@@ -104,22 +107,61 @@ public final class ModItems {
     public static final DeferredItem<CanocanItem> CANOCAN =
             ITEMS.register("canocan", () -> new CanocanItem(new Item.Properties()));
 
+    /**
+     * 罐装的不稳定液体：苍穹罐舀起 {@code portal_fluid} 得到的这一罐
+     *
+     * <p>容器是苍穹罐而不是铁桶：{@link CanocanBucketItem} 覆写了物品栈敏感的剩余物钩子，
+     * 酿完、合完退回来的是 {@code canocan}
+     */
     public static final DeferredItem<BucketItem> PORTAL_BUCKET = ITEMS.register(
             "portal_bucket",
-            () -> new BucketItem(
-                    ModFluids.PORTAL_FLUID.get(),
-                    new Item.Properties().craftRemainder(Items.BUCKET).stacksTo(1)));
+            () -> new CanocanBucketItem(ModFluids.PORTAL_FLUID.get(), new Item.Properties().stacksTo(1)));
 
     /**
      * 稳定药水：通用药水瓶外观（模型直接继承 {@code minecraft:item/potion} 的两层，贴图用原版那张），
      * 紫色不来自贴图，而是客户端的物品染色按 {@code potion_contents} 算出来的，与传送门流体同色，
      * 见 {@link com.dawnduskterminal.client.DdtClient} 里的物品取色器
      *
-     * <p>默认药水内容（8 分钟稳定）由 {@link ModPotions#modifyDefaultComponents} 补，不在这里写：
-     * 物品注册早于药水注册。暂无配方，只能从创造栏或指令拿
+     * <p>默认药水内容（3 分钟稳定，本型）由 {@link ModPotions#modifyDefaultComponents} 补，不在这里写：
+     * 物品注册早于药水注册。四条炼药配方见 {@link ModPotions#registerBrewingRecipes}
      */
     public static final DeferredItem<PotionItem> STABILITY_POTION =
             ITEMS.register("stability_potion", () -> new PotionItem(new Item.Properties().stacksTo(1)));
+
+    /**
+     * 喷溅型稳定药水：火药在酿造台里换出来的瓶型
+     *
+     * <p>不是原版的 {@code minecraft:splash_potion}：本模组的药水各自占一个物品，
+     * 这样创造栏、配方与 {@code /give} 都只指向这一瓶，不必另外拼药水内容。
+     * 父类 {@link SplashPotionItem} 已经带上了「扔出去」那套物理
+     */
+    public static final DeferredItem<SplashPotionItem> STABILITY_SPLASH_POTION =
+            ITEMS.register("stability_splash_potion", () -> new SplashPotionItem(new Item.Properties().stacksTo(1)));
+
+    /** 滞留型稳定药水：喷溅瓶再放龙息换出来的瓶型，落地留一片药水云 */
+    public static final DeferredItem<LingeringPotionItem> STABILITY_LINGERING_POTION = ITEMS.register(
+            "stability_lingering_potion", () -> new LingeringPotionItem(new Item.Properties().stacksTo(1)));
+
+    /**
+     * 复方侵蚀药水：稳定药水在酿造台上倒进一罐不稳定液体酿出来的那一瓶
+     *
+     * <p>空罐不是配方自己退的：两桶流体都是 {@link CanocanBucketItem}，剩余物是苍穹罐，
+     * NeoForge 补过的 {@code BrewingStandBlockEntity#doBrew} 会把原料的剩余物写回原料槽，
+     * 所以那一格酿完就变回一个苍穹罐
+     *
+     * <p>本型 45 秒，延长与两种瓶型也在酿造台上（红石、火药、龙息），见
+     * {@link ModPotions#registerBrewingRecipes}
+     */
+    public static final DeferredItem<PotionItem> COMPOUND_EROSION_POTION =
+            ITEMS.register("compound_erosion_potion", () -> new PotionItem(new Item.Properties().stacksTo(1)));
+
+    /** 喷溅型复方侵蚀药水：火药换出来的瓶型 */
+    public static final DeferredItem<SplashPotionItem> COMPOUND_EROSION_SPLASH_POTION = ITEMS.register(
+            "compound_erosion_splash_potion", () -> new SplashPotionItem(new Item.Properties().stacksTo(1)));
+
+    /** 滞留型复方侵蚀药水：喷溅瓶再放龙息换出来的瓶型，落地留一片药水云 */
+    public static final DeferredItem<LingeringPotionItem> COMPOUND_EROSION_LINGERING_POTION = ITEMS.register(
+            "compound_erosion_lingering_potion", () -> new LingeringPotionItem(new Item.Properties().stacksTo(1)));
 
     public static final DeferredItem<Item> ENCASED_DUST = ITEMS.registerSimpleItem(
             "encased_dust",
@@ -152,6 +194,42 @@ public final class ModItems {
 
     public static final DeferredItem<Item> ILLUSTRIOUS_POWDER =
             ITEMS.registerSimpleItem("illustrious_powder", new Item.Properties());
+
+    /**
+     * 易矿：{@link ModChronoOres#TRANSFORE_ORE} 挖下来的那一块，烧成暮色森林的转换粉
+     *
+     * <p>配方是 {@code recipe/transfore_smelting.json}（200 tick、0.7 经验）；
+     * 再往上还有两条无序配方，见 {@link #POTENT_TRANSFORMATION_POWDER} 与
+     * {@link #REVERSED_TRANSFORMATION_POWDER}
+     */
+    public static final DeferredItem<Item> TRANSFORE = ITEMS.registerSimpleItem("transfore", new Item.Properties());
+
+    /** 转换粉的堆叠上限：投掷物这一档，雪球与鸡蛋都是 16 */
+    private static final int POWDER_STACK = 16;
+
+    /**
+     * 强效转换粉：易矿 + 弦 + 光辉粉 + 稳定药水 无序合成，见 {@code recipe/potent_transformation_powder.json}
+     *
+     * <p>它是一件投掷物：右键扔出去，落点半径 5 格内的方块、群系、活物换成主世界那一侧，
+     * 物理照喷溅药水，见 {@link TransformationPowderItem} 与
+     * {@link com.dawnduskterminal.entity.TransformationPowderEntity}
+     *
+     * <p>稳定药水整瓶吃掉，不退还玻璃瓶：原版药水物品没有 {@code craftRemainder}，
+     * 在无序配方里它就是普通原料。可堆叠到 16——投掷物这一档（雪球、鸡蛋都是 16），
+     * 喷溅药水那样一瓶一格扔起来太费手
+     */
+    public static final DeferredItem<TransformationPowderItem> POTENT_TRANSFORMATION_POWDER = ITEMS.register(
+            "potent_transformation_powder",
+            () -> new TransformationPowderItem(false, new Item.Properties().stacksTo(POWDER_STACK)));
+
+    /**
+     * 逆转转换粉：强效转换粉 + 狄拉克 无序合成，见 {@code recipe/reversed_transformation_powder.json}
+     *
+     * <p>方向反过来：落点半径 5 格内的方块、群系换成晨昏线那一侧，活物换成暮色森林那一侧的对应物
+     */
+    public static final DeferredItem<TransformationPowderItem> REVERSED_TRANSFORMATION_POWDER = ITEMS.register(
+            "reversed_transformation_powder",
+            () -> new TransformationPowderItem(true, new Item.Properties().stacksTo(POWDER_STACK)));
 
     public static final DeferredItem<Item> CARID = ITEMS.registerSimpleItem("carid", new Item.Properties());
 
@@ -200,11 +278,18 @@ public final class ModItems {
     private static final FoodProperties COOKED_GHAST_MEAT =
             new FoodProperties.Builder().nutrition(8).saturationModifier(0.8F).build();
 
-    public static final DeferredItem<Item> CARMINITE_GHAST_LEATHER =
-            ITEMS.registerSimpleItem("carminite_ghast_leather", new Item.Properties());
+    /**
+     * 高塔恶魂皮：恶魂类生物掉的那张皮，拿在手上是皮革，摆下去是 {@link ModBlocks#CARMINITE_GHAST_LEATHER}
+     *
+     * <p>图标照样走 {@code item/generated}（{@code models/item/carminite_ghast_leather.json} 没改），
+     * 方块那一侧有自己的模型与六种随机朝向
+     */
+    public static final DeferredItem<BlockItem> CARMINITE_GHAST_LEATHER =
+            ITEMS.registerSimpleBlockItem(ModBlocks.CARMINITE_GHAST_LEATHER);
 
-    public static final DeferredItem<Item> CARMINITED_LEATHER =
-            ITEMS.registerSimpleItem("carminited_leather", new Item.Properties());
+    /** 活性恶魂皮：同上，摆下去是那条连纹的 {@link ModBlocks#CARMINITED_LEATHER} */
+    public static final DeferredItem<BlockItem> CARMINITED_LEATHER =
+            ITEMS.registerSimpleBlockItem(ModBlocks.CARMINITED_LEATHER);
 
     public static final DeferredItem<CarminiteGhastMeatItem> CARMINITE_GHAST_MEAT = ITEMS.register(
             "carminite_ghast_meat", () -> new CarminiteGhastMeatItem(new Item.Properties().food(RAW_GHAST_MEAT)));

@@ -1,6 +1,8 @@
 package com.dawnduskterminal.gametest;
 
+import com.dawnduskterminal.registry.ModBlocks;
 import com.dawnduskterminal.registry.ModChronoOres;
+import com.dawnduskterminal.registry.ModItems;
 import com.dawnduskterminal.registry.ModTerrainBlocks;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -15,6 +17,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.SoundType;
 import net.neoforged.neoforge.gametest.GameTestHolder;
@@ -170,6 +173,130 @@ public final class BlockStyleTests {
         helper.assertTrue(
                 mirrored.getAsJsonObject("textures").get("all").getAsString().equals("dawnduskterminal:block/" + name),
                 name + "_mirrored must reuse the block's own texture, got " + mirrored.getAsJsonObject("textures"));
+    }
+
+    /**
+     * 两块恶魂皮：音效与挖掘属性照原版羊毛，物品放下就是这两块方块
+     *
+     * <p>羊毛那一档是 0.8 点硬度、{@code WOOL} 音效、不要求工具、挖掉掉自身；
+     * 物品那一侧是 {@link BlockItem}，名字取的就是 {@code block.} 那条翻译键
+     */
+    @GameTest(template = "ddt_empty")
+    public static void leatherBlocksCopyWool(GameTestHelper helper) {
+        Block ghast = ModBlocks.CARMINITE_GHAST_LEATHER.get();
+        Block carminited = ModBlocks.CARMINITED_LEATHER.get();
+        for (Block block : new Block[] {ghast, carminited}) {
+            assertSound(helper, block, SoundType.WOOL);
+            float hardness = block.defaultBlockState().getDestroySpeed(helper.getLevel(), BlockPos.ZERO);
+            helper.assertTrue(hardness == 0.8F, block + " must be as hard as wool (0.8), got " + hardness);
+            helper.assertFalse(
+                    block.defaultBlockState().requiresCorrectToolForDrops(),
+                    block + " must not require a tool, wool does not either");
+        }
+        helper.assertTrue(
+                ModItems.CARMINITE_GHAST_LEATHER.get() instanceof BlockItem ghastItem && ghastItem.getBlock() == ghast,
+                "the ghast leather item must place the ghast leather block, got "
+                        + ModItems.CARMINITE_GHAST_LEATHER.get());
+        helper.assertTrue(
+                ModItems.CARMINITED_LEATHER.get() instanceof BlockItem carminitedItem
+                        && carminitedItem.getBlock() == carminited,
+                "the carminited leather item must place the carminited leather block, got "
+                        + ModItems.CARMINITED_LEATHER.get());
+        helper.assertTrue(
+                ModItems.CARMINITE_GHAST_LEATHER
+                        .get()
+                        .getDescriptionId()
+                        .equals("block.dawnduskterminal.carminite_ghast_leather"),
+                "a block item takes its name from the block, got "
+                        + ModItems.CARMINITE_GHAST_LEATHER.get().getDescriptionId());
+        for (String name : new String[] {"carminite_ghast_leather", "carminited_leather"}) {
+            JsonObject loot = json(helper, "/data/dawnduskterminal/loot_table/blocks/" + name + ".json");
+            helper.assertTrue(loot != null, "loot_table/blocks/" + name + ".json is missing");
+            helper.assertTrue(
+                    loot.getAsJsonArray("pools")
+                            .get(0)
+                            .getAsJsonObject()
+                            .getAsJsonArray("entries")
+                            .get(0)
+                            .getAsJsonObject()
+                            .get("name")
+                            .getAsString()
+                            .equals("dawnduskterminal:" + name),
+                    name + " must drop itself, otherwise breaking it eats the item");
+        }
+        helper.succeed();
+    }
+
+    /**
+     * 高塔恶魂皮那一块的六个朝向：绕 x 转 0/90/180/270，再加两个「先绕 x 转 90、再绕 y 转 90/270」
+     *
+     * <p>随机的是「哪一面朝上」，六条各走一套不同的旋转。朝向不存方块状态，服务端看不见，所以这条只读 JSON
+     */
+    @GameTest(template = "ddt_empty")
+    public static void ghastLeatherTurnsInSixDirections(GameTestHelper helper) {
+        String name = "carminite_ghast_leather";
+        JsonArray variants = variants(helper, name);
+        helper.assertTrue(variants.size() == 6, name + " must ship six random orientations, got " + variants.size());
+        Set<String> turns = new LinkedHashSet<>();
+        for (JsonElement element : variants) {
+            JsonObject variant = element.getAsJsonObject();
+            helper.assertTrue(
+                    variant.get("model").getAsString().equals("dawnduskterminal:block/" + name),
+                    name + " must reuse its own model, got "
+                            + variant.get("model").getAsString());
+            turns.add((variant.has("x") ? variant.get("x").getAsInt() : 0) + "/"
+                    + (variant.has("y") ? variant.get("y").getAsInt() : 0));
+        }
+        helper.assertTrue(
+                turns.equals(Set.of("0/0", "180/0", "90/0", "270/0", "90/90", "90/270")),
+                name + " must use six distinct orientations, got " + turns);
+        helper.succeed();
+    }
+
+    /**
+     * 活性恶魂皮那一块：方块模型贴 8x8 的连纹图集，粒子与物品图标贴 16x16 单图
+     *
+     * <p>与 {@code mounted_towerwood} 同一套：方块模型的 {@code all} 指连纹图集，
+     * UV 由 {@code MountedTowerWoodModel} 按邻格逐面重映射；物品图标仍是 {@code item/generated} 的皮革
+     */
+    @GameTest(template = "ddt_empty")
+    public static void carminitedLeatherUsesTheConnectedSheet(GameTestHelper helper) {
+        String name = "carminited_leather";
+        JsonObject state = json(helper, "/assets/dawnduskterminal/blockstates/" + name + ".json");
+        helper.assertTrue(state != null, "blockstates/" + name + ".json is missing");
+        JsonElement variant = state.getAsJsonObject("variants").get("");
+        helper.assertTrue(
+                variant != null && variant.isJsonObject(),
+                name + " has a single plain state, its variant must not be a list, got " + variant);
+        helper.assertTrue(
+                variant.getAsJsonObject().get("model").getAsString().equals("dawnduskterminal:block/" + name),
+                name + " must point at its own block model, got " + variant);
+
+        JsonObject model = json(helper, "/assets/dawnduskterminal/models/block/" + name + ".json");
+        helper.assertTrue(model != null, "models/block/" + name + ".json is missing");
+        helper.assertTrue(
+                model.get("parent").getAsString().equals("minecraft:block/cube_all"),
+                name + " must parent minecraft:block/cube_all, got " + model.get("parent"));
+        JsonObject textures = model.getAsJsonObject("textures");
+        helper.assertTrue(
+                textures.get("all").getAsString().equals("dawnduskterminal:block/carminite_leather_connected"),
+                name + " must draw the connected sheet, got " + textures);
+        helper.assertTrue(
+                textures.get("particle").getAsString().equals("dawnduskterminal:block/carminite_leather"),
+                name + " must take particles from the plain 16x16, got " + textures);
+
+        JsonObject item = json(helper, "/assets/dawnduskterminal/models/item/" + name + ".json");
+        helper.assertTrue(item != null, "models/item/" + name + ".json is missing");
+        helper.assertTrue(
+                item.get("parent").getAsString().endsWith("item/generated"),
+                name + " keeps its flat leather icon, got " + item.get("parent"));
+        helper.assertTrue(
+                item.getAsJsonObject("textures")
+                        .get("layer0")
+                        .getAsString()
+                        .equals("dawnduskterminal:item/carminiteleather"),
+                name + " must keep its own item texture");
+        helper.succeed();
     }
 
     /** 音效取的是 NeoForge 那个带世界与坐标的版本，别用已经弃用的无参重载 */

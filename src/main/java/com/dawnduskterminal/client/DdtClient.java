@@ -23,6 +23,7 @@ import com.dawnduskterminal.registry.ModTerrainBlocks;
 import com.dawnduskterminal.world.ChronoLineState;
 import com.dawnduskterminal.world.ChronoPlantTints;
 import java.util.function.ToIntBiFunction;
+import net.minecraft.client.color.item.ItemColor;
 import net.minecraft.client.model.HumanoidModel;
 import net.minecraft.client.renderer.BiomeColors;
 import net.minecraft.client.renderer.BlockEntityWithoutLevelRenderer;
@@ -231,6 +232,7 @@ public final class DdtClient {
         wrapCtm(event, "encased_towerbeam");
         wrapCtm(event, "chiseled_towerbeam");
         wrapCtm(event, "warning_towerwood");
+        wrapCtm(event, "carminited_leather");
         wrapCountertop(event, "dark_log_countertop");
         wrapCountertop(event, "stripped_dark_log_countertop");
         wrapGlassCtm(event, "wrought_iron_glass");
@@ -407,14 +409,19 @@ public final class DdtClient {
         // 药水瓶的紫色不来自贴图：瓶子模型 {@code item/potion} 的 layer0 是那张白色液体遮罩 potion_overlay，
         // 颜色靠物品取色器往 tintindex 0 上刷。原版 ItemColors.createDefault 只给 Items.POTION /
         // SPLASH_POTION / LINGERING_POTION / TIPPED_ARROW 注册了这条（按 potion_contents 取色），
-        // 模组药水瓶不在那张表里，不补就渲染成纯白
+        // 模组药水瓶不在那张表里，不补就渲染成纯白。两种药水、各自三种瓶型，一次挂全
+        ItemColor potionColor = (stack, tintIndex) -> tintIndex != 0
+                ? -1
+                : FastColor.ARGB32.opaque(stack.getOrDefault(DataComponents.POTION_CONTENTS, PotionContents.EMPTY)
+                        .getColor());
         event.register(
-                (stack, tintIndex) -> tintIndex != 0
-                        ? -1
-                        : FastColor.ARGB32.opaque(
-                                stack.getOrDefault(DataComponents.POTION_CONTENTS, PotionContents.EMPTY)
-                                        .getColor()),
-                ModItems.STABILITY_POTION.get());
+                potionColor,
+                ModItems.STABILITY_POTION.get(),
+                ModItems.STABILITY_SPLASH_POTION.get(),
+                ModItems.STABILITY_LINGERING_POTION.get(),
+                ModItems.COMPOUND_EROSION_POTION.get(),
+                ModItems.COMPOUND_EROSION_SPLASH_POTION.get(),
+                ModItems.COMPOUND_EROSION_LINGERING_POTION.get());
     }
 
     /**
@@ -461,6 +468,9 @@ public final class DdtClient {
      */
     private static void onRegisterEntityRenderers(EntityRenderersEvent.RegisterRenderers event) {
         event.registerEntityRenderer(ModEntities.CARMINITE_BALL.get(), ThrownItemRenderer::new);
+        // 两瓶转换粉同样用投掷物渲染器：手上那张图标摆成朝镜头的面片，与喷溅药水一个观感
+        event.registerEntityRenderer(ModEntities.POTENT_TRANSFORMATION_POWDER.get(), ThrownItemRenderer::new);
+        event.registerEntityRenderer(ModEntities.REVERSED_TRANSFORMATION_POWDER.get(), ThrownItemRenderer::new);
         // 苍穹船：竹筏那套模型 + 自己那张 128x64 贴图，见 CanopyBoatRenderer
         event.registerEntityRenderer(ModEntities.CANOPY_BOAT.get(), CanopyBoatRenderer::new);
         event.registerEntityRenderer(ModEntities.CARMINITE_FIELD.get(), NoopRenderer::new);

@@ -1,0 +1,16 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "dawnduskterminal:potent_transformation_powder"
+    },
+    {
+      "item": "dawnduskterminal:dirac"
+    }
+  ],
+  "result": {
+    "id": "dawnduskterminal:reversed_transformation_powder",
+    "count": 1
+  }
+}

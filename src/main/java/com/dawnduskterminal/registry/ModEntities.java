@@ -15,6 +15,7 @@ import com.dawnduskterminal.entity.GhastPaintingEntity;
 import com.dawnduskterminal.entity.LivingArmorEntity;
 import com.dawnduskterminal.entity.StringEntity;
 import com.dawnduskterminal.entity.TowerGhastEntity;
+import com.dawnduskterminal.entity.TransformationPowderEntity;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.MobCategory;
@@ -310,4 +311,30 @@ public final class ModEntities {
                     .clientTrackingRange(10)
                     .updateInterval(20)
                     .build("experiment_011_plate"));
+
+    /**
+     * 强效转换粉的投掷物：两瓶粉共用一个类，方向靠实体类型分，见
+     * {@link com.dawnduskterminal.entity.TransformationPowderEntity}
+     *
+     * <p>尺寸与跟踪参数照原版喷溅药水那一颗：0.25 见方的箱子、跟踪范围 4、每 10 tick 同步一次，
+     * 它也是一颗很快就落地的东西
+     */
+    public static final DeferredHolder<EntityType<?>, EntityType<TransformationPowderEntity>>
+            POTENT_TRANSFORMATION_POWDER = ENTITIES.register(
+                    "potent_transformation_powder", () -> EntityType.Builder.<TransformationPowderEntity>of(
+                                    TransformationPowderEntity::new, MobCategory.MISC)
+                            .sized(0.25F, 0.25F)
+                            .clientTrackingRange(4)
+                            .updateInterval(10)
+                            .build("potent_transformation_powder"));
+
+    /** 反转转换粉的投掷物：物理与强效那瓶同一份，只有转换方向相反 */
+    public static final DeferredHolder<EntityType<?>, EntityType<TransformationPowderEntity>>
+            REVERSED_TRANSFORMATION_POWDER = ENTITIES.register(
+                    "reversed_transformation_powder", () -> EntityType.Builder.<TransformationPowderEntity>of(
+                                    TransformationPowderEntity::new, MobCategory.MISC)
+                            .sized(0.25F, 0.25F)
+                            .clientTrackingRange(4)
+                            .updateInterval(10)
+                            .build("reversed_transformation_powder"));
 }

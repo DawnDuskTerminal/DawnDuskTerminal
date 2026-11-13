@@ -338,7 +338,7 @@ public final class ExperimentItemTests {
     }
 
     /**
-     * 试验物品 016 合成试验物品 013：无形状，原料是生的红钼矿、暮色森林的生铁木、试验物品 016、暮色森林的砷铅铁，
+     * 试验物品 016 合成试验物品 013：无形状，原料是生的红钼矿、试验物品 016、暮色森林的砷铅铁与一口炼药锅，
      * 一次出 3 个
      *
      * <p>断言走 {@code RecipeManager} 的 {@code getRecipeFor}，也就是真的拿四样东西「合成」一遍：
@@ -356,9 +356,9 @@ public final class ExperimentItemTests {
                 2,
                 List.of(
                         new ItemStack(ModItems.RAW_SCARLET_MOLYBDENUM.get()),
-                        new ItemStack(TFItems.RAW_IRONWOOD.get()),
                         from016,
-                        new ItemStack(TFItems.CARMINITE.get())));
+                        new ItemStack(TFItems.CARMINITE.get()),
+                        new ItemStack(Items.CAULDRON)));
         var recipe = helper.getLevel().getRecipeManager().getRecipeFor(RecipeType.CRAFTING, input, helper.getLevel());
         helper.assertTrue(
                 recipe.isPresent(),

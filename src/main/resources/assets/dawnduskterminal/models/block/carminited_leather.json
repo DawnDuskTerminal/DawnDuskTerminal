@@ -1,0 +1,7 @@
+{
+  "parent": "minecraft:block/cube_all",
+  "textures": {
+    "all": "dawnduskterminal:block/carminite_leather_connected",
+    "particle": "dawnduskterminal:block/carminite_leather"
+  }
+}

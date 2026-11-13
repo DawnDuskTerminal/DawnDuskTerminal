@@ -2284,6 +2284,25 @@ thirdperson 为 [-80,260,-40] / [-80,-280,40] 与 -1,-2,2.5 的位移，firstper
 路径是 `DdtServerEvents#onPlayerTick` → `CampCarminiteFireAura#tick`。
 服务器停下时气场表清空。
 
+## 恶魂皮方块
+
+两张恶魂皮各有自己的方块形态，`registry/ModBlocks` 里注册成普通整方块，
+物品由 `registry/ModItems` 的 `registerSimpleBlockItem` 生成，所以名字取的是 `block.` 那条翻译键。
+
+- 方块属性照原版羊毛：0.8 点硬度、`WOOL` 音效、不要求工具、挖掉掉自身。
+  战利品表在 `data/dawnduskterminal/loot_table/blocks/<id>.json`，只要 `survives_explosion` 那一种。
+- 物品图标不跟着方块模型走：`models/item/<id>.json` 仍然是 `item/generated` 加各自那张皮革，
+  拿在手上是皮革，摆下去才是方块。
+- `carminite_ghast_leather` 有六个随机朝向：`blockstates/carminite_ghast_leather.json` 里那串带
+  `x`/`y` 旋转的变体按方块位置挑一条，同一格拆了重放不会变。
+  朝向不存进方块状态，服务端根本看不见，与 `rosy_dirt` 那几块噪点方块同一条路。
+- `carminited_leather` 走 47 格连接纹理：方块模型贴 `block/carminite_leather_connected` 那张 8x8 图集，
+  粒子与物品图标贴 16x16 的 `block/carminite_leather`。
+  UV 由 `MountedTowerWoodModel` 按邻格逐面重映射，`client/DdtClient` 的 `onModifyBakingResult` 里与
+  `mounted_towerwood` 那几块一起包。
+- `gametest/BlockStyleTests` 钉住这几条：两块与羊毛同音效同硬度、不要求工具、掉落表掉自身、
+  物品是这两块方块的 `BlockItem`、六个朝向各不相同、连纹模型的三处贴图指向。
+
 ## 维度与晨昏线
 
 `registry/ModDimensions.CHRONO` 是维度的 `ResourceKey`。
@@ -2433,9 +2452,12 @@ thirdperson 为 [-80,260,-40] / [-80,-280,40] 与 -1,-2,2.5 的位移，firstper
 
 附件定义在 `registry/ModAttachments` 中，`boss_progress` 会被序列化并设置 `copyOnDeath`。
 
-`registry/ModEffects` 注册 `stability` 与 `portal_sickness`。
+`registry/ModEffects` 注册 `stability`、`compound_erosion` 与 `portal_sickness`。
 
 `world/StabilityEffect` 是纯标记效果，方向由 `PortalBlock` 决定。
+
+`world/CompoundErosionEffect` 每 2 秒造成 3 点 `stability` 接触伤害并播 `portal_hurt`，
+颜色与 `stability` 同为 `0x7F159E`；药水与配方见 `crafting.md` 的「复方侵蚀药水」一节。
 
 `advancement/LineParamTrigger` 是自定义判定，按晨昏线投影参数给予进度。
 

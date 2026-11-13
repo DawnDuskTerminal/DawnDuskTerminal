@@ -108,11 +108,29 @@
 若实体不过门并且受到伤害，则累计该伤害；
 每 40 tick 造成 2 点 `stability` 伤害，并播放 `portal_hurt`。
 
-药水 `dawnduskterminal:stability` 提供 8 分钟（9600 tick）的效果。
-物品 `dawnduskterminal:stability_potion` 采用通用药水瓶外观（模型继承 `minecraft:item/potion`），
+药水家族照原版的档位排，原料只有繁缕菜一种：
+
+| 形态 | ID | 时长 | 炼药配方 |
+|---|---|---|---|
+| 本型 | `dawnduskterminal:stability` | 3 分钟（3600 tick） | 粗制的药水 + 繁缕菜 |
+| 延长型 | `dawnduskterminal:long_stability` | 8 分钟（9600 tick） | 本型 + 红石 |
+| 喷溅型 | 物品 `stability_splash_potion` | 随瓶内的药水内容 | 本型 + 火药 |
+| 滞留型 | 物品 `stability_lingering_potion` | 随瓶内的药水内容 | 喷溅型 + 龙息 |
+
+三种瓶型都采用通用药水瓶外观（模型继承 `minecraft:item/potion`、`splash_potion`、`lingering_potion`），
 其紫色并非绘制在贴图上，而是由客户端按 `potion_contents` 取色，取出的值即效果色 `0x7F159E`，
-与传送门流体的雾色同值；
-该物品暂无配方。
+与传送门流体的雾色同值。
+炼药配方的写法见 `crafting.md` 的「稳定药水的炼药」一节。
+
+## 复方侵蚀
+
+效果 `dawnduskterminal:compound_erosion` 与上面那一下打的是同一个伤害类型：
+持有者每 2 秒挨 3 点 `stability` 接触伤害，音效同样是 `portal_hurt`。
+
+它的颜色也取 `0x7F159E`，所以那一瓶药水与稳定药水看起来一模一样。
+
+药水由稳定药水在酿造台上加一罐不稳定液体酿成（酿完苍穹罐退回原料槽），
+配方与档位见 `crafting.md` 的「复方侵蚀药水」一节。
 
 ## 两种流体
 

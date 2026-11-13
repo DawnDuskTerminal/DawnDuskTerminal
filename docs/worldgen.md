@@ -82,6 +82,31 @@
 `configured_feature` 内部嵌套的引用不在改写范围之内。
 因此 `random_selector` 中 `feature` 与 `default` 两个键指向原版的部分需要手工补齐，详见「已知问题」。
 
+## 易矿
+
+易矿（`dawnduskterminal:transfore_ore`，方块在 `ModChronoOres`）是本模组自己的矿，
+挖下来掉 `dawnduskterminal:transfore`，烧成暮色森林的转换粉。属性照苍穹石那一档的矿石抄：
+
+| 项 | 值 |
+|---|---|
+| 硬度 / 爆炸抗性 | 2.5 / 9 |
+| 音效 / 地图色 | `SoundType.STONE` / `MapColor.STONE` |
+| 工具 | `#minecraft:needs_iron_tool` 与 `#minecraft:mineable/pickaxe` |
+| 经验 | 0（掉材料而不是方块本身，与粗矿那一类一致） |
+
+放置特征为 `dawnduskterminal:ore_transfore`，配置特征是同名的 `minecraft:ore`：
+
+- 只挂 `dawnduskterminal:stone_ore_replaceables` 一张标签，也就是上层那一档宿主石
+  （苍穹石、赭石、绿片岩、榴辉岩）。高度带整体在 y10 以上，不会落进紫苏岩那一档；
+- 高度带 y10~280，形状是 `trapezoid`，两端稀、中间密；
+- 每区块 20 次、矿脉尺寸 8（作者调过一版：初版是 2 次、4 格）；
+- `discard_chance_on_air_exposure` 为 0，露出洞壁的矿不会被刷掉。
+
+五十七份调色板群系的特征表里都挂了这条放置特征（紧跟 `ore_dirac` 之后），
+`gametest/TransforeTests` 因此既查特征 JSON 的次数与两端，也遍历加载后的 `Biome` 注册表，
+要求每一个 `dawnduskterminal:` 群系都引用了它——漏一份群系，或者写了一个不存在的特征 ID，都会红。
+
+
 ## 主世界矿石
 
 维度里的六种主世界矿石（铜、铁、金、红石、青金石、钻石）全部由本模组自己的方块生成，不再铺原版矿石。
