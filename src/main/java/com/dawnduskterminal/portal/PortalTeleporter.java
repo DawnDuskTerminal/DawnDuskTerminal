@@ -51,7 +51,19 @@ public final class PortalTeleporter {
         if (target == null) {
             return;
         }
-        Vec3 landing = findSafeLanding(target, entity.getX(), entity.getZ(), (int) entity.getY());
+        double originX = entity.getX();
+        double originZ = entity.getZ();
+        int originY = (int) entity.getY();
+        if (!entering && entity instanceof Player player) {
+            PortalState state = player.getData(ModAttachments.PORTAL_STATE);
+            if (state.hasReturn()
+                    && state.returnDim().equals(target.dimension().location().toString())) {
+                originX = state.x();
+                originZ = state.z();
+                originY = Mth.floor(state.y());
+            }
+        }
+        Vec3 landing = findSafeLanding(target, originX, originZ, originY);
         if (entering) {
             if (entity instanceof Player player) {
                 // 记下从哪来，回程按这个坐标找落点，而不是按晨昏线里当前站的位置重新搜表面
@@ -60,12 +72,6 @@ public final class PortalTeleporter {
             Vec3 arrived = buildArrivalPortal(target, landing);
             if (arrived != null) {
                 landing = arrived;
-            }
-        } else if (entity instanceof Player player) {
-            PortalState state = player.getData(ModAttachments.PORTAL_STATE);
-            if (state.hasReturn()
-                    && state.returnDim().equals(target.dimension().location().toString())) {
-                landing = findSafeLanding(target, state.x(), state.z(), Mth.floor(state.y()));
             }
         }
         entity.teleportTo(target, landing.x, landing.y, landing.z, Set.of(), entity.getYRot(), entity.getXRot());
