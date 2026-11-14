@@ -5,12 +5,15 @@ import com.dawnduskterminal.geckolib3.core.molang.context.IContext;
 import com.dawnduskterminal.geckolib3.core.molang.function.entity.EntityFunction;
 import com.dawnduskterminal.geckolib3.core.processor.AnimationProcessor;
 import com.dawnduskterminal.geckolib3.core.processor.IBone;
+import com.dawnduskterminal.geckolib3.core.processor.ILocationBone;
 import com.dawnduskterminal.geckolib3.geo.animated.AnimatedGeoBone;
 import com.dawnduskterminal.geckolib3.geo.render.built.GeoBone;
 import com.dawnduskterminal.molang.runtime.ExecutionContext;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import net.minecraft.world.entity.Entity;
+import org.joml.Matrix4f;
 import org.joml.Vector3f;
 
 /**
@@ -24,11 +27,10 @@ import org.joml.Vector3f;
  * <p>x 不取负：YSM 内部骨骼空间是镜像的，Molang 访问器负责换回作者空间（`ContextReads#boneRotation`
  * 对 X、Y 取负即可见），`bone_pivot_abs` 属于同一族。源表达式自己写了 `-ysm.bone_pivot_abs(...).x`。
  *
- * <p>累积方式：从根骨骼的静止 pivot 出发，逐级加上「父骨骼当前旋转作用在本段偏移上的结果」，
- * 旋转按 {@code Rz·Ry·Rx} 合成，角度取骨骼当前值（X、Y 取反换回 Bedrock 空间）。这与 GeckoLib
- * 合成骨骼旋转的顺序一致。
+ * <p>按渲染器相同的局部变换从根到目标骨骼组合矩阵，包含父骨骼的旋转、缩放与动画位置偏移。
+ * 返回目标骨骼的 pivot，而不应用目标骨骼自己的旋转与缩放。
  *
- * <p>每次调用都重算，不做缓存：骨骼深度不超过 4 层，而这些通道每帧只有几百次。
+ * <p>每次调用都重算，不做缓存：模型骨骼链较短，而这些通道每帧只有几百次。
  */
 public class BonePivotAbs extends EntityFunction {
     @Override
@@ -42,30 +44,17 @@ public class BonePivotAbs extends EntityFunction {
             return null;
         }
 
-        List<GeoBone> chain = new ArrayList<>();
+        List<ILocationBone> chain = new ArrayList<>();
         for (GeoBone bone = animated.geoBone(); bone != null; bone = bone.parent()) {
-            chain.add(bone);
+            IBone current = processor.getBone(bone.name());
+            if (current == null) {
+                return null;
+            }
+            chain.add(current);
         }
-
-        GeoBone root = chain.get(chain.size() - 1);
-        double[] pivot = restPivot(root);
-        double[] rotation = new double[3];
-        for (int index = chain.size() - 2; index >= 0; index--) {
-            GeoBone parent = chain.get(index + 1);
-            GeoBone child = chain.get(index);
-            add(rotation, bedrockDegrees(processor.getBone(parent.name())));
-            double[] offset = restPivot(child);
-            // 偏移 = 本骨骼静止 pivot 减父骨骼静止 pivot，再绕父骨骼的累积旋转转过去
-            double[] base = restPivot(parent);
-            offset[0] -= base[0];
-            offset[1] -= base[1];
-            offset[2] -= base[2];
-            double[] rotated = rotate(rotation, offset);
-            pivot[0] += rotated[0];
-            pivot[1] += rotated[1];
-            pivot[2] += rotated[2];
-        }
-        return new PivotStruct(pivot[0], pivot[1], pivot[2]);
+        Collections.reverse(chain);
+        Vector3f pivot = absolutePivot(chain);
+        return new PivotStruct(pivot.x, pivot.y, pivot.z);
     }
 
     @Override
@@ -73,43 +62,33 @@ public class BonePivotAbs extends EntityFunction {
         return size == 1;
     }
 
-    /** 静止 pivot，Bedrock 坐标（x 不取负） */
-    private static double[] restPivot(GeoBone bone) {
-        Vector3f pivot = bone.pivot();
-        return new double[] {-pivot.x, pivot.y, pivot.z};
-    }
-
-    /** 骨骼当前旋转，换成 Bedrock 空间的度数：X、Y 取反，Z 不变 */
-    private static double[] bedrockDegrees(IBone bone) {
-        if (bone == null) {
-            return new double[3];
+    /** 骨骼链顺序为根到目标；坐标输入与 {@code RenderUtils.prepMatrixForBone} 一致 */
+    static Vector3f absolutePivot(List<? extends ILocationBone> chain) {
+        if (chain.isEmpty()) {
+            throw new IllegalArgumentException("骨骼链不能为空");
         }
-        return new double[] {
-            -Math.toDegrees(bone.getRotationX()),
-            -Math.toDegrees(bone.getRotationY()),
-            Math.toDegrees(bone.getRotationZ())
-        };
+        Matrix4f transform = new Matrix4f();
+        for (int index = 0; index < chain.size() - 1; index++) {
+            applyBoneTransform(transform, chain.get(index));
+        }
+
+        ILocationBone target = chain.get(chain.size() - 1);
+        transform.translate(
+                -target.getPositionX() / 16.0F, target.getPositionY() / 16.0F, target.getPositionZ() / 16.0F);
+        Vector3f pivot = transform.transformPosition(
+                target.getPivotX() / 16.0F, target.getPivotY() / 16.0F, target.getPivotZ() / 16.0F, new Vector3f());
+        return pivot.mul(-16.0F, 16.0F, 16.0F);
     }
 
-    private static void add(double[] target, double[] value) {
-        target[0] += value[0];
-        target[1] += value[1];
-        target[2] += value[2];
-    }
-
-    /** {@code Rz·Ry·Rx} 作用在列向量上 */
-    private static double[] rotate(double[] degrees, double[] vector) {
-        double x = Math.toRadians(degrees[0]);
-        double y = Math.toRadians(degrees[1]);
-        double z = Math.toRadians(degrees[2]);
-        double cx = Math.cos(x), sx = Math.sin(x);
-        double cy = Math.cos(y), sy = Math.sin(y);
-        double cz = Math.cos(z), sz = Math.sin(z);
-        return new double[] {
-            (cz * cy) * vector[0] + (cz * sy * sx - sz * cx) * vector[1] + (cz * sy * cx + sz * sx) * vector[2],
-            (sz * cy) * vector[0] + (sz * sy * sx + cz * cx) * vector[1] + (sz * sy * cx - cz * sx) * vector[2],
-            (-sy) * vector[0] + (cy * sx) * vector[1] + (cy * cx) * vector[2]
-        };
+    private static void applyBoneTransform(Matrix4f transform, ILocationBone bone) {
+        float pivotX = bone.getPivotX() / 16.0F;
+        float pivotY = bone.getPivotY() / 16.0F;
+        float pivotZ = bone.getPivotZ() / 16.0F;
+        transform.translate(-bone.getPositionX() / 16.0F, bone.getPositionY() / 16.0F, bone.getPositionZ() / 16.0F);
+        transform.translate(pivotX, pivotY, pivotZ);
+        transform.rotateZYX(bone.getRotationZ(), bone.getRotationY(), bone.getRotationX());
+        transform.scale(bone.getScaleX(), bone.getScaleY(), bone.getScaleZ());
+        transform.translate(-pivotX, -pivotY, -pivotZ);
     }
 
     private static final class PivotStruct extends Vec3fStruct {
