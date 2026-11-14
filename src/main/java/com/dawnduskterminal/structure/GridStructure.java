@@ -14,7 +14,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.Holder;
@@ -163,14 +162,20 @@ public class GridStructure extends Structure {
 
     private static final LiquidSettings LIQUID = LiquidSettings.IGNORE_WATERLOGGING;
 
-    private static final Map<String, List<ResourceLocation>> VARIANTS = new ConcurrentHashMap<>();
-
-    /** 件在框架线上有没有家具（第六层以内、不是四角原木的非空方块） */
-    private static final Map<ResourceLocation, Boolean> BORDER = new ConcurrentHashMap<>();
-
-    private static final Set<ResourceLocation> MISSING = ConcurrentHashMap.newKeySet();
-
-    private static final Set<String> PARTIAL = ConcurrentHashMap.newKeySet();
+    /** 显式传递单次生成状态，不将模板缓存存入注册实例或工作线程。 */
+    private record BuildContext(
+            StructureTemplateManager structureTemplateManager,
+            RandomSource random,
+            ChunkPos chunkPos,
+            GridTemplateCatalog templates) {
+        BuildContext(Structure.GenerationContext context) {
+            this(
+                    context.structureTemplateManager(),
+                    context.random(),
+                    context.chunkPos(),
+                    new GridTemplateCatalog(context.structureTemplateManager()));
+        }
+    }
 
     private final int columns;
     private final int rows;
@@ -310,8 +315,7 @@ public class GridStructure extends Structure {
      * 所以房间里那一列的局部坐标得用 {@link #pieceOrigin} 换算成世界坐标，
      * 井段件自己的锚点也一样换算，两者相减就是落笔点。
      */
-    private void placeWells(
-            Structure.GenerationContext context, StructurePiecesBuilder pieces, List<Plan> plans, BlockPos origin) {
+    private void placeWells(BuildContext context, StructurePiecesBuilder pieces, List<Plan> plans, BlockPos origin) {
         StructureTemplateManager manager = context.structureTemplateManager();
         for (int k = 0; k < plans.size(); k++) {
             BlockPos floor = origin.offset(0, k * STOREY_HEIGHT, 0);
@@ -560,7 +564,7 @@ public class GridStructure extends Structure {
         // worldgen 的工作线程是复用的：件规划中途抛出去也要把这颗盐收回来，
         // 否则下一次在这条线程上生成的房子会读到上一座的那一颗
         try {
-            buildPieces(context, pieces, origin, random, seed, storeys, webSeed);
+            buildPieces(new BuildContext(context), pieces, origin, random, seed, storeys, webSeed);
         } finally {
             if (previous == null) {
                 WEATHERING.remove();
@@ -572,7 +576,7 @@ public class GridStructure extends Structure {
 
     /** {@link #build} 的主体：规划与落笔。破损参数由调用方放进 {@link #WEATHERING} */
     private void buildPieces(
-            Structure.GenerationContext context,
+            BuildContext context,
             StructurePiecesBuilder pieces,
             BlockPos origin,
             RandomSource random,
@@ -603,7 +607,6 @@ public class GridStructure extends Structure {
         for (int k = 1; k < levels.size(); k++) {
             alignLevel(levels.get(k - 1), levels.get(k));
         }
-        StructureTemplateManager manager = context.structureTemplateManager();
         // 先把每层摆什么定下来：门、上下楼的格子、其余房间
         // 穿越两层的房间彼此要空开：某层放了之后，把上下与同层挨着的格子记成“不许再放”
         List<Set<GridFrame.Cell>> noClimb = new ArrayList<>();
@@ -616,9 +619,9 @@ public class GridStructure extends Structure {
         }
         List<Plan> plans = new ArrayList<>();
         for (int k = 0; k < levels.size(); k++) {
-            plans.add(plan(manager, levels, plans, noClimb, forceEmpty, k, random));
+            plans.add(plan(context, levels, plans, noClimb, forceEmpty, k, random));
         }
-        ensureChestRoom(manager, plans, random);
+        ensureChestRoom(context, plans, random);
         // 先把每一层的清空做完，再落任何一件：清空是纯空气，全部提前做完就绝不会擦到已经摆好的东西，
         // 也不必给清空算「哪些列要放过」——下层自己的件在下面几遍里会重新摆回来
         for (int k = 0; k < plans.size(); k++) {
@@ -675,7 +678,7 @@ public class GridStructure extends Structure {
      * 所以这两件事先排，空地率只对没被它们占掉的格子生效。
      */
     private Plan plan(
-            StructureTemplateManager manager,
+            BuildContext context,
             List<List<GridFrame.Cell>> levels,
             List<Plan> plans,
             List<Set<GridFrame.Cell>> noClimb,
@@ -685,7 +688,7 @@ public class GridStructure extends Structure {
         List<GridFrame.Cell> cells = levels.get(k);
         Plan plan = new Plan(cells);
         plan.forcedEmpty.addAll(forceEmpty.get(k));
-        plan.runs.addAll(wallRuns(cells));
+        plan.runs.addAll(wallRuns(context, cells));
         // 楼梯正上方那一格必须是空地房：楼梯件自己的最后一行（y=8）是带洞的天花板，
         // 落笔晚于上一层，盖掉那一格的地板、把洞口挖成空气，玩家上来就站在空房间里。
         // 于是不再需要楼梯口件（{@code stairtop}）与那一块带洞楼板，只要求「位置、体型、朝向都对得上」；
@@ -705,7 +708,7 @@ public class GridStructure extends Structure {
         // 挑格子的先后：宝箱房 → 楼梯 → 门。宝箱房先占一格 rect，楼梯与门再绕开它，
         // 免得后面几轮把它挤到边角或者挤没。一座房子只要一间，所以前面的层挑到了就不再挑
         if (plans.stream().noneMatch(previous -> previous.chest != null)) {
-            pickChest(manager, plan, arrivals, random);
+            pickChest(context, plan, arrivals, random);
         }
         // 上下楼：必修项先放——最下面那个上层至少一条绳/梯，顶层以外的每层至少一部楼梯。
         // 其余名额只补楼梯与洞口：绳子和梯子只出现在最下面那个上层，再往上都用楼梯
@@ -719,11 +722,11 @@ public class GridStructure extends Structure {
         // 先摆楼梯再摆绳梯：stairs 是唯一「往上走」的路，而且它必须落在和上一层对齐的那格 rect 上；
         // 那格要是先被绳梯占了，这一层就再也接不上了
         if (up) {
-            climb(manager, levels, plans, noClimb, forceEmpty, k, order2, plan, List.of(Role.STAIR), random);
+            climb(context, levels, plans, noClimb, forceEmpty, k, order2, plan, List.of(Role.STAIR), random);
         }
         // 只有底层必修一部绳梯；上层想吊只能靠挑空探出去的格子，由 extras 去补
         if (k == 0) {
-            climb(manager, levels, plans, noClimb, forceEmpty, k, order2, plan, List.of(Role.ROPE), random);
+            climb(context, levels, plans, noClimb, forceEmpty, k, order2, plan, List.of(Role.ROPE), random);
         }
         // 门：数量与该层格子数成正比，至少一个
         int doors = clamp(Math.round(cells.size() / (float) DOOR_PER_CELLS), 1, cells.size());
@@ -761,7 +764,7 @@ public class GridStructure extends Structure {
                 if (plan.doorCells.contains(cell) || plan.climbs.containsKey(cell) || arrivals.contains(cell)) {
                     continue;
                 }
-                placeClimb(manager, levels, plans, noClimb, forceEmpty, k, cell, plan, extras, random);
+                placeClimb(context, levels, plans, noClimb, forceEmpty, k, cell, plan, extras, random);
             }
         }
 
@@ -780,7 +783,7 @@ public class GridStructure extends Structure {
 
         for (GridFrame.Cell cell : cells) {
             ResourceLocation room;
-            room = pickRoom(manager, plan, cell, random);
+            room = pickRoom(context, plan, cell, random);
             plan.rooms.put(cell, room);
             // 家具靠 east，朝向按这一面去贴格子真正露在外面的那面墙；大格没有外墙，随机转一个方向
             Rotation rotation = orient(plan, cell);
@@ -788,7 +791,7 @@ public class GridStructure extends Structure {
                 rotation = ROTATIONS[(rotation.ordinal() + random.nextInt(4)) & 3];
             }
             plan.rotations.put(cell, rotation);
-            if (hasBorderFurniture(manager, room)) {
+            if (context.templates().hasBorderFurniture(room)) {
                 plan.border.add(cell);
             }
         }
@@ -810,7 +813,7 @@ public class GridStructure extends Structure {
      * @return 有没有放成
      */
     private boolean climb(
-            StructureTemplateManager manager,
+            BuildContext context,
             List<List<GridFrame.Cell>> levels,
             List<Plan> plans,
             List<Set<GridFrame.Cell>> noClimb,
@@ -824,7 +827,7 @@ public class GridStructure extends Structure {
             if (plan.doorCells.contains(cell)) {
                 continue;
             }
-            if (placeClimb(manager, levels, plans, noClimb, forceEmpty, k, cell, plan, allowed, random)) {
+            if (placeClimb(context, levels, plans, noClimb, forceEmpty, k, cell, plan, allowed, random)) {
                 return true;
             }
         }
@@ -832,7 +835,7 @@ public class GridStructure extends Structure {
     }
 
     private boolean placeClimb(
-            StructureTemplateManager manager,
+            BuildContext context,
             List<List<GridFrame.Cell>> levels,
             List<Plan> plans,
             List<Set<GridFrame.Cell>> noClimb,
@@ -857,19 +860,19 @@ public class GridStructure extends Structure {
                 break;
             }
         }
-        if (k > 0 && empty && !roomsOf(manager, cell, Role.DROP).isEmpty()) {
+        if (k > 0 && empty && !roomsOf(context, cell, Role.DROP).isEmpty()) {
             possible.add(Role.DROP);
         }
         // 绳梯是「从下面进来」的：y=0..2 落进下层重叠格子的最上面三行，所以那些格子必须是空地房。
         // 底层没有下层，天然满足；上层下方完全没建筑时也算，绳梯直接吊到地面
-        if (empty && !roomsOf(manager, cell, Role.ROPE).isEmpty()) {
+        if (empty && !roomsOf(context, cell, Role.ROPE).isEmpty()) {
             possible.add(Role.ROPE);
         }
         List<ResourceLocation> stairs = List.of();
         if (k + 1 < levels.size()) {
             // 上一层得有一格位置、体型、朝向都对得上（{@code aligned}），那格会被定成空地房；
             // 楼梯件最后落笔，用自己的天花板行盖掉那格的地板并切出洞口
-            stairs = roomsOf(manager, cell, Role.STAIR);
+            stairs = roomsOf(context, cell, Role.STAIR);
             if (!stairs.isEmpty() && aligned(levels.get(k + 1), levels, k + 1, cell) != null) {
                 possible.add(Role.STAIR);
             }
@@ -894,7 +897,7 @@ public class GridStructure extends Structure {
             plan.stairs.add(cell);
             markStairEnds(levels, forceEmpty, k, cell, plan);
         } else {
-            List<ResourceLocation> pieces = roomsOf(manager, cell, role);
+            List<ResourceLocation> pieces = roomsOf(context, cell, role);
             id = pieces.get(random.nextInt(pieces.size()));
         }
         plan.climbs.put(cell, role);
@@ -1136,14 +1139,13 @@ public class GridStructure extends Structure {
      *
      * <p>宝箱房不靠权重保证：整栋一间都没抽到时由 {@link #ensureChestRoom} 补。
      */
-    private ResourceLocation pickRoom(
-            StructureTemplateManager manager, Plan plan, GridFrame.Cell cell, RandomSource random) {
+    private ResourceLocation pickRoom(BuildContext context, Plan plan, GridFrame.Cell cell, RandomSource random) {
         if (cell.equals(plan.chest)) {
             return plan.chestRoom;
         }
         if (cell.kind() == GridFrame.Kind.INNER_CORNER) {
             ResourceLocation corner = piece("room/inner_corner/corner");
-            if (manager.get(corner).isPresent()) {
+            if (context.structureTemplateManager().get(corner).isPresent()) {
                 return corner;
             }
         }
@@ -1156,7 +1158,7 @@ public class GridStructure extends Structure {
         List<Role> available = new ArrayList<>();
         for (Role candidate : candidates) {
             if (weight(cell.kind(), candidate) > 0
-                    && !roomsOf(manager, cell, candidate).isEmpty()) {
+                    && !roomsOf(context, cell, candidate).isEmpty()) {
                 available.add(candidate);
             }
         }
@@ -1164,9 +1166,9 @@ public class GridStructure extends Structure {
         if (role == null) {
             role = Role.EMPTY;
         }
-        List<ResourceLocation> fit = roomsOf(manager, cell, role);
+        List<ResourceLocation> fit = roomsOf(context, cell, role);
         if (fit.isEmpty()) {
-            fit = roomsOf(manager, cell, Role.EMPTY);
+            fit = roomsOf(context, cell, Role.EMPTY);
         }
         if (fit.isEmpty()) {
             return piece("room/" + cell.kind().path() + "/empty");
@@ -1181,14 +1183,13 @@ public class GridStructure extends Structure {
      * 下层已经定好的楼梯两端（{@code forcedEmpty}）与上一层的楼梯口（{@code arrivals}）
      * 都不能放宝箱房，那几格得留空走路。
      */
-    private void pickChest(
-            StructureTemplateManager manager, Plan plan, Set<GridFrame.Cell> arrivals, RandomSource random) {
+    private void pickChest(BuildContext context, Plan plan, Set<GridFrame.Cell> arrivals, RandomSource random) {
         List<GridFrame.Cell> free = new ArrayList<>();
         for (GridFrame.Cell cell : plan.cells) {
             if (cell.kind() != GridFrame.Kind.RECT
                     || plan.forcedEmpty.contains(cell)
                     || arrivals.contains(cell)
-                    || roomsOf(manager, cell, Role.CHEST).isEmpty()) {
+                    || roomsOf(context, cell, Role.CHEST).isEmpty()) {
                 continue;
             }
             free.add(cell);
@@ -1197,10 +1198,10 @@ public class GridStructure extends Structure {
             return;
         }
         GridFrame.Cell cell = free.get(random.nextInt(free.size()));
-        List<ResourceLocation> chests = roomsOf(manager, cell, Role.CHEST);
+        List<ResourceLocation> chests = roomsOf(context, cell, Role.CHEST);
         plan.chest = cell;
         plan.chestRoom = chests.get(random.nextInt(chests.size()));
-        if (hasBorderFurniture(manager, plan.chestRoom)) {
+        if (context.templates().hasBorderFurniture(plan.chestRoom)) {
             plan.border.add(cell);
         }
     }
@@ -1230,7 +1231,7 @@ public class GridStructure extends Structure {
      * 整栋一间都没有时，拿一间 rect 房换掉（先找空地房，没空地房再拿家具房）。门后、楼梯两端、
      * 上下楼那几格换成宝箱房会堵住通路，不碰。
      */
-    private void ensureChestRoom(StructureTemplateManager manager, List<Plan> plans, RandomSource random) {
+    private void ensureChestRoom(BuildContext context, List<Plan> plans, RandomSource random) {
         for (Plan plan : plans) {
             for (ResourceLocation id : plan.rooms.values()) {
                 if (isRole(id, Role.CHEST)) {
@@ -1243,7 +1244,7 @@ public class GridStructure extends Structure {
         List<Slot> others = new ArrayList<>();
         for (Plan plan : plans) {
             for (GridFrame.Cell cell : plan.cells) {
-                if (chestSlot(manager, plan, cell)) {
+                if (chestSlot(context, plan, cell)) {
                     boolean empty = isRole(plan.rooms.get(cell), Role.EMPTY);
                     (empty ? empties : others).add(new Slot(plan, cell));
                 }
@@ -1256,10 +1257,10 @@ public class GridStructure extends Structure {
             return;
         }
         Slot slot = pool.get(random.nextInt(pool.size()));
-        List<ResourceLocation> chests = roomsOf(manager, slot.cell(), Role.CHEST);
+        List<ResourceLocation> chests = roomsOf(context, slot.cell(), Role.CHEST);
         ResourceLocation id = chests.get(random.nextInt(chests.size()));
         slot.plan().rooms.put(slot.cell(), id);
-        if (hasBorderFurniture(manager, id)) {
+        if (context.templates().hasBorderFurniture(id)) {
             slot.plan().border.add(slot.cell());
         } else {
             slot.plan().border.remove(slot.cell());
@@ -1274,7 +1275,7 @@ public class GridStructure extends Structure {
      *
      * <p>楼梯口那格是强制空地房，也排除。
      */
-    private boolean chestSlot(StructureTemplateManager manager, Plan plan, GridFrame.Cell cell) {
+    private boolean chestSlot(BuildContext context, Plan plan, GridFrame.Cell cell) {
         if (cell.kind() != GridFrame.Kind.RECT
                 || plan.doorCells.contains(cell)
                 || plan.forcedEmpty.contains(cell)
@@ -1282,7 +1283,7 @@ public class GridStructure extends Structure {
             return false;
         }
         return plan.rooms.get(cell) != null
-                && !roomsOf(manager, cell, Role.CHEST).isEmpty();
+                && !roomsOf(context, cell, Role.CHEST).isEmpty();
     }
 
     /**
@@ -1291,10 +1292,10 @@ public class GridStructure extends Structure {
      * <p>角色写在件名里（{@code room/small_rope_03}）：体型、角色、序号三段。
      * 这样不用去解析模板内容就知道一件是空地、绳、梯、楼梯还是普通家具。
      */
-    private List<ResourceLocation> roomsOf(StructureTemplateManager manager, GridFrame.Cell cell, Role role) {
+    private List<ResourceLocation> roomsOf(BuildContext context, GridFrame.Cell cell, Role role) {
         String prefix = this.templates + "/room/" + cell.kind().path() + "/";
         List<ResourceLocation> out = new ArrayList<>();
-        for (ResourceLocation id : variants(manager, prefix)) {
+        for (ResourceLocation id : context.templates().variants(prefix)) {
             if (isRole(id, role)) {
                 out.add(id);
             }
@@ -1304,7 +1305,7 @@ public class GridStructure extends Structure {
 
     /** 摆这一层的房间件；{@code phase} 决定只落空气还是只落实体方块 */
     private void placeCells(
-            Structure.GenerationContext context,
+            BuildContext context,
             StructurePiecesBuilder pieces,
             Plan plan,
             List<List<GridFrame.Cell>> levels,
@@ -1388,12 +1389,7 @@ public class GridStructure extends Structure {
      * 其余各层的两段清空都在室内（上一层的地板上方就是这一层的室内），照清。
      */
     private void clearLevel(
-            Structure.GenerationContext context,
-            StructurePiecesBuilder pieces,
-            Plan plan,
-            int k,
-            int storeys,
-            BlockPos origin) {
+            BuildContext context, StructurePiecesBuilder pieces, Plan plan, int k, int storeys, BlockPos origin) {
         BlockPos floor = origin.offset(0, k * STOREY_HEIGHT, 0);
         boolean top = k >= storeys - 1;
         boolean bottom = k <= 0;
@@ -1419,7 +1415,7 @@ public class GridStructure extends Structure {
      * 每段都用 {@code BandProcessor} 裁到这一段，越界的行不会落笔。
      */
     private static void clearBand(
-            Structure.GenerationContext context,
+            BuildContext context,
             StructurePiecesBuilder pieces,
             ResourceLocation air,
             Rotation rotation,
@@ -1457,8 +1453,7 @@ public class GridStructure extends Structure {
      * 橡木那族整列是空气（凹口本来就该是空的），塔木那族在楼板/天花板那一行是警示塔木。
      * 因为楼板与上一层的天花板就是同一行，那一行也是两块警示塔木共用的位置。
      */
-    private void placeNotches(
-            Structure.GenerationContext context, StructurePiecesBuilder pieces, Plan plan, int k, BlockPos origin) {
+    private void placeNotches(BuildContext context, StructurePiecesBuilder pieces, Plan plan, int k, BlockPos origin) {
         BlockPos floor = origin.offset(0, k * STOREY_HEIGHT, 0);
         for (GridFrame.Cell cell : plan.cells) {
             ResourceLocation room = plan.rooms.get(cell);
@@ -1492,8 +1487,7 @@ public class GridStructure extends Structure {
      * <p>只重写这一行（{@code minY == maxY == 天花板行}）：件里的空气要用 ALL 才会真的落下，
      * 而整件重放会把邻居摆在框架线上的墙与家具一起擦掉。
      */
-    private void placeStairs(
-            Structure.GenerationContext context, StructurePiecesBuilder pieces, Plan plan, int k, BlockPos origin) {
+    private void placeStairs(BuildContext context, StructurePiecesBuilder pieces, Plan plan, int k, BlockPos origin) {
         BlockPos floor = origin.offset(0, k * STOREY_HEIGHT, 0);
         int ceilingY = floor.getY() + CEIL_Y;
         for (GridFrame.Cell cell : plan.stairs) {
@@ -1552,11 +1546,7 @@ public class GridStructure extends Structure {
      * 不补这一步，180 度那两格地基会整体往里挪一格。
      */
     private BlockPos cellAnchored(
-            Structure.GenerationContext context,
-            ResourceLocation id,
-            Rotation rotation,
-            BlockPos cellMin,
-            GridFrame.Kind kind) {
+            BuildContext context, ResourceLocation id, Rotation rotation, BlockPos cellMin, GridFrame.Kind kind) {
         Vec3i piece = context.structureTemplateManager()
                 .get(id)
                 .map(StructureTemplate::getSize)
@@ -1643,7 +1633,7 @@ public class GridStructure extends Structure {
 
     /** 天花板与墙：同样分两遍落，墙里的空气要能把装饰面背后的缝挖开 */
     private void placeShell(
-            Structure.GenerationContext context,
+            BuildContext context,
             StructurePiecesBuilder pieces,
             Plan plan,
             List<List<GridFrame.Cell>> levels,
@@ -1675,7 +1665,7 @@ public class GridStructure extends Structure {
      * <p>楼梯格的 y=8 是楼梯口，上一层的地板就落在同一个平面上；那一行最终由上一层的地板件盖掉。
      */
     private void placeCeiling(
-            Structure.GenerationContext context,
+            BuildContext context,
             StructurePiecesBuilder pieces,
             Plan plan,
             GridFrame.Cell cell,
@@ -1697,7 +1687,7 @@ public class GridStructure extends Structure {
 
     /** 悬空的地基往下接柱子 */
     private void placeSupports(
-            Structure.GenerationContext context,
+            BuildContext context,
             StructurePiecesBuilder pieces,
             Plan plan,
             List<List<GridFrame.Cell>> levels,
@@ -1722,7 +1712,7 @@ public class GridStructure extends Structure {
 
     /** 带边框家具的格子再落一遍实体方块（同一件、同一个朝向，重复落是幂等的） */
     private void placeBorder(
-            Structure.GenerationContext context,
+            BuildContext context,
             StructurePiecesBuilder pieces,
             Plan plan,
             List<List<GridFrame.Cell>> levels,
@@ -1751,50 +1741,9 @@ public class GridStructure extends Structure {
         }
     }
 
-    /**
-     * 这件在框架线上有没有家具
-     *
-     * <p>框架线是格子最外那一圈，四角是原木框架、下面还有地板，只查地板以上那几行、贴着墙那几列的边上：
-     * 那里出现非空方块就是摆在边框上的家具。模板里的空气能数出来，
-     * 所以“非空”= 不在空气集合里；房间件把整格都存满了，这个判断成立。
-     *
-     * <p>查到件顶为止。房间件只有 4 行，写死查到第 4 行的话，越界那几格
-     * 不在空气集合里，会被当成“这儿有家具”，整件都白白重落一遍。
-     */
-    private static boolean hasBorderFurniture(StructureTemplateManager manager, ResourceLocation id) {
-        return BORDER.computeIfAbsent(id, key -> {
-            StructureTemplate template = manager.get(key).orElse(null);
-            if (template == null) {
-                return false;
-            }
-            Set<BlockPos> air = new HashSet<>();
-            for (StructureTemplate.StructureBlockInfo info :
-                    template.filterBlocks(BlockPos.ZERO, new StructurePlaceSettings(), Blocks.AIR)) {
-                air.add(info.pos());
-            }
-            Vec3i size = template.getSize();
-            int top = Math.min(4, size.getY() - 1);
-            for (int y = 1; y <= top; y++) {
-                for (int x = 0; x < size.getX(); x++) {
-                    for (int z = 0; z < size.getZ(); z++) {
-                        boolean edgeX = x == 0 || x == size.getX() - 1;
-                        boolean edgeZ = z == 0 || z == size.getZ() - 1;
-                        if (edgeX == edgeZ) {
-                            continue;
-                        }
-                        if (!air.contains(new BlockPos(x, y, z))) {
-                            return true;
-                        }
-                    }
-                }
-            }
-            return false;
-        });
-    }
-
     /** 一段墙：地板外伸那一条（{@code edge/}）加墙身与女儿墙（{@code wall/}） */
     private void placeWall(
-            Structure.GenerationContext context,
+            BuildContext context,
             StructurePiecesBuilder pieces,
             List<List<GridFrame.Cell>> levels,
             int k,
@@ -1819,7 +1768,7 @@ public class GridStructure extends Structure {
         // 外挑一件；墙脚已经并进 base（见 baseOf），这里不再单独摆
         placeAll(context, pieces, piece("edge/" + run.length()), rotation, outer.offset(0, FLOOR_Y, 0), phase);
         String size = run.length() == 5 ? "small" : "large";
-        List<ResourceLocation> walls = wallVariants(context.structureTemplateManager(), size, door);
+        List<ResourceLocation> walls = wallVariants(context, size, door);
         if (walls.isEmpty()) {
             return;
         }
@@ -1837,18 +1786,18 @@ public class GridStructure extends Structure {
     }
 
     /** 墙面件：门与无门各一套，靠件名里那一段区分；要门却没有就退回全部 */
-    private List<ResourceLocation> wallVariants(StructureTemplateManager manager, String size, boolean door) {
+    private List<ResourceLocation> wallVariants(BuildContext context, String size, boolean door) {
         List<ResourceLocation> wanted = new ArrayList<>();
-        for (ResourceLocation id : variants(manager, this.templates + "/wall/" + size + "_")) {
+        for (ResourceLocation id : context.templates().variants(this.templates + "/wall/" + size + "_")) {
             if (id.getPath().contains("_door_") == door) {
                 wanted.add(id);
             }
         }
-        return wanted.isEmpty() ? variants(manager, this.templates + "/wall/" + size + "_") : wanted;
+        return wanted.isEmpty() ? context.templates().variants(this.templates + "/wall/" + size + "_") : wanted;
     }
 
     /** 这一层所有露在外面的边，一段墙一件墙件 */
-    private static List<WallRun> wallRuns(List<GridFrame.Cell> cells) {
+    private static List<WallRun> wallRuns(BuildContext context, List<GridFrame.Cell> cells) {
         List<WallRun> runs = new ArrayList<>();
         for (GridFrame.Cell cell : cells) {
             for (Side side : sidesOf(spanBox(cell))) {
@@ -1876,7 +1825,7 @@ public class GridStructure extends Structure {
                         }
                     }
                     if (best < 5) {
-                        if (PARTIAL.add(side.length() + "@" + side.testX() + "," + side.testZ())) {
+                        if (context.templates().partial.add(side.length() + "@" + side.testX() + "," + side.testZ())) {
                             DawnDuskTerminal.LOGGER.warn(
                                     "DawnDuskTerminal grid structure leaves a {}-long exposed side at {},{} without a wall",
                                     best,
@@ -2097,7 +2046,7 @@ public class GridStructure extends Structure {
      * 同一个格角会被相邻几格各算一次，按方块坐标去重。
      */
     private void support(
-            Structure.GenerationContext context,
+            BuildContext context,
             StructurePiecesBuilder pieces,
             GridFrame.Cell cell,
             Rotation rotation,
@@ -2155,17 +2104,13 @@ public class GridStructure extends Structure {
      * 所以地基、女儿墙这些“只在某些层出现”的部分必须在模板里就是独立的件。
      */
     private static void place(
-            Structure.GenerationContext context,
-            StructurePiecesBuilder pieces,
-            ResourceLocation id,
-            Rotation rotation,
-            BlockPos min) {
+            BuildContext context, StructurePiecesBuilder pieces, ResourceLocation id, Rotation rotation, BlockPos min) {
         place(context, pieces, id, rotation, min, Integer.MIN_VALUE, Integer.MAX_VALUE, BandProcessor.Phase.SOLID);
     }
 
     /** 整件落一遍，不按世界 y 裁：拆出来的件各自只有自己那一段 */
     private static void placeAll(
-            Structure.GenerationContext context,
+            BuildContext context,
             StructurePiecesBuilder pieces,
             ResourceLocation id,
             Rotation rotation,
@@ -2176,7 +2121,7 @@ public class GridStructure extends Structure {
 
     /** 同上，但只保留世界 y 落在 [minY, maxY] 里的方块（房间件的地基按层开关） */
     private static void place(
-            Structure.GenerationContext context,
+            BuildContext context,
             StructurePiecesBuilder pieces,
             ResourceLocation id,
             Rotation rotation,
@@ -2188,7 +2133,7 @@ public class GridStructure extends Structure {
 
     /** 同上，另外交代这一遍只落空气还是只落实体方块 */
     private static void place(
-            Structure.GenerationContext context,
+            BuildContext context,
             StructurePiecesBuilder pieces,
             ResourceLocation id,
             Rotation rotation,
@@ -2198,7 +2143,7 @@ public class GridStructure extends Structure {
             BandProcessor.Phase phase) {
         StructureTemplateManager manager = context.structureTemplateManager();
         if (manager.get(id).isEmpty()) {
-            if (MISSING.add(id)) {
+            if (context.templates().missing.add(id)) {
                 DawnDuskTerminal.LOGGER.warn("DawnDuskTerminal grid structure is missing template {}", id);
             }
             return;
@@ -2223,8 +2168,7 @@ public class GridStructure extends Structure {
     }
 
     /** 件的落笔位置：旋转后包围盒的下角对齐到 {@code min} */
-    private static BlockPos pieceOrigin(
-            Structure.GenerationContext context, ResourceLocation id, Rotation rotation, BlockPos min) {
+    private static BlockPos pieceOrigin(BuildContext context, ResourceLocation id, Rotation rotation, BlockPos min) {
         StructureTemplateManager manager = context.structureTemplateManager();
         StructurePoolElement element =
                 StructurePoolElement.single(id.toString()).apply(StructureTemplatePool.Projection.RIGID);
@@ -2317,14 +2261,6 @@ public class GridStructure extends Structure {
             int y,
             boolean forward,
             Rotation rotation) {}
-
-    private static List<ResourceLocation> variants(StructureTemplateManager manager, String prefix) {
-        return VARIANTS.computeIfAbsent(prefix, key -> manager.listTemplates()
-                .filter(id -> id.getNamespace().equals(DawnDuskTerminal.MOD_ID))
-                .filter(id -> id.getPath().startsWith(key))
-                .sorted()
-                .toList());
-    }
 
     @Override
     public StructureType<?> type() {

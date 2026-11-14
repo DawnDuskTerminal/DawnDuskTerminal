@@ -4,6 +4,7 @@ import com.dawnduskterminal.DawnDuskTerminal;
 import com.dawnduskterminal.structure.BandProcessor;
 import com.dawnduskterminal.structure.GridPlacer;
 import com.dawnduskterminal.structure.GridStructure;
+import com.dawnduskterminal.structure.GridTemplateCatalog;
 import com.dawnduskterminal.structure.StructureExclusions;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -14,12 +15,20 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderGetter;
 import net.minecraft.core.SectionPos;
@@ -34,9 +43,17 @@ import net.minecraft.nbt.NbtAccounter;
 import net.minecraft.nbt.NbtIo;
 import net.minecraft.nbt.NbtOps;
 import net.minecraft.nbt.Tag;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.packs.PackLocationInfo;
+import net.minecraft.server.packs.PackType;
+import net.minecraft.server.packs.PathPackResources;
+import net.minecraft.server.packs.repository.PackSource;
+import net.minecraft.server.packs.resources.MultiPackResourceManager;
+import net.minecraft.server.packs.resources.ResourceManager;
+import net.minecraft.util.datafix.DataFixers;
 import net.minecraft.world.RandomizableContainer;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.vehicle.MinecartChest;
@@ -53,6 +70,7 @@ import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.level.levelgen.structure.StructurePiece;
 import net.minecraft.world.level.levelgen.structure.StructureStart;
 import net.minecraft.world.level.levelgen.structure.pieces.PiecesContainer;
+import net.minecraft.world.level.levelgen.structure.pieces.StructurePieceSerializationContext;
 import net.minecraft.world.level.levelgen.structure.pools.StructurePoolElement;
 import net.minecraft.world.level.levelgen.structure.pools.StructureTemplatePool;
 import net.minecraft.world.level.levelgen.structure.templatesystem.LiquidSettings;
@@ -61,6 +79,7 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureProc
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureProcessorType;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager;
+import net.minecraft.world.level.storage.LevelStorageSource;
 import net.minecraft.world.level.storage.loot.LootTable;
 import net.minecraft.world.phys.AABB;
 import net.neoforged.neoforge.gametest.GameTestHolder;
@@ -514,16 +533,384 @@ public final class StructureTemplateTests {
         helper.succeed();
     }
 
-    /** {@code GridStructure#hasBorderFurniture} 是私有的，缓存也在里面，只能反射调 */
-    private static boolean hasBorderFurniture(StructureTemplateManager manager, ResourceLocation id) {
-        try {
-            Method method = GridStructure.class.getDeclaredMethod(
-                    "hasBorderFurniture", StructureTemplateManager.class, ResourceLocation.class);
-            method.setAccessible(true);
-            return (boolean) method.invoke(null, manager, id);
-        } catch (ReflectiveOperationException error) {
-            throw new AssertionError("GridStructure#hasBorderFurniture 调不到", error);
+    /** 相同资源 ID 在不同管理器中必须分别枚举并判断模板内容。 */
+    @GameTest(template = "ddt_empty")
+    public static void templateCatalogsAreIsolated(GameTestHelper helper) throws Exception {
+        ResourceLocation room = DawnDuskTerminal.id("r02/isolation/room");
+        ResourceLocation extra = DawnDuskTerminal.id("r02/isolation/extra");
+        try (TemplateFixture first = new TemplateFixture(helper);
+                TemplateFixture second = new TemplateFixture(helper)) {
+            first.copy(room, FAMILY + "room/rect/empty");
+            second.copy(room, FAMILY + "room/rect/furn_04");
+            second.copy(extra, FAMILY + "room/rect/empty");
+            Object a = templateCatalog(first.manager);
+            Object b = templateCatalog(second.manager);
+            helper.assertTrue(variants(a, "r02/isolation/").equals(List.of(room)), "首个管理器的目录不符");
+            helper.assertTrue(variants(b, "r02/isolation/").equals(List.of(extra, room)), "不同管理器不得共用目录缓存");
+            helper.assertFalse(borderFurniture(a, room), "首个管理器的空房间不应含边框家具");
+            helper.assertTrue(borderFurniture(b, room), "不同管理器不得共用模板内容判断");
+            helper.assertTrue(variants(a, "r02/isolation/").equals(List.of(room)), "第二个目录不得污染首个目录");
         }
+        helper.succeed();
+    }
+
+    /** 重载必须刷新同一管理器的目录、已有模板与缺失模板。 */
+    @GameTest(template = "ddt_empty")
+    public static void templateCatalogFollowsResourceReload(GameTestHelper helper) throws Exception {
+        ResourceLocation room = DawnDuskTerminal.id("r02/reload/room");
+        ResourceLocation added = DawnDuskTerminal.id("r02/reload/added");
+        try (TemplateFixture fixture = new TemplateFixture(helper)) {
+            fixture.copy(room, FAMILY + "room/rect/empty");
+            Object before = templateCatalog(fixture.manager);
+            helper.assertTrue(variants(before, "r02/reload/").equals(List.of(room)), "重载前目录不符");
+            helper.assertFalse(borderFurniture(before, room), "重载前应为空房间");
+            helper.assertFalse(borderFurniture(before, added), "缺失模板应返回 false");
+            fixture.copy(room, FAMILY + "room/rect/furn_04");
+            fixture.copy(added, FAMILY + "room/rect/furn_04");
+            fixture.reload();
+            Object after = templateCatalog(fixture.manager);
+            helper.assertTrue(variants(after, "r02/reload/").equals(List.of(added, room)), "重载后应重新枚举目录");
+            helper.assertTrue(variants(before, "r02/reload/").equals(List.of(room)), "旧任务的目录快照不得被重载原地改写");
+            helper.assertTrue(borderFurniture(after, room), "同一管理器重载后应重新判断模板内容");
+            helper.assertTrue(borderFurniture(after, added), "重载后补入的模板不得沿用缺失结果");
+        }
+        helper.succeed();
+    }
+
+    /** 原版 remove 刷新单件后，下一次生成也不得沿用缺失结果。 */
+    @GameTest(template = "ddt_empty")
+    public static void templateCatalogRetriesMissingTemplates(GameTestHelper helper) throws Exception {
+        ResourceLocation id = DawnDuskTerminal.id("r02/missing/room");
+        try (TemplateFixture fixture = new TemplateFixture(helper)) {
+            helper.assertFalse(borderFurniture(templateCatalog(fixture.manager), id), "缺失模板应返回 false");
+            fixture.copy(id, FAMILY + "room/rect/furn_04");
+            fixture.manager.remove(id);
+            helper.assertTrue(borderFurniture(templateCatalog(fixture.manager), id), "下一次生成应读取补入的模板");
+        }
+        helper.succeed();
+    }
+
+    /** 原版允许直接编辑已存在的内存模板；下一次生成必须重新判断家具。 */
+    @GameTest(template = "ddt_empty")
+    public static void templateCatalogSeesInMemoryEdits(GameTestHelper helper) throws Exception {
+        ResourceLocation room = DawnDuskTerminal.id("r02/edit/room");
+        ResourceLocation source = DawnDuskTerminal.id("r02/edit/source");
+        try (TemplateFixture fixture = new TemplateFixture(helper)) {
+            fixture.copy(room, FAMILY + "room/rect/empty");
+            fixture.copy(source, FAMILY + "room/rect/furn_04");
+            Object before = templateCatalog(fixture.manager);
+            helper.assertFalse(borderFurniture(before, room), "编辑前应为空房间");
+            var resources = templateResources(fixture.manager);
+            StructureTemplate template = fixture.manager.getOrCreate(room);
+            template.load(
+                    helper.getLevel().registryAccess().lookupOrThrow(Registries.BLOCK),
+                    fixture.manager.get(source).orElseThrow().save(new CompoundTag()));
+            helper.assertTrue(resources == templateResources(fixture.manager), "读取已有模板不得更换目录代次");
+            helper.assertTrue(borderFurniture(templateCatalog(fixture.manager), room), "下一次生成必须看到内存编辑");
+            helper.assertFalse(borderFurniture(before, room), "已计算的生成局部判断不得被其他任务原地修改");
+        }
+        helper.succeed();
+    }
+
+    /** 创建模板刷新缺失诊断，成功保存后目录必须包含新增文件。 */
+    @GameTest(template = "ddt_empty")
+    public static void templateCatalogFollowsCreateAndSave(GameTestHelper helper) throws Exception {
+        ResourceLocation room = DawnDuskTerminal.id("r02/save/room");
+        ResourceLocation source = DawnDuskTerminal.id("r02/source/room");
+        try (TemplateFixture fixture = new TemplateFixture(helper)) {
+            fixture.copy(source, FAMILY + "room/rect/furn_04");
+            Object before = templateCatalog(fixture.manager);
+            helper.assertTrue(variants(before, "r02/save/").isEmpty(), "创建前不应枚举出模板");
+            helper.assertFalse(borderFurniture(before, room), "创建前模板应缺失");
+            var original = templateResources(fixture.manager);
+            StructureTemplate template = fixture.manager.getOrCreate(room);
+            var created = templateResources(fixture.manager);
+            helper.assertTrue(original != created, "getOrCreate 实际创建模板时必须更换代次");
+            template.load(
+                    helper.getLevel().registryAccess().lookupOrThrow(Registries.BLOCK),
+                    fixture.manager.get(source).orElseThrow().save(new CompoundTag()));
+            Object inMemory = templateCatalog(fixture.manager);
+            helper.assertTrue(borderFurniture(inMemory, room), "新建内存模板不得沿用缺失判断");
+            helper.assertTrue(variants(inMemory, "r02/save/").isEmpty(), "未保存的内存模板不属于原版目录枚举结果");
+            helper.assertTrue(fixture.manager.save(room), "模板应成功写入隔离的临时目录");
+            helper.assertTrue(created != templateResources(fixture.manager), "成功保存后必须更换目录代次");
+            helper.assertTrue(
+                    variants(templateCatalog(fixture.manager), "r02/save/").equals(List.of(room)), "保存后应枚举出新增模板");
+        }
+        helper.succeed();
+    }
+
+    /** 重载不等待旧目录查询；旧任务结束后也不得回填新代次。 */
+    @GameTest(template = "ddt_empty")
+    public static void templateReloadIsolatesInFlightCatalog(GameTestHelper helper) throws Exception {
+        ResourceLocation room = DawnDuskTerminal.id("r02/inflight/room");
+        ResourceLocation added = DawnDuskTerminal.id("r02/inflight/added");
+        try (TemplateFixture fixture = new TemplateFixture(helper)) {
+            fixture.copy(room, FAMILY + "room/rect/empty");
+            Object before = templateCatalog(fixture.manager);
+            CountDownLatch captured = new CountDownLatch(1);
+            CountDownLatch resume = new CountDownLatch(1);
+            fixture.manager.afterListing = () -> {
+                captured.countDown();
+                try {
+                    if (!resume.await(5, TimeUnit.SECONDS)) {
+                        throw new AssertionError("旧目录查询未获释放");
+                    }
+                } catch (InterruptedException error) {
+                    Thread.currentThread().interrupt();
+                    throw new AssertionError("旧目录查询被中断", error);
+                }
+            };
+            CompletableFuture<List<ResourceLocation>> pending =
+                    CompletableFuture.supplyAsync(() -> variants(before, "r02/inflight/"));
+            try {
+                helper.assertTrue(captured.await(5, TimeUnit.SECONDS), "旧任务应先捕获重载前目录");
+                fixture.manager.afterListing = null;
+                fixture.copy(added, FAMILY + "room/rect/furn_04");
+                fixture.reload();
+                Object after = templateCatalog(fixture.manager);
+                helper.assertTrue(variants(after, "r02/inflight/").equals(List.of(added, room)), "旧任务未结束时，新代次也应可读取新目录");
+                resume.countDown();
+                helper.assertTrue(pending.get(5, TimeUnit.SECONDS).equals(List.of(room)), "旧任务应保留其已捕获的目录");
+                helper.assertTrue(variants(after, "r02/inflight/").equals(List.of(added, room)), "旧任务完成后不得污染新代次");
+            } finally {
+                resume.countDown();
+                pending.get(5, TimeUnit.SECONDS);
+            }
+        }
+        helper.succeed();
+    }
+
+    /** 同一资源代次只枚举一次目录；同次生成内复用模板的边框判断。 */
+    @GameTest(template = "ddt_empty")
+    public static void templateCatalogReusesGenerationMetadata(GameTestHelper helper) throws Exception {
+        ResourceLocation id = DawnDuskTerminal.id("r02/reuse/room");
+        try (TemplateFixture fixture = new TemplateFixture(helper)) {
+            fixture.copy(id, FAMILY + "room/rect/furn_04");
+            Object catalog = templateCatalog(fixture.manager);
+            variants(catalog, "r02/reuse/");
+            variants(catalog, "r02/reuse/room");
+            variants(templateCatalog(fixture.manager), "r02/reuse/");
+            helper.assertTrue(fixture.manager.listings == 1, "同一资源代次不得跨生成或按前缀重复枚举目录");
+            helper.assertTrue(borderFurniture(catalog, id), "测试模板应包含边框家具");
+            int queries = fixture.manager.queries;
+            helper.assertTrue(borderFurniture(catalog, id), "重复判断的模板内容必须一致");
+            helper.assertTrue(fixture.manager.queries == queries, "同一模板的边框判断必须复用");
+        }
+        helper.succeed();
+    }
+
+    /** 诊断在当前管理器的资源代次内去重，重载后重新报告。 */
+    @GameTest(template = "ddt_empty")
+    public static void templateDiagnosticsAreResourceScoped(GameTestHelper helper) throws Exception {
+        try (TemplateFixture fixture = new TemplateFixture(helper)) {
+            Object first = templateCatalog(fixture.manager);
+            fixture.reload();
+            Object second = templateCatalog(fixture.manager);
+            assertDiagnosticScope(helper, first, second, "missing", DawnDuskTerminal.id("r02/diagnostic"));
+            assertDiagnosticScope(helper, first, second, "partial", "7@1,2");
+            Object third = templateCatalog(fixture.manager);
+            for (String name : List.of("missing", "partial")) {
+                var field = second.getClass().getDeclaredField(name);
+                field.setAccessible(true);
+                helper.assertTrue(field.get(second) == field.get(third), "同一资源代次的诊断应跨生成复用：" + name);
+            }
+        }
+        helper.succeed();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void assertDiagnosticScope(
+            GameTestHelper helper, Object first, Object second, String name, Object key) throws Exception {
+        var field = first.getClass().getDeclaredField(name);
+        field.setAccessible(true);
+        Set<Object> initial = (Set<Object>) field.get(first);
+        Set<Object> next = (Set<Object>) field.get(second);
+        helper.assertTrue(initial.add(key), name + " 的首次诊断必须保留");
+        helper.assertFalse(initial.add(key), name + " 在同一资源代次内必须去重");
+        helper.assertTrue(next.add(key), name + " 不得压制下一资源代次的诊断");
+    }
+
+    /** 比较完整结构件 NBT，覆盖件顺序、ID、位置、旋转及处理器参数。 */
+    @GameTest(template = "ddt_empty")
+    public static void templateAssemblyIsStableAcrossGenerations(GameTestHelper helper) throws IOException {
+        ServerLevel level = helper.getLevel();
+        var serialization = StructurePieceSerializationContext.fromLevel(level);
+        try (var storage = LevelStorageSource.createDefault(Files.createTempDirectory("ddt-r02-assembly-"))
+                .createAccess("templates")) {
+            var manager = new CountingTemplateManager(level.getServer().getResourceManager(), storage, level);
+            for (String name : List.of("grid_rooms", "grid_rooms_upper", "towerwood_rooms", "towerwood_rooms_upper")) {
+                Structure structure = level.registryAccess()
+                        .registryOrThrow(Registries.STRUCTURE)
+                        .get(DawnDuskTerminal.id(name));
+                for (int i = 0; i < 8; i++) {
+                    StructureStart first = generateSample(level, structure, manager, i);
+                    int parses = manager.parses;
+                    StructureStart second = generateSample(level, structure, manager, i);
+                    helper.assertTrue(first.isValid() && second.isValid(), name + " 的固定种子样本必须有效");
+                    helper.assertTrue(
+                            first.getPieces().size() == second.getPieces().size(), "重复生成的结构件数量必须一致");
+                    for (int j = 0; j < first.getPieces().size(); j++) {
+                        CompoundTag expected = first.getPieces().get(j).createTag(serialization);
+                        CompoundTag actual = second.getPieces().get(j).createTag(serialization);
+                        helper.assertTrue(actual.equals(expected), name + " 样本 " + i + " 第 " + j + " 件重复生成结果不符");
+                    }
+                    helper.assertTrue(manager.parses == parses, "重复生成不得绕过原版模板解析缓存");
+                }
+            }
+            helper.assertTrue(manager.listings == 1, "正常生成中的 getOrCreate 读取不得使目录缓存失效");
+        }
+        helper.succeed();
+    }
+
+    private static StructureStart generateSample(
+            ServerLevel level, Structure structure, StructureTemplateManager manager, int sample) {
+        ChunkGenerator generator = level.getChunkSource().getGenerator();
+        return structure.generate(
+                level.registryAccess(),
+                generator,
+                generator.getBiomeSource(),
+                level.getChunkSource().randomState(),
+                manager,
+                CHEST_SAMPLE_SEED + sample,
+                new ChunkPos(sample * 13 - 48, sample * 7 - 23),
+                0,
+                level,
+                biome -> true);
+    }
+
+    /** 临时目录保留用于失败诊断；关闭资源与存档锁，不删除任何世界文件。 */
+    private static final class TemplateFixture implements AutoCloseable {
+        private final Path pack;
+        private final LevelStorageSource.LevelStorageAccess storage;
+        private MultiPackResourceManager resources;
+        private final CountingTemplateManager manager;
+
+        private TemplateFixture(GameTestHelper helper) throws IOException {
+            Path root = Files.createTempDirectory("ddt-r02-templates-");
+            pack = Files.createDirectories(root.resolve("pack"));
+            Files.createDirectories(pack.resolve("data/dawnduskterminal"));
+            storage = LevelStorageSource.createDefault(root.resolve("worlds")).createAccess("templates");
+            resources = openResources();
+            manager = new CountingTemplateManager(resources, storage, helper.getLevel());
+        }
+
+        private MultiPackResourceManager openResources() {
+            var info = new PackLocationInfo("r02", Component.literal("R02"), PackSource.DEFAULT, Optional.empty());
+            return new MultiPackResourceManager(PackType.SERVER_DATA, List.of(new PathPackResources(info, pack)));
+        }
+
+        private void copy(ResourceLocation id, String source) throws IOException {
+            Path file = pack.resolve("data/" + id.getNamespace() + "/structure/" + id.getPath() + ".nbt");
+            Files.createDirectories(file.getParent());
+            try (InputStream stream = StructureTemplateTests.class.getResourceAsStream(
+                    "/data/dawnduskterminal/structure/" + source + ".nbt")) {
+                if (stream == null) {
+                    throw new IOException("测试模板不存在：" + source);
+                }
+                Files.copy(stream, file, StandardCopyOption.REPLACE_EXISTING);
+            }
+        }
+
+        private void reload() {
+            MultiPackResourceManager previous = resources;
+            resources = openResources();
+            manager.onResourceManagerReload(resources);
+            previous.close();
+        }
+
+        @Override
+        public void close() throws IOException {
+            try {
+                resources.close();
+            } finally {
+                storage.close();
+            }
+        }
+    }
+
+    private static final class CountingTemplateManager extends StructureTemplateManager {
+        private int listings;
+        private int queries;
+        private int parses;
+        private volatile Runnable afterListing;
+
+        private CountingTemplateManager(
+                ResourceManager resources, LevelStorageSource.LevelStorageAccess storage, ServerLevel level) {
+            super(
+                    resources,
+                    storage,
+                    DataFixers.getDataFixer(),
+                    level.registryAccess().lookupOrThrow(Registries.BLOCK));
+        }
+
+        @Override
+        public Stream<ResourceLocation> listTemplates() {
+            listings++;
+            Runnable hook = afterListing;
+            if (hook == null) {
+                return super.listTemplates();
+            }
+            List<ResourceLocation> snapshot;
+            try (var stream = super.listTemplates()) {
+                snapshot = stream.toList();
+            }
+            hook.run();
+            return snapshot.stream();
+        }
+
+        @Override
+        public Optional<StructureTemplate> get(ResourceLocation id) {
+            queries++;
+            return super.get(id);
+        }
+
+        @Override
+        public StructureTemplate readStructure(CompoundTag tag) {
+            parses++;
+            return super.readStructure(tag);
+        }
+    }
+
+    private static GridTemplateCatalog.Resources templateResources(StructureTemplateManager manager) {
+        return ((GridTemplateCatalog.Owner) manager).ddt$templateResources();
+    }
+
+    private static Object templateCatalog(StructureTemplateManager manager) {
+        try {
+            Class<?> type = Class.forName("com.dawnduskterminal.structure.GridTemplateCatalog");
+            var constructor = type.getDeclaredConstructor(StructureTemplateManager.class);
+            constructor.setAccessible(true);
+            return constructor.newInstance(manager);
+        } catch (ReflectiveOperationException error) {
+            throw new AssertionError("无法创建模板目录视图", error);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<ResourceLocation> variants(Object catalog, String prefix) {
+        try {
+            Method method = catalog.getClass().getDeclaredMethod("variants", String.class);
+            method.setAccessible(true);
+            return (List<ResourceLocation>) method.invoke(catalog, prefix);
+        } catch (ReflectiveOperationException error) {
+            throw new AssertionError("无法读取模板目录", error);
+        }
+    }
+
+    private static boolean borderFurniture(Object catalog, ResourceLocation id) {
+        try {
+            Method method = catalog.getClass().getDeclaredMethod("hasBorderFurniture", ResourceLocation.class);
+            method.setAccessible(true);
+            return (boolean) method.invoke(catalog, id);
+        } catch (ReflectiveOperationException error) {
+            throw new AssertionError("无法判断模板边框家具", error);
+        }
+    }
+
+    /** 私有模板元数据通过反射检查，不为测试扩大生产 API。 */
+    private static boolean hasBorderFurniture(StructureTemplateManager manager, ResourceLocation id) {
+        return borderFurniture(templateCatalog(manager), id);
     }
 
     /**

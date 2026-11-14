@@ -13,6 +13,7 @@
     "FeatureSorterMixin",
     "LightEngineSkyLightMixin",
     "StructureExclusionMixin",
+    "StructureTemplateManagerMixin",
     "PaintingVariantGuardMixin",
     "CraftingMenuMixin",
     "SkyIslandCloudMixin",
