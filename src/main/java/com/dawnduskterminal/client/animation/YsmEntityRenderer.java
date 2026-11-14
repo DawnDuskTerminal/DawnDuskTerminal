@@ -16,8 +16,6 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.math.Axis;
 import java.util.List;
-import java.util.Map;
-import java.util.WeakHashMap;
 import java.util.function.Function;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.ItemInHandRenderer;
@@ -34,19 +32,17 @@ import org.jetbrains.annotations.Nullable;
 /**
  * 本模组所有 Bedrock 模型实体的渲染器基类：每只实体一份动画实例 + native 网格捷径
  *
- * <p>动画实例按实体存：它带着跨帧的滤波状态、变量槽位与播放进度，多个实体共用会互相拉扯。
- * 用 {@link WeakHashMap} 是为了不把实体钉在渲染器里——渲染器活得比实体久。
+ * <p>动画实例由实体的非持久化附件持有，保留跨帧状态；渲染器不保存实体索引。
  *
  * <p>native 路径与 Java 路径的关系：{@code renderCubesOfBone} 是「把某根骨骼的立方体写进
  * {@link VertexConsumer}」的唯一出口，native 可用时这里改为把立方体编号与骨骼姿势攒进
- * {@link NativeMeshBatch}，一次 JNI 算完再写出去；native 不可用、建表失败或 flush 失败时整帧退回
- * {@link GeoReplacedEntityRenderer} 的 Java 实现。两条路的顶点顺序、UV、法线与法线取反标志都相同，
+ * {@link NativeMeshBatch}，一次 JNI 算完再写出去；native 不可用或失败时仅几何输出走 Java 实现，
+ * 不重复实体事件、动画推进或附加渲染。两条路的顶点顺序、UV、法线与法线取反标志都相同，
  * 见 {@link NativeGeoMesh}。
  */
 public abstract class YsmEntityRenderer<T extends Mob, A extends YsmAnimatable<T>>
         extends GeoReplacedEntityRenderer<T, A> {
 
-    private final Map<T, A> animatables = new WeakHashMap<>();
     private final Function<T, A> factory;
     private final ItemInHandRenderer itemInHandRenderer;
 
@@ -69,13 +65,7 @@ public abstract class YsmEntityRenderer<T extends Mob, A extends YsmAnimatable<T
      */
     @Override
     public A getAnimatableEntity(T entity) {
-        A current = this.animatables.get(entity);
-        if (current != null && this.isCurrent(current, entity)) {
-            return current;
-        }
-        A created = this.factory.apply(entity);
-        this.animatables.put(entity, created);
-        return created;
+        return YsmAnimatable.cached(entity, this, this.factory, animation -> this.isCurrent(animation, entity));
     }
 
     /**
@@ -103,10 +93,13 @@ public abstract class YsmEntityRenderer<T extends Mob, A extends YsmAnimatable<T
             PoseStack poseStack,
             MultiBufferSource bufferSource,
             int packedLight) {
-        if (!this.renderWithNative(entity, animatable, entityYaw, partialTick, poseStack, bufferSource, packedLight)) {
+        try {
             super.render(entity, animatable, entityYaw, partialTick, poseStack, bufferSource, packedLight);
+            this.renderHeldItems(entity, animatable, poseStack, bufferSource, packedLight);
+        } finally {
+            // 父类仅在本次渲染期间需要该引用，结束后不得继续持有实体及其世界。
+            this.currentAnimatable = null;
         }
-        this.renderHeldItems(entity, animatable, poseStack, bufferSource, packedLight);
     }
 
     /**
@@ -181,42 +174,62 @@ public abstract class YsmEntityRenderer<T extends Mob, A extends YsmAnimatable<T
         poseStack.popPose();
     }
 
-    private boolean renderWithNative(
+    @Override
+    public void render(
+            AnimatedGeoModel model,
             T entity,
-            A animatable,
-            float entityYaw,
             float partialTick,
+            RenderType type,
             PoseStack poseStack,
-            MultiBufferSource bufferSource,
-            int packedLight) {
-        if (!NativeMesh.isAvailable() || !animatable.updateModel()) {
-            return false;
-        }
-        NativeGeoMesh mesh = this.ensureNativeMesh(animatable.getCurrentModel().geoModel());
-        if (mesh == null) {
-            return false;
-        }
-        try {
-            this.nativeBatch.begin(mesh);
-        } catch (NativeMesh.NativeMeshException failure) {
-            this.dropNativeMesh();
-            return false;
-        }
-        try {
+            @Nullable MultiBufferSource bufferSource,
+            @Nullable VertexConsumer buffer,
+            int packedLight,
+            int packedOverlay,
+            float red,
+            float green,
+            float blue,
+            float alpha) {
+        NativeGeoMesh mesh = NativeMesh.isAvailable() ? this.ensureNativeMesh(model.geoModel()) : null;
+        if (mesh != null) {
             try {
-                super.render(entity, animatable, entityYaw, partialTick, poseStack, bufferSource, packedLight);
-            } finally {
-                // 中途抛异常时也要收尾，否则批次会一直挂在 active 上，把后面几帧的立方体全攒进来
-                this.nativeBatch.end();
+                this.nativeBatch.begin(mesh);
+            } catch (NativeMesh.NativeMeshException failure) {
+                this.dropNativeMesh();
             }
-            RenderType type = this.getRenderType(
-                    entity, partialTick, poseStack, bufferSource, null, packedLight, this.getTextureLocation(entity));
-            this.nativeBatch.flush(bufferSource.getBuffer(type));
-            return true;
-        } catch (NativeMesh.NativeMeshException failure) {
-            // native 已熔断，批次在 finally 里清空；这一帧改走 Java 路径
-            this.dropNativeMesh();
-            return false;
+        }
+        try {
+            // 实体事件与动画推进位于调用方；这里只执行一次几何准备。
+            super.render(
+                    model,
+                    entity,
+                    partialTick,
+                    type,
+                    poseStack,
+                    bufferSource,
+                    buffer,
+                    packedLight,
+                    packedOverlay,
+                    red,
+                    green,
+                    blue,
+                    alpha);
+            if (!this.nativeBatch.isActive()) {
+                return;
+            }
+            this.nativeBatch.end();
+            VertexConsumer target = bufferSource == null ? buffer : bufferSource.getBuffer(type);
+            try {
+                this.nativeBatch.flush(target);
+            } catch (NativeMesh.NativeMeshException failure) {
+                this.dropNativeMesh();
+                // 提交尚未写出顶点；按相同骨骼姿态重试几何，不重新派发事件或推进动画。
+                for (AnimatedGeoBone root : model.topLevelBones()) {
+                    this.renderRecursively(
+                            root, poseStack, target, packedLight, packedOverlay, red, green, blue, alpha);
+                }
+            }
+        } finally {
+            this.nativeBatch.discard();
         }
     }
 
@@ -236,7 +249,7 @@ public abstract class YsmEntityRenderer<T extends Mob, A extends YsmAnimatable<T
             return;
         }
         GeoMesh mesh = bone.geoBone().cubes();
-        if (mesh == null) {
+        if (bone.isHidden() || bone.cubesAreHidden() || mesh == null) {
             return;
         }
         int colour = Color.ofRGBA(red, green, blue, alpha).getColor();

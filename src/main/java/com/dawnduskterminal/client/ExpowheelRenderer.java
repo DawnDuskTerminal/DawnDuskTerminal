@@ -15,8 +15,6 @@ import com.dawnduskterminal.registry.ModEntities;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
 import java.util.List;
-import java.util.Map;
-import java.util.WeakHashMap;
 import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.entity.EntityRenderer;
@@ -41,7 +39,7 @@ import org.jetbrains.annotations.Nullable;
  *
  * <p>飞轮是投掷物而不是生物，所以不复用 {@code YsmEntityRenderer}（那个基类建立在
  * {@code LivingEntityRenderer} 之上）：这里直接实现 {@link IGeoRenderer}，自己驱动一帧动画再画模型，
- * 动画实例按实体存在 {@link WeakHashMap} 里。
+ * 动画实例由实体的非持久化附件持有。
  *
  * <p><b>自发光</b>：渲染时把光照打包值换成 {@link LightTexture#FULL_BRIGHT}，贴图不再被天光与方块光压暗。
  * 渲染类型仍是 {@code entityCutoutNoCull}，透明像素照旧裁掉，不会出现半透明层挡住别的实体。
@@ -59,8 +57,6 @@ public final class ExpowheelRenderer {
 
     private static final class WheelRenderer extends EntityRenderer<ExpowheelEntity>
             implements IGeoRenderer<ExpowheelEntity> {
-        private final Map<ExpowheelEntity, Animatable> animatables = new WeakHashMap<>();
-
         @Nullable
         private MultiBufferSource renderBuffer;
 
@@ -79,7 +75,7 @@ public final class ExpowheelRenderer {
                 PoseStack poseStack,
                 MultiBufferSource bufferSource,
                 int packedLight) {
-            Animatable animatable = this.animatables.computeIfAbsent(entity, Animatable::new);
+            Animatable animatable = YsmAnimatable.cached(entity, this, Animatable::new, animation -> true);
             EntityModelData data = new EntityModelData();
             AnimationEvent<Animatable> event =
                     new AnimationEvent<>(animatable, 0.0F, 0.0F, partialTick, false, List.of(data));

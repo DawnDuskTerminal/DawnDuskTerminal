@@ -25,6 +25,15 @@ public final class ModAttachments {
                     .copyOnDeath()
                     .build());
 
+    /** 动画由实体持有；不参与存档、同步或死亡复制，也不引用客户端类。 */
+    public static final Supplier<AttachmentType<ClientAnimation>> CLIENT_ANIMATION =
+            ATTACHMENTS.register("client_animation", () -> AttachmentType.<ClientAnimation>builder(() -> {
+                        throw new IllegalStateException("Client animation must be assigned by its renderer");
+                    })
+                    .build());
+
+    public record ClientAnimation(Object renderer, Object animation) {}
+
     private ModAttachments() {}
 
     public static void register(IEventBus bus) {

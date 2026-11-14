@@ -175,6 +175,12 @@ public final class NativeMeshBatch {
         }
     }
 
+    /** 丢弃未提交批次，释放几何与缓冲目标引用。 */
+    public void discard() {
+        this.active = false;
+        reset();
+    }
+
     private void ensurePool() {
         if (this.pool != 0L) {
             return;

@@ -15,8 +15,6 @@ import com.dawnduskterminal.registry.ModEntities;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
 import java.util.List;
-import java.util.Map;
-import java.util.WeakHashMap;
 import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.entity.EntityRenderer;
@@ -54,8 +52,6 @@ public final class Experiment057BladeRenderer {
 
     private static final class BladeRenderer extends EntityRenderer<Experiment057BladeEntity>
             implements IGeoRenderer<Experiment057BladeEntity> {
-        private final Map<Experiment057BladeEntity, Animatable> animatables = new WeakHashMap<>();
-
         @Nullable
         private MultiBufferSource renderBuffer;
 
@@ -74,7 +70,7 @@ public final class Experiment057BladeRenderer {
                 PoseStack poseStack,
                 MultiBufferSource bufferSource,
                 int packedLight) {
-            Animatable animatable = this.animatables.computeIfAbsent(entity, Animatable::new);
+            Animatable animatable = YsmAnimatable.cached(entity, this, Animatable::new, animation -> true);
             EntityModelData data = new EntityModelData();
             AnimationEvent<Animatable> event =
                     new AnimationEvent<>(animatable, 0.0F, 0.0F, partialTick, false, List.of(data));

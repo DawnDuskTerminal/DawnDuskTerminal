@@ -15,7 +15,10 @@ import com.dawnduskterminal.geckolib3.core.molang.util.StringPool;
 import com.dawnduskterminal.geckolib3.geo.IGeoEntity;
 import com.dawnduskterminal.geckolib3.geo.animated.ILocationModel;
 import com.dawnduskterminal.molang.runtime.HashMapStruct;
+import com.dawnduskterminal.registry.ModAttachments;
 import it.unimi.dsi.fastutil.objects.Object2FloatOpenHashMap;
+import java.util.function.Function;
+import java.util.function.Predicate;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.Entity;
 import org.jetbrains.annotations.Nullable;
@@ -35,6 +38,22 @@ import org.jetbrains.annotations.Nullable;
  * <p>不存在于动画文件里的层不注册：注册了也只会每帧打一条「找不到片段」的日志。
  */
 public abstract class YsmAnimatable<M extends Entity> extends AnimatableEntity<M> implements IGeoEntity {
+    /** 实体持有动画，渲染器不保存实体索引；更换渲染器或模型包时替换原实例。 */
+    @SuppressWarnings("unchecked")
+    public static <E extends Entity, A extends YsmAnimatable<E>> A cached(
+            E entity, Object renderer, Function<E, A> factory, Predicate<A> current) {
+        ModAttachments.ClientAnimation state = entity.getExistingDataOrNull(ModAttachments.CLIENT_ANIMATION.get());
+        if (state != null && state.renderer() == renderer) {
+            A animation = (A) state.animation();
+            if (current.test(animation)) {
+                return animation;
+            }
+        }
+        A animation = factory.apply(entity);
+        entity.setData(ModAttachments.CLIENT_ANIMATION.get(), new ModAttachments.ClientAnimation(renderer, animation));
+        return animation;
+    }
+
     private final ResourceLocation model;
 
     @Nullable
