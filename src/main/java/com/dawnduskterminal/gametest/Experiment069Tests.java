@@ -441,6 +441,38 @@ public final class Experiment069Tests {
         helper.succeed();
     }
 
+    /** 共享立方索引必须立即抑制更新，并且不受外部可变坐标影响。 */
+    @GameTest(template = "ddt_empty", batch = "ddt_r07_069_index")
+    public static void fieldIndexKeepsImmutableCentres(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos centre = helper.absolutePos(CENTRE);
+        BlockPos.MutableBlockPos mutable = centre.mutable();
+        try {
+            placeMachine(level, centre);
+            Experiment069Field.untrack(level, centre);
+            Experiment069Field.track(level, mutable);
+            mutable.move(100, 0, 100);
+            helper.assertTrue(Experiment069Field.suppressed(level, centre.offset(8, 8, 8)), "可变坐标登记后，立方体角点仍须处于更新抑制范围内");
+            helper.assertFalse(Experiment069Field.suppressed(level, centre.offset(9, 0, 0)), "立方体边界外不得抑制更新");
+            Experiment069Field.track(level, centre);
+            Experiment069Field.untrack(level, centre);
+            helper.assertFalse(Experiment069Field.suppressed(level, centre), "重复登记后的一次撤登记必须停止更新抑制");
+            var entity = level.getBlockEntity(centre);
+            helper.assertTrue(entity != null, "069 必须具有方块实体");
+            entity.onLoad();
+            helper.assertTrue(Experiment069Field.suppressed(level, centre), "方块实体加载后必须登记");
+            entity.setRemoved();
+            helper.assertFalse(Experiment069Field.suppressed(level, centre), "方块实体卸载回调必须撤登记");
+            entity.clearRemoved();
+            entity.onLoad();
+            helper.assertTrue(Experiment069Field.suppressed(level, centre), "重新加载必须恢复更新抑制");
+            helper.succeed();
+        } finally {
+            mutable.set(centre);
+            discardMachine(level, centre);
+        }
+    }
+
     /** 摆一台 069，场心是 {@code pos} */
     private static void placeMachine(ServerLevel level, BlockPos pos) {
         level.setBlockAndUpdate(pos, ModBlocks.EXPERIMENT_069.get().defaultBlockState());

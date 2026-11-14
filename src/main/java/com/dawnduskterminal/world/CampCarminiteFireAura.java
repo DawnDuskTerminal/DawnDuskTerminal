@@ -12,15 +12,15 @@ import net.minecraft.core.SectionPos;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.food.FoodData;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 
 /**
  * 红篝火那一圈 16 格的气场：消耗度的增减在这里反过来
  *
- * <p>登记与判定照 {@link CubeField} 那一套：按维度存一张「篝火在哪」的表，方块实体装载/卸载时登记与撤登记，
- * 方块的 {@code onPlace} / {@code onRemove} 管摆下与挖掉，于是摆下那一 tick 就生效。
- * 判定不扫 33³ 格，只把现存的篝火挨个量距离，每次判定还会回头核那一格还是不是本方块、还是不是点着的
+ * <p>篝火按维度和区块登记，方块及方块实体负责登记与撤登记。
+ * 查询只遍历半径范围内的候选桶，再校验欧氏距离、篝火方块及点燃状态；不加载区块。
  *
  * <p><b>规则一：小增量取反。</b>点亮着的红篝火 16 格内的玩家，凡是<b>增加</b>消耗度、
  * 且<b>增加量不大于 {@value #MAX_INVERTED}</b> 的行为，改成<b>等量减少</b>消耗度（见
@@ -58,8 +58,8 @@ public final class CampCarminiteFireAura {
 
     private static final int MAX_FOOD = 20;
 
-    /** 每个维度里现存的篝火位置；只由服务端线程读写 */
-    private static final Map<ResourceKey<Level>, Set<BlockPos>> CENTRES = new HashMap<>();
+    /** 按维度、区块索引篝火位置；仅由服务端线程维护。 */
+    private static final Map<ResourceKey<Level>, Map<Long, Set<BlockPos>>> CENTRES = new HashMap<>();
 
     private CampCarminiteFireAura() {}
 
@@ -68,7 +68,10 @@ public final class CampCarminiteFireAura {
         if (level == null || level.isClientSide) {
             return;
         }
-        CENTRES.computeIfAbsent(level.dimension(), key -> new HashSet<>()).add(pos);
+        BlockPos centre = pos.immutable();
+        CENTRES.computeIfAbsent(level.dimension(), key -> new HashMap<>())
+                .computeIfAbsent(bucketKey(centre), key -> new HashSet<>())
+                .add(centre);
     }
 
     /** 撤掉一格：方块实体卸载、方块被挖掉或推走时各来一次，撤不存在的没有代价 */
@@ -76,13 +79,21 @@ public final class CampCarminiteFireAura {
         if (level == null || level.isClientSide) {
             return;
         }
-        Set<BlockPos> tracked = CENTRES.get(level.dimension());
-        if (tracked == null) {
+        Map<Long, Set<BlockPos>> buckets = CENTRES.get(level.dimension());
+        if (buckets == null) {
             return;
         }
-        tracked.remove(pos);
-        if (tracked.isEmpty()) {
-            CENTRES.remove(level.dimension());
+        long key = bucketKey(pos);
+        Set<BlockPos> bucket = buckets.get(key);
+        if (bucket == null) {
+            return;
+        }
+        bucket.remove(pos);
+        if (bucket.isEmpty()) {
+            buckets.remove(key);
+            if (buckets.isEmpty()) {
+                CENTRES.remove(level.dimension());
+            }
         }
     }
 
@@ -102,38 +113,59 @@ public final class CampCarminiteFireAura {
         if (level.isClientSide) {
             return false;
         }
-        Set<BlockPos> tracked = CENTRES.get(level.dimension());
-        if (tracked == null || tracked.isEmpty()) {
+        Map<Long, Set<BlockPos>> buckets = CENTRES.get(level.dimension());
+        if (buckets == null || buckets.isEmpty()) {
             return false;
         }
         double x = player.getX();
         double y = player.getY();
         double z = player.getZ();
-        Iterator<BlockPos> iterator = tracked.iterator();
-        while (iterator.hasNext()) {
-            BlockPos centre = iterator.next();
-            double dx = x - (centre.getX() + 0.5D);
-            double dy = y - (centre.getY() + 0.5D);
-            double dz = z - (centre.getZ() + 0.5D);
-            if (dx * dx + dy * dy + dz * dz > RADIUS_SQR) {
-                continue;
-            }
-            if (!level.getChunkSource()
-                    .hasChunk(
-                            SectionPos.blockToSectionCoord(centre.getX()),
-                            SectionPos.blockToSectionCoord(centre.getZ()))) {
-                continue;
-            }
-            BlockState state = level.getBlockState(centre);
-            if (!state.is(ModBlocks.CAMP_CARMINITE_FIRE.get())) {
-                iterator.remove();
-                continue;
-            }
-            if (state.getValue(CampCarminiteFireBlock.LIT)) {
-                return true;
+        // 索引使用方块坐标，距离判断使用方块中心，因此候选范围需要减去 0.5。
+        int minX = SectionPos.posToSectionCoord(x - RADIUS - 0.5D);
+        int maxX = SectionPos.posToSectionCoord(x + RADIUS - 0.5D);
+        int minZ = SectionPos.posToSectionCoord(z - RADIUS - 0.5D);
+        int maxZ = SectionPos.posToSectionCoord(z + RADIUS - 0.5D);
+        for (int chunkX = minX; chunkX <= maxX; chunkX++) {
+            for (int chunkZ = minZ; chunkZ <= maxZ; chunkZ++) {
+                long key = ChunkPos.asLong(chunkX, chunkZ);
+                Set<BlockPos> bucket = buckets.get(key);
+                if (bucket == null) {
+                    continue;
+                }
+                Iterator<BlockPos> iterator = bucket.iterator();
+                while (iterator.hasNext()) {
+                    BlockPos centre = iterator.next();
+                    double dx = x - (centre.getX() + 0.5D);
+                    double dy = y - (centre.getY() + 0.5D);
+                    double dz = z - (centre.getZ() + 0.5D);
+                    if (dx * dx + dy * dy + dz * dz > RADIUS_SQR) {
+                        continue;
+                    }
+                    if (!level.getChunkSource().hasChunk(chunkX, chunkZ)) {
+                        continue;
+                    }
+                    BlockState state = level.getBlockState(centre);
+                    if (!state.is(ModBlocks.CAMP_CARMINITE_FIRE.get())) {
+                        iterator.remove();
+                        continue;
+                    }
+                    if (state.getValue(CampCarminiteFireBlock.LIT)) {
+                        return true;
+                    }
+                }
+                if (bucket.isEmpty()) {
+                    buckets.remove(key);
+                }
             }
         }
+        if (buckets.isEmpty()) {
+            CENTRES.remove(level.dimension());
+        }
         return false;
+    }
+
+    private static long bucketKey(BlockPos pos) {
+        return ChunkPos.asLong(SectionPos.blockToSectionCoord(pos.getX()), SectionPos.blockToSectionCoord(pos.getZ()));
     }
 
     /**

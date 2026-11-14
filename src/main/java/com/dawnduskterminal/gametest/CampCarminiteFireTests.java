@@ -51,6 +51,18 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 public final class CampCarminiteFireTests {
     private static final BlockPos CENTRE = new BlockPos(4, 2, 4);
 
+    /** 独立测量篝火查询，不以立方场的测量结果代替。 */
+    @GameTest(template = "ddt_large", batch = "ddt_r07_aura_measure")
+    public static void remoteCampfireQueryCost(GameTestHelper helper) throws ReflectiveOperationException {
+        LocalFieldQueryChecks.measure(helper, true);
+    }
+
+    /** 对照欧氏距离边界并检查篝火索引的生命周期。 */
+    @GameTest(template = "ddt_large", batch = "ddt_r07_aura_index")
+    public static void auraIndexPreservesCoverage(GameTestHelper helper) throws ReflectiveOperationException {
+        LocalFieldQueryChecks.checkAura(helper);
+    }
+
     /** 与 {@code CarminiteFireBlock} 同一条：猪 10 点血，挨一下剩 8 */
     private static final float PIG_HEALTH = 10.0F;
 

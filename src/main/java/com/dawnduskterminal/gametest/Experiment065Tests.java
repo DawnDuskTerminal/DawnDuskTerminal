@@ -322,6 +322,41 @@ public final class Experiment065Tests {
         helper.succeed();
     }
 
+    /** 记录固定查询位置在不同远端场心数量下的开销。 */
+    @GameTest(template = "ddt_large", batch = "ddt_r07_cube_measure")
+    public static void remoteFieldQueryCost(GameTestHelper helper) throws ReflectiveOperationException {
+        LocalFieldQueryChecks.measure(helper, false);
+    }
+
+    /** 对照立方覆盖规则并检查登记、撤登记和未加载场心。 */
+    @GameTest(template = "ddt_large", batch = "ddt_r07_cube_index")
+    public static void fieldIndexPreservesCoverage(GameTestHelper helper) throws ReflectiveOperationException {
+        LocalFieldQueryChecks.checkCube(helper);
+    }
+
+    /** 方块实体卸载与重新加载时，伤害入口必须同步停止与恢复保护。 */
+    @GameTest(template = "ddt_empty", batch = "ddt_r07_065_lifecycle")
+    public static void fieldFollowsBlockEntityLifecycle(GameTestHelper helper) {
+        withField(helper, () -> {
+            ServerLevel level = helper.getLevel();
+            BlockPos centre = helper.absolutePos(CENTRE);
+            placeField(level, centre);
+            var entity = level.getBlockEntity(centre);
+            helper.assertTrue(entity != null, "065 必须具有方块实体");
+            Pig attacker = spawn(helper, CENTRE.east());
+            entity.setRemoved();
+            helper.assertTrue(
+                    spawn(helper, VICTIM).hurt(level.damageSources().mobAttack(attacker), STRIKE_DAMAGE),
+                    "方块实体卸载回调后，原场内的攻击必须恢复伤害");
+            entity.clearRemoved();
+            entity.onLoad();
+            helper.assertFalse(
+                    spawn(helper, VICTIM).hurt(level.damageSources().mobAttack(attacker), STRIKE_DAMAGE),
+                    "方块实体重新加载后，场内的攻击必须再次被拦截");
+            helper.succeed();
+        });
+    }
+
     /** 摆一台 065，场心是 {@code pos} */
     private static void placeField(ServerLevel level, BlockPos pos) {
         level.setBlockAndUpdate(pos, ModBlocks.EXPERIMENT_065.get().defaultBlockState());

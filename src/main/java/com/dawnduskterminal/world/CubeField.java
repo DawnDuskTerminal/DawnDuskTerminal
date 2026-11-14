@@ -9,22 +9,16 @@ import java.util.function.Supplier;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.SectionPos;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 
 /**
- * 一台「反建器」压出的立方场：17×17×17，方块自己就是中心那一格，往每个方向各推 {@value #RADIUS} 格
+ * 试验物品 065 与 069 共用的 17×17×17 立方场，方块所在位置为场心。
  *
- * <p>试验物品 065 与 069 共用这一份。两台机器只是场里发生的事不同（065 让伤害作废、069 让更新作废），
- * 「场在哪、场里有没有这一格」是同一件事：按维度存一张场心表，方块实体装载/卸载时登记与撤登记，
- * 方块的 {@code onPlace} / {@code onRemove} 管摆下与挖掉，于是摆下那一 tick 就生效，不用等方块实体装载
- *
- * <p>判定不扫 17³ = 4913 格：只有现存的场心会被挨个量一遍距离。每次判定还会回头核一遍那一格还是不是
- * 这台机器（{@link #block} 给的就是它的方块），方块实体那边撤登记真漏了也不会留下一个死活不掉的幽灵场；
- * 核之前先问 {@code ChunkSource#hasChunk}，不会为了找方块把区块读进来
- *
- * <p>没有场的地方每条判定只花一次 {@code HashMap} 查表：伤害事件与方块更新都是每秒上千次的热路径，
- * 这里不做任何比查表更贵的事
+ * <p>场心按维度和区块登记；查询只访问半径范围内的候选桶，再按三轴坐标差判断覆盖。
+ * 方块及方块实体负责登记与撤登记，查询时校验场心方块并清除幽灵条目，但不加载区块。
+ * 没有场心的维度只进行一次映射查询，不扫描世界或构造临时集合。
  */
 public final class CubeField {
     /** 半边长度：17×17×17 就是中心那一格往每个方向各推 8 格 */
@@ -33,8 +27,8 @@ public final class CubeField {
     /** 边长：17 */
     public static final int SIZE = RADIUS * 2 + 1;
 
-    /** 每个维度里现存的场心 */
-    private final Map<ResourceKey<Level>, Set<BlockPos>> centres = new HashMap<>();
+    /** 按维度、区块索引场心；仅由服务端线程维护。 */
+    private final Map<ResourceKey<Level>, Map<Long, Set<BlockPos>>> centres = new HashMap<>();
 
     /** 场心那一格该是什么方块：判定时回头核一遍，用来认幽灵场 */
     private final Supplier<Block> block;
@@ -58,7 +52,11 @@ public final class CubeField {
         if (level == null || level.isClientSide) {
             return;
         }
-        this.centres.computeIfAbsent(level.dimension(), key -> new HashSet<>()).add(pos);
+        BlockPos centre = pos.immutable();
+        this.centres
+                .computeIfAbsent(level.dimension(), key -> new HashMap<>())
+                .computeIfAbsent(bucketKey(centre), key -> new HashSet<>())
+                .add(centre);
     }
 
     /** 撤掉一个场心。方块实体卸载、方块被挖掉或推走时各来一次，撤不存在的没有代价 */
@@ -66,13 +64,21 @@ public final class CubeField {
         if (level == null || level.isClientSide) {
             return;
         }
-        Set<BlockPos> tracked = this.centres.get(level.dimension());
-        if (tracked == null) {
+        Map<Long, Set<BlockPos>> buckets = this.centres.get(level.dimension());
+        if (buckets == null) {
             return;
         }
-        tracked.remove(pos);
-        if (tracked.isEmpty()) {
-            this.centres.remove(level.dimension());
+        long key = bucketKey(pos);
+        Set<BlockPos> bucket = buckets.get(key);
+        if (bucket == null) {
+            return;
+        }
+        bucket.remove(pos);
+        if (bucket.isEmpty()) {
+            buckets.remove(key);
+            if (buckets.isEmpty()) {
+                this.centres.remove(level.dimension());
+            }
         }
     }
 
@@ -88,32 +94,50 @@ public final class CubeField {
      * 场心顺手丢掉，幽灵场只可能活到它下一次被问到
      */
     public boolean covers(Level level, BlockPos at) {
-        Set<BlockPos> tracked = this.centres.get(level.dimension());
-        if (tracked == null || tracked.isEmpty()) {
+        Map<Long, Set<BlockPos>> buckets = this.centres.get(level.dimension());
+        if (buckets == null || buckets.isEmpty()) {
             return false;
         }
-        Iterator<BlockPos> iterator = tracked.iterator();
-        while (iterator.hasNext()) {
-            BlockPos centre = iterator.next();
-            if (Math.abs(at.getX() - centre.getX()) > RADIUS
-                    || Math.abs(at.getY() - centre.getY()) > RADIUS
-                    || Math.abs(at.getZ() - centre.getZ()) > RADIUS) {
-                continue;
+        int minX = SectionPos.blockToSectionCoord(at.getX() - RADIUS);
+        int maxX = SectionPos.blockToSectionCoord(at.getX() + RADIUS);
+        int minZ = SectionPos.blockToSectionCoord(at.getZ() - RADIUS);
+        int maxZ = SectionPos.blockToSectionCoord(at.getZ() + RADIUS);
+        for (int x = minX; x <= maxX; x++) {
+            for (int z = minZ; z <= maxZ; z++) {
+                long key = ChunkPos.asLong(x, z);
+                Set<BlockPos> bucket = buckets.get(key);
+                if (bucket == null) {
+                    continue;
+                }
+                Iterator<BlockPos> iterator = bucket.iterator();
+                while (iterator.hasNext()) {
+                    BlockPos centre = iterator.next();
+                    if (Math.abs(at.getX() - centre.getX()) > RADIUS
+                            || Math.abs(at.getY() - centre.getY()) > RADIUS
+                            || Math.abs(at.getZ() - centre.getZ()) > RADIUS) {
+                        continue;
+                    }
+                    if (!level.getChunkSource().hasChunk(x, z)) {
+                        continue;
+                    }
+                    if (!level.getBlockState(centre).is(this.block.get())) {
+                        iterator.remove();
+                        continue;
+                    }
+                    return true;
+                }
+                if (bucket.isEmpty()) {
+                    buckets.remove(key);
+                }
             }
-            // 方块实体在装载/卸载时登记与撤登记，这一格这时一定是载入的；真漏了也不去把区块读进来
-            // （LevelReader 那几个 hasChunkAt 在 1.21.1 已废弃，不读区块的那条判定留在 ChunkSource 上）
-            if (!level.getChunkSource()
-                    .hasChunk(
-                            SectionPos.blockToSectionCoord(centre.getX()),
-                            SectionPos.blockToSectionCoord(centre.getZ()))) {
-                continue;
-            }
-            if (!level.getBlockState(centre).is(this.block.get())) {
-                iterator.remove();
-                continue;
-            }
-            return true;
+        }
+        if (buckets.isEmpty()) {
+            this.centres.remove(level.dimension());
         }
         return false;
+    }
+
+    private static long bucketKey(BlockPos pos) {
+        return ChunkPos.asLong(SectionPos.blockToSectionCoord(pos.getX()), SectionPos.blockToSectionCoord(pos.getZ()));
     }
 }
