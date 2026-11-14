@@ -250,10 +250,11 @@
 野生的砷铅铁恶魂守卫没有这个标记，仍按原规则挑人。
 `@Mixin` 直接写暮色森林的类字面量，目标改名时编译期就报错。
 
-### 大恶魂的模型包
+### 大恶魂的模型
 
-模型包按同样的原样布局放在 `assets/dawnduskterminal/ysm/ghast_elite/` 下。
-这个包只有两条片段：`parallel0` 是七根触手与四肢的柏林噪声摆动。
+模型按统一布局放在 `geo/ghast_elite.geo.json`、`animations/ghast_elite.animation.json`、
+`textures/entity/ghast_elite.png`，三份都是模型作者的原件，逐字节未改写。
+动画只有两条片段：`parallel0` 是七根触手与四肢的柏林噪声摆动。
 `parallel1` 是一段每帧执行的 `timeline` 程序（布条与触手的链式物理）。
 两条都由并行动画控制器逐帧求值，没有主动画。
 

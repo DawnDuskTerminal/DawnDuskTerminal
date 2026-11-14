@@ -141,22 +141,35 @@ TouhouLittleMaid（MIT），说明与「和上游的差异」见 `docs/ysm.md`�
 它是一个普通库：不需要玩家安装任何前置，
 也不在 `neoforge.mods.toml` 里声明依赖。
 
-实体用的模型包按 Yes Steve Model 的原样布局放在 `assets/dawnduskterminal/ysm/<模型包>/` 下，
-一个文件都不改写：`ysm.json`、`models/*.json`、`animations/*.json`、`textures/*.png`、`controller/*.json`。
+实体的模型、动画、贴图按统一布局放，每个实体三份文件、命名与实体一致：
+
+| 内容 | 位置 |
+|---|---|
+| 几何 | `assets/dawnduskterminal/geo/<名字>.geo.json` |
+| 动画 | `assets/dawnduskterminal/animations/<名字>.animation.json` |
+| 贴图 | `assets/dawnduskterminal/textures/entity/<名字>.png` |
+
+这些文件是模型作者的原件，逐字节都不改写。
+一个实体可以按状态换几何与动画（弦的小型与大型、恶果的普通与持块），
+此时重写 `YsmAnimatable#getModelLocation` 与 `#getAnimationFileLocation` 即可，
+`updateModel()` 装载的就是这两个 getter 返回的文件。
+
+唯一的例外是 `ysm/tower_ghast/`：那是一个 YSM 角色包（`ysm.json` + `models/main.json` + 动画 + 贴图），
+属于测试实体「测试恶魂 591」，后续会整体删除，因此保留目录式布局。
+
 运行时解析几何与动画，Molang 表达式逐帧求值，因此 `ysm.first_order` / `second_order`、`ysm.bone_rot`、
-`ym.bone_pivot_abs`、`ysm.perlin_noise` 与 `timeline` 语句程序都按 YSM 的语义真正执行；
+`ysm.bone_pivot_abs`、`ysm.perlin_noise` 与 `timeline` 语句程序都按 YSM 的语义真正执行；
 不存在离线转换步骤，也不存在会被静默丢掉的片段。
 
-给实体接模型包只需要两样东西：一个 `client/animation/YsmAnimatable` 子类（决定模型、贴图、主动画选哪个片段），
+给实体接模型只需要两样东西：一个 `client/animation/YsmAnimatable` 子类（决定几何、贴图、主动画选哪个片段），
 以及一个 `client/animation/YsmEntityRenderer` 子类（决定缩放与渲染类型）。
-参考 `client/TowerGhastRenderer`。
+参考 `client/GhastEliteRenderer` 或 `client/StringRenderer`。
 
 `YsmBinding` 与 `FnBinding` 是 `ysm.*` / `fn.*` 两张表。
-模型包用到表里没有的名字时，解析会静默跳过那一整条表达式
-（表现为某个通道不动），因此新增模型包时应先跑一遍 `docs/ysm.md` 里记的离线校验。
+模型用到表里没有的名字时，解析会把那一整条表达式当成 0（表现为某个通道不动），
+因此新增模型时应先跑一遍 `docs/ysm.md` 里记的离线校验。
 
-已知差距：贴图动画条（`.mcmeta`）不再逐帧上传，`entity/StringEntity` 的流体贴图因此只有第一帧；
-`ysm.play_sound` / `ysm.particle` 是空实现，不产生音效与粒子。
+已知差距：`ysm.play_sound` / `ysm.particle` 是空实现，不产生音效与粒子。
 
 ## 代码约定
 

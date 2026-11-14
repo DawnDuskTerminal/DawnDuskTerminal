@@ -78,17 +78,11 @@ public class GhastEliteEntity extends Ghast implements YsmPackUser {
      */
     private static final double SPAWN_LIFT = 3.0D;
 
-    /** 脸在体中心前方 128 单位 / 2 = 4 格处；火球自己半径 0.5 格，所以 4.6 格刚好贴着脸 */
-    private static final double MOUTH_FORWARD = 4.6D;
+    /** 出膛距离：照暮色恶魂 {@code UrGhastAttackGoal}，视向量 × 8.5 */
+    private static final double VOLLEY_REACH = 8.5D;
 
-    /** 主立方体 {@code thehead} 的半宽：128 单位见方 = 8 格，半宽 4 格 */
-    private static final double MOUTH_HALF_WIDTH = 4.0D;
-
-    /** 火球半径 0.5 格：出膛点要通过半径，否则球会一半埋在自己脸上 */
-    private static final double FIREBALL_RADIUS = 0.5D;
-
-    /** 脸的中心：头立方体 0~128 单位，中心 64 单位 = 4 格 */
-    private static final double MOUTH_HEIGHT = 4.0D;
+    /** 第一发比另外两发高 2 格：暮色恶魂的 spitFireball 就这么摆 */
+    private static final double FIRST_BALL_LIFT = 2.0D;
 
     /** 拨出去的火球出现在身外多远：8 格箱子的半对角线约 6.93 格，取 7.5 保证任何方向都在箱外 */
     private static final double DEFLECT_ORIGIN = 7.5D;
@@ -126,10 +120,14 @@ public class GhastEliteEntity extends Ghast implements YsmPackUser {
     /** 照看范围：再远的小鬼直接放弃，交给它自己 */
     private static final double MINION_TEND_RADIUS = 48.0D;
 
-    /** 一轮喷三发 */
+    /** 一轮三发 */
     private static final int FIREBALL_COUNT = 3;
-    /** 三发之间左右各偏 8 度 */
-    private static final float FIREBALL_SPREAD_DEGREES = 8.0F;
+
+    /** 除第一发之外的另外两发：瞄准向量在水平面上带随机抖动 */
+    private static final int JITTERED_BALLS = FIREBALL_COUNT - 1;
+
+    /** 抖动幅度：{@code (rand - rand) * 8}，与暮色恶魂逐字一致 */
+    private static final float VOLLEY_AIM_JITTER = 8.0F;
 
     /** 暮色森林的泪滴伤害类型；缺暮色森林时退回普通生物伤害 */
 
@@ -388,19 +386,17 @@ public class GhastEliteEntity extends Ghast implements YsmPackUser {
     }
 
     /**
-     * 火球出膛的位置：脸前 {@link #MOUTH_FORWARD} 格、高度取脸的中心
+     * 火球出膛的位置：视向量 × {@link #VOLLEY_REACH}，高度取体中心再加视向量的竖直分量
      *
-     * <p>脸的正面是立方体的一个面，斜着飞时这条线会在 <strong>角的内部</strong> 穿出去：
-     * 半宽 4 格的箱子斜 45 度时出膛点会落在 (3.25, 3.25)，还在箱子里。
-     * 所以斜飞时把距离放大到 {@code (半宽 + 火球半径) / 水平分量}，正对时仍是 {@link #MOUTH_FORWARD}
+     * <p>照暮色森林 {@code UrGhastAttackGoal.spitFireball}：三方都从这个点出膛，与瞄准点无关。
+     * 体型 8 格见方，8.5 格足以把球送到箱外，任何朝向都不例外。
      */
     public static Vec3 mouthPosition(GhastEliteEntity elite) {
         Vec3 view = elite.getViewVector(1.0F);
-        double horizontal = Math.max(Math.abs(view.x), Math.abs(view.z));
-        double forward = horizontal < 1.0E-4D
-                ? MOUTH_FORWARD
-                : Math.max(MOUTH_FORWARD, (MOUTH_HALF_WIDTH + FIREBALL_RADIUS) / horizontal);
-        return new Vec3(elite.getX() + view.x * forward, elite.getY() + MOUTH_HEIGHT, elite.getZ() + view.z * forward);
+        return new Vec3(
+                elite.getX() + view.x * VOLLEY_REACH,
+                elite.getY() + elite.getBbHeight() / 2.0D + view.y * VOLLEY_REACH,
+                elite.getZ() + view.z * VOLLEY_REACH);
     }
 
     /**
@@ -647,34 +643,34 @@ public class GhastEliteEntity extends Ghast implements YsmPackUser {
     }
 
     /**
-     * 一轮三发，左右各偏 {@value #FIREBALL_SPREAD_DEGREES} 度
+     * 一轮三发，照暮色森林 {@code UrGhastAttackGoal#spitFireball}
      *
-     * <p>节奏、蓄力与视线判定都在共用的 {@link GhastShootGoal} 里；这里只管把三发摆开
+     * <p>三发<strong>同 tick</strong> 出膛，出膛点都是 {@link #mouthPosition} 那一个点
+     * （第一发再高 {@link #FIRST_BALL_LIFT} 格）。第一发直接朝目标体中心瞄；
+     * 另外两发只在瞄准向量的 x / z 上加 {@code (rand - rand) * 8} 的抖动，竖直分量不动。
+     *
+     * <p>节奏、蓄力与视线判定都在共用的 {@link GhastShootGoal} 里；这里只管把三发摆开。
      */
     private void fireVolley(LivingEntity target, Vec3 muzzle) {
         Level level = this.level();
         if (!(level instanceof ServerLevel serverLevel)) {
             return;
         }
-        Vec3 aim = target.getEyePosition().subtract(muzzle);
-        if (aim.lengthSqr() < 1.0E-6D) {
-            return;
-        }
-        aim = aim.normalize();
-        Vec3 right = new Vec3(-aim.z, 0.0D, aim.x);
-        if (right.lengthSqr() < 1.0E-6D) {
-            right = new Vec3(1.0D, 0.0D, 0.0D);
-        }
-        right = right.normalize();
-        for (int i = 0; i < FIREBALL_COUNT; i++) {
-            double spread = Math.toRadians(FIREBALL_SPREAD_DEGREES * (i - 1));
-            Vec3 direction = aim.yRot((float) spread);
-            // 三发沿射线拉开 2 格、左右再错开 1.2 格：出膛时彼此至少隔 1 格，
-            // 加上 canHitEntity 不认弹体，不会再出现「三发互相引爆」
-            Vec3 spawn = muzzle.add(aim.scale(i * 2.0D)).add(right.scale((i - 1) * 1.2D));
-            GhastEliteFireball fireball = new GhastEliteFireball(level, this, direction);
-            fireball.setPos(spawn.x, spawn.y, spawn.z);
-            serverLevel.addFreshEntity(fireball);
+        double dx = target.getX() - this.getX();
+        double dy =
+                target.getBoundingBox().minY + target.getBbHeight() / 2.0D - (this.getY() + this.getBbHeight() / 2.0D);
+        double dz = target.getZ() - this.getZ();
+
+        GhastEliteFireball first = new GhastEliteFireball(level, this, new Vec3(dx, dy, dz));
+        first.setPos(muzzle.x, muzzle.y + FIRST_BALL_LIFT, muzzle.z);
+        serverLevel.addFreshEntity(first);
+
+        for (int index = 0; index < JITTERED_BALLS; index++) {
+            double jitterX = (this.getRandom().nextFloat() - this.getRandom().nextFloat()) * VOLLEY_AIM_JITTER;
+            double jitterZ = (this.getRandom().nextFloat() - this.getRandom().nextFloat()) * VOLLEY_AIM_JITTER;
+            GhastEliteFireball extra = new GhastEliteFireball(level, this, new Vec3(dx + jitterX, dy, dz + jitterZ));
+            extra.setPos(muzzle.x, muzzle.y, muzzle.z);
+            serverLevel.addFreshEntity(extra);
         }
     }
 

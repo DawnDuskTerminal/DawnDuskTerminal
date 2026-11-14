@@ -1,4 +1,186 @@
 {
-  "format_version": "1.8.0",
-  "animations": {}
+	"format_version": "1.8.0",
+	"animations": {
+		"parallel0": {
+			"loop": true,
+			"bones": {
+				"segiment_1": {
+					"rotation": [
+						"-180*math.atan((ysm.bone_pivot_abs('segimentlocator2').z-ysm.bone_pivot_abs('segimentlocator1').z)/math.sqrt(math.pow(ysm.bone_pivot_abs('segimentlocator2').y-ysm.bone_pivot_abs('segimentlocator1').y,2)+math.pow(ysm.bone_pivot_abs('segimentlocator2').x-ysm.bone_pivot_abs('segimentlocator1').x,2)))/math.pi",
+						0,
+						"((ysm.bone_pivot_abs('segimentlocator1').y-ysm.bone_pivot_abs('segimentlocator2').y)>0?180:0)+180*math.atan((ysm.bone_pivot_abs('segimentlocator1').x-ysm.bone_pivot_abs('segimentlocator2').x)/(ysm.bone_pivot_abs('segimentlocator1').y-ysm.bone_pivot_abs('segimentlocator2').y))/math.pi"
+					],
+					"position": ["ysm.bone_pivot_abs('segimentlocator1').x", "ysm.bone_pivot_abs('segimentlocator1').y", "ysm.bone_pivot_abs('segimentlocator1').z"]
+				},
+				"segiment_Y_1": {
+					"scale": [
+						1,
+						"math.sqrt(math.pow(ysm.bone_pivot_abs('segimentlocator2').x-ysm.bone_pivot_abs('segimentlocator1').x,2)+math.pow(ysm.bone_pivot_abs('segimentlocator2').y-ysm.bone_pivot_abs('segimentlocator1').y,2)+math.pow(ysm.bone_pivot_abs('segimentlocator2').z-ysm.bone_pivot_abs('segimentlocator1').z,2))/12.2459",
+						1
+					]
+				},
+				"segiment_2": {
+					"rotation": [
+						"-180*math.atan((ysm.bone_pivot_abs('segimentlocator3').z-ysm.bone_pivot_abs('segimentlocator2').z)/math.sqrt(math.pow(ysm.bone_pivot_abs('segimentlocator3').y-ysm.bone_pivot_abs('segimentlocator2').y,2)+math.pow(ysm.bone_pivot_abs('segimentlocator3').x-ysm.bone_pivot_abs('segimentlocator2').x,2)))/math.pi",
+						0,
+						"((ysm.bone_pivot_abs('segimentlocator2').y-ysm.bone_pivot_abs('segimentlocator3').y)>0?180:0)+180*math.atan((ysm.bone_pivot_abs('segimentlocator2').x-ysm.bone_pivot_abs('segimentlocator3').x)/(ysm.bone_pivot_abs('segimentlocator2').y-ysm.bone_pivot_abs('segimentlocator3').y))/math.pi"
+					],
+					"position": ["ysm.bone_pivot_abs('segimentlocator2').x", "ysm.bone_pivot_abs('segimentlocator2').y", "ysm.bone_pivot_abs('segimentlocator2').z"]
+				},
+				"segiment_Y_2": {
+					"scale": [
+						1,
+						"math.sqrt(math.pow(ysm.bone_pivot_abs('segimentlocator3').x-ysm.bone_pivot_abs('segimentlocator2').x,2)+math.pow(ysm.bone_pivot_abs('segimentlocator3').y-ysm.bone_pivot_abs('segimentlocator2').y,2)+math.pow(ysm.bone_pivot_abs('segimentlocator3').z-ysm.bone_pivot_abs('segimentlocator2').z,2))/12.2459",
+						1
+					]
+				},
+				"segiment_3": {
+					"rotation": [
+						"-180*math.atan((ysm.bone_pivot_abs('segimentlocator4').z-ysm.bone_pivot_abs('segimentlocator3').z)/math.sqrt(math.pow(ysm.bone_pivot_abs('segimentlocator4').y-ysm.bone_pivot_abs('segimentlocator3').y,2)+math.pow(ysm.bone_pivot_abs('segimentlocator4').x-ysm.bone_pivot_abs('segimentlocator3').x,2)))/math.pi",
+						0,
+						"((ysm.bone_pivot_abs('segimentlocator3').y-ysm.bone_pivot_abs('segimentlocator4').y)>0?180:0)+180*math.atan((ysm.bone_pivot_abs('segimentlocator3').x-ysm.bone_pivot_abs('segimentlocator4').x)/(ysm.bone_pivot_abs('segimentlocator3').y-ysm.bone_pivot_abs('segimentlocator4').y))/math.pi"
+					],
+					"position": ["ysm.bone_pivot_abs('segimentlocator3').x", "ysm.bone_pivot_abs('segimentlocator3').y", "ysm.bone_pivot_abs('segimentlocator3').z"]
+				},
+				"segiment_Y_3": {
+					"scale": [
+						1,
+						"math.sqrt(math.pow(ysm.bone_pivot_abs('segimentlocator4').x-ysm.bone_pivot_abs('segimentlocator3').x,2)+math.pow(ysm.bone_pivot_abs('segimentlocator4').y-ysm.bone_pivot_abs('segimentlocator3').y,2)+math.pow(ysm.bone_pivot_abs('segimentlocator4').z-ysm.bone_pivot_abs('segimentlocator3').z,2))/12.2459",
+						1
+					]
+				},
+				"segiment_4": {
+					"rotation": [
+						"-180*math.atan((ysm.bone_pivot_abs('segimentlocator5').z-ysm.bone_pivot_abs('segimentlocator4').z)/math.sqrt(math.pow(ysm.bone_pivot_abs('segimentlocator5').y-ysm.bone_pivot_abs('segimentlocator4').y,2)+math.pow(ysm.bone_pivot_abs('segimentlocator5').x-ysm.bone_pivot_abs('segimentlocator4').x,2)))/math.pi",
+						0,
+						"((ysm.bone_pivot_abs('segimentlocator4').y-ysm.bone_pivot_abs('segimentlocator5').y)>0?180:0)+180*math.atan((ysm.bone_pivot_abs('segimentlocator4').x-ysm.bone_pivot_abs('segimentlocator5').x)/(ysm.bone_pivot_abs('segimentlocator4').y-ysm.bone_pivot_abs('segimentlocator5').y))/math.pi"
+					],
+					"position": ["ysm.bone_pivot_abs('segimentlocator4').x", "ysm.bone_pivot_abs('segimentlocator4').y", "ysm.bone_pivot_abs('segimentlocator4').z"]
+				},
+				"segiment_Y_4": {
+					"scale": [
+						1,
+						"math.sqrt(math.pow(ysm.bone_pivot_abs('segimentlocator5').x-ysm.bone_pivot_abs('segimentlocator4').x,2)+math.pow(ysm.bone_pivot_abs('segimentlocator5').y-ysm.bone_pivot_abs('segimentlocator4').y,2)+math.pow(ysm.bone_pivot_abs('segimentlocator5').z-ysm.bone_pivot_abs('segimentlocator4').z,2))/12.2459",
+						1
+					]
+				},
+				"segiment_5": {
+					"rotation": [
+						"-180*math.atan((ysm.bone_pivot_abs('segimentlocator6').z-ysm.bone_pivot_abs('segimentlocator5').z)/math.sqrt(math.pow(ysm.bone_pivot_abs('segimentlocator6').y-ysm.bone_pivot_abs('segimentlocator5').y,2)+math.pow(ysm.bone_pivot_abs('segimentlocator6').x-ysm.bone_pivot_abs('segimentlocator5').x,2)))/math.pi",
+						0,
+						"((ysm.bone_pivot_abs('segimentlocator5').y-ysm.bone_pivot_abs('segimentlocator6').y)>0?180:0)+180*math.atan((ysm.bone_pivot_abs('segimentlocator5').x-ysm.bone_pivot_abs('segimentlocator6').x)/(ysm.bone_pivot_abs('segimentlocator5').y-ysm.bone_pivot_abs('segimentlocator6').y))/math.pi"
+					],
+					"position": ["ysm.bone_pivot_abs('segimentlocator5').x", "ysm.bone_pivot_abs('segimentlocator5').y", "ysm.bone_pivot_abs('segimentlocator5').z"]
+				},
+				"segiment_Y_5": {
+					"scale": [
+						1,
+						"math.sqrt(math.pow(ysm.bone_pivot_abs('segimentlocator6').x-ysm.bone_pivot_abs('segimentlocator5').x,2)+math.pow(ysm.bone_pivot_abs('segimentlocator6').y-ysm.bone_pivot_abs('segimentlocator5').y,2)+math.pow(ysm.bone_pivot_abs('segimentlocator6').z-ysm.bone_pivot_abs('segimentlocator5').z,2))/12.2459",
+						1
+					]
+				},
+				"segiment_6": {
+					"rotation": [
+						"-180*math.atan((ysm.bone_pivot_abs('segimentlocator7').z-ysm.bone_pivot_abs('segimentlocator6').z)/math.sqrt(math.pow(ysm.bone_pivot_abs('segimentlocator7').y-ysm.bone_pivot_abs('segimentlocator6').y,2)+math.pow(ysm.bone_pivot_abs('segimentlocator7').x-ysm.bone_pivot_abs('segimentlocator6').x,2)))/math.pi",
+						0,
+						"((ysm.bone_pivot_abs('segimentlocator6').y-ysm.bone_pivot_abs('segimentlocator7').y)>0?180:0)+180*math.atan((ysm.bone_pivot_abs('segimentlocator6').x-ysm.bone_pivot_abs('segimentlocator7').x)/(ysm.bone_pivot_abs('segimentlocator6').y-ysm.bone_pivot_abs('segimentlocator7').y))/math.pi"
+					],
+					"position": ["ysm.bone_pivot_abs('segimentlocator6').x", "ysm.bone_pivot_abs('segimentlocator6').y", "ysm.bone_pivot_abs('segimentlocator6').z"]
+				},
+				"segiment_Y_6": {
+					"scale": [
+						1,
+						"math.sqrt(math.pow(ysm.bone_pivot_abs('segimentlocator7').x-ysm.bone_pivot_abs('segimentlocator6').x,2)+math.pow(ysm.bone_pivot_abs('segimentlocator7').y-ysm.bone_pivot_abs('segimentlocator6').y,2)+math.pow(ysm.bone_pivot_abs('segimentlocator7').z-ysm.bone_pivot_abs('segimentlocator6').z,2))/12.2459",
+						1
+					]
+				},
+				"segiment_7": {
+					"rotation": [
+						"-180*math.atan((ysm.bone_pivot_abs('segimentlocator8').z-ysm.bone_pivot_abs('segimentlocator7').z)/math.sqrt(math.pow(ysm.bone_pivot_abs('segimentlocator8').y-ysm.bone_pivot_abs('segimentlocator7').y,2)+math.pow(ysm.bone_pivot_abs('segimentlocator8').x-ysm.bone_pivot_abs('segimentlocator7').x,2)))/math.pi",
+						0,
+						"((ysm.bone_pivot_abs('segimentlocator7').y-ysm.bone_pivot_abs('segimentlocator8').y)>0?180:0)+180*math.atan((ysm.bone_pivot_abs('segimentlocator7').x-ysm.bone_pivot_abs('segimentlocator8').x)/(ysm.bone_pivot_abs('segimentlocator7').y-ysm.bone_pivot_abs('segimentlocator8').y))/math.pi"
+					],
+					"position": ["ysm.bone_pivot_abs('segimentlocator7').x", "ysm.bone_pivot_abs('segimentlocator7').y", "ysm.bone_pivot_abs('segimentlocator7').z"]
+				},
+				"segiment_Y_7": {
+					"scale": [
+						1,
+						"math.sqrt(math.pow(ysm.bone_pivot_abs('segimentlocator8').x-ysm.bone_pivot_abs('segimentlocator7').x,2)+math.pow(ysm.bone_pivot_abs('segimentlocator8').y-ysm.bone_pivot_abs('segimentlocator7').y,2)+math.pow(ysm.bone_pivot_abs('segimentlocator8').z-ysm.bone_pivot_abs('segimentlocator7').z,2))/12.2459",
+						1
+					]
+				},
+				"segiment_8": {
+					"rotation": [
+						"-180*math.atan((ysm.bone_pivot_abs('segimentlocator1').z-ysm.bone_pivot_abs('segimentlocator8').z)/math.sqrt(math.pow(ysm.bone_pivot_abs('segimentlocator1').y-ysm.bone_pivot_abs('segimentlocator8').y,2)+math.pow(ysm.bone_pivot_abs('segimentlocator1').x-ysm.bone_pivot_abs('segimentlocator8').x,2)))/math.pi",
+						0,
+						"((ysm.bone_pivot_abs('segimentlocator8').y-ysm.bone_pivot_abs('segimentlocator1').y)>0?180:0)+180*math.atan((ysm.bone_pivot_abs('segimentlocator8').x-ysm.bone_pivot_abs('segimentlocator1').x)/(ysm.bone_pivot_abs('segimentlocator8').y-ysm.bone_pivot_abs('segimentlocator1').y))/math.pi"
+					],
+					"position": ["ysm.bone_pivot_abs('segimentlocator8').x", "ysm.bone_pivot_abs('segimentlocator8').y", "ysm.bone_pivot_abs('segimentlocator8').z"]
+				},
+				"segiment_Y_8": {
+					"scale": [
+						1,
+						"math.sqrt(math.pow(ysm.bone_pivot_abs('segimentlocator1').x-ysm.bone_pivot_abs('segimentlocator8').x,2)+math.pow(ysm.bone_pivot_abs('segimentlocator1').y-ysm.bone_pivot_abs('segimentlocator8').y,2)+math.pow(ysm.bone_pivot_abs('segimentlocator1').z-ysm.bone_pivot_abs('segimentlocator8').z,2))/12.2459",
+						1
+					]
+				}
+			}
+		},
+		"parallel1": {
+			"loop": true,
+			"bones": {
+				"spoke1": {
+					"rotation": ["-40*ysm.perlin_noise(37,1,query.life_time,2)-math.random(-15,15)", 0, "15*ysm.perlin_noise(37,1,2,query.life_time)+math.random(-7.5,7.5)"],
+					"scale": "0.3*ysm.perlin_noise(37,query.life_time,1,2)+math.random(0.85,1.15)"
+				},
+				"spoke2": {
+					"rotation": [
+						"-40*ysm.perlin_noise(114,1,query.life_time,2)-math.random(-15,15)",
+						0,
+						"15*ysm.perlin_noise(114,1,2,query.life_time)+math.random(-7.5,7.5)"
+					],
+					"scale": "0.3*ysm.perlin_noise(114,query.life_time,1,2)+math.random(0.85,1.15)"
+				},
+				"spoke3": {
+					"rotation": ["-40*ysm.perlin_noise(53,1,query.life_time,2)-math.random(-15,15)", 0, "15*ysm.perlin_noise(53,1,2,query.life_time)+math.random(-7.5,7.5)"],
+					"scale": "0.3*ysm.perlin_noise(53,query.life_time,1,2)+math.random(0.85,1.15)"
+				},
+				"spoke4": {
+					"rotation": ["-40*ysm.perlin_noise(71,1,query.life_time,2)-math.random(-15,15)", 0, "15*ysm.perlin_noise(71,1,2,query.life_time)+math.random(-7.5,7.5)"],
+					"scale": "0.3*ysm.perlin_noise(71,query.life_time,1,2)+math.random(0.85,1.15)"
+				},
+				"spoke5": {
+					"rotation": ["-40*ysm.perlin_noise(89,1,query.life_time,2)-math.random(-15,15)", 0, "15*ysm.perlin_noise(89,1,2,query.life_time)+math.random(-7.5,7.5)"],
+					"scale": "0.3*ysm.perlin_noise(89,query.life_time,1,2)+math.random(0.85,1.15)"
+				},
+				"spoke6": {
+					"rotation": [
+						"-40*ysm.perlin_noise(131,1,query.life_time,2)-math.random(-15,15)",
+						0,
+						"15*ysm.perlin_noise(131,1,2,query.life_time)+math.random(-7.5,7.5)"
+					],
+					"scale": "0.3*ysm.perlin_noise(131,query.life_time,1,2)+math.random(0.85,1.15)"
+				},
+				"spoke7": {
+					"rotation": [
+						"-40*ysm.perlin_noise(173,1,query.life_time,2)-math.random(-15,15)",
+						0,
+						"15*ysm.perlin_noise(173,1,2,query.life_time)+math.random(-7.5,7.5)"
+					],
+					"scale": "0.3*ysm.perlin_noise(173,query.life_time,1,2)+math.random(0.85,1.15)"
+				},
+				"spoke8": {
+					"rotation": [
+						"-40*ysm.perlin_noise(211,1,query.life_time,2)-math.random(-15,15)",
+						0,
+						"15*ysm.perlin_noise(211,1,2,query.life_time)+math.random(-7.5,7.5)"
+					],
+					"scale": "0.3*ysm.perlin_noise(211,query.life_time,1,2)+math.random(0.85,1.15)"
+				},
+				"root": {
+					"rotation": ["-30*ysm.perlin_noise(514,1,query.life_time,2)", "-30*ysm.perlin_noise(514,query.life_time,1,2)", "60*query.life_time"]
+				}
+			}
+		}
+	}
 }

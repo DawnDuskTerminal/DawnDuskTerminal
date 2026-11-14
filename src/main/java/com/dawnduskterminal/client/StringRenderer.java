@@ -6,7 +6,6 @@ import com.dawnduskterminal.client.animation.YsmAnimatable;
 import com.dawnduskterminal.client.animation.YsmEntityRenderer;
 import com.dawnduskterminal.entity.StringEntity;
 import com.dawnduskterminal.geckolib3.core.event.predicate.AnimationEvent;
-import com.dawnduskterminal.geckolib3.core.molang.context.AnimationContext;
 import com.dawnduskterminal.geckolib3.core.util.Color;
 import com.dawnduskterminal.registry.ModEntities;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
@@ -30,9 +29,12 @@ import org.jetbrains.annotations.Nullable;
  * {@code textures/block/portal_fluid_still.png} 与 {@code textures/block/portal_fluid_flow.png}。
  * geo 里的 texture_width/height 是单帧尺寸 16x16 与 32x32。
  *
- * <p><b>已知差距</b>：这两张是动画条，原先靠 GeckoLib 4 的 {@code AnimatableTexture} 逐帧上传。
- * 现在的运行时内核不带贴图动画，因此它们按单帧绘制（第一帧）。要恢复需要自带一个
- * {@code .mcmeta} 读帧上传的实现。
+ * <p>姿态完全由模型作者的两条动画文件驱动（{@code animations/string.animation.json} 与
+ * {@code animations/string_large.animation.json}），两条片段 {@code parallel0} / {@code parallel1}
+ * 由并行动画控制器循环播放，里面用的 {@code ysm.bone_pivot_abs}、{@code ysm.perlin_noise}、
+ * {@code math.random} 都是运行时真算的，不做任何替换。
+ *
+ * <p>这两张贴图是 32 帧的竖条，由 {@link AnimatedStripTexture} 按 {@code .mcmeta} 逐帧上传。
  *
  * <p>渲染类型用半透明的自发光实体层：流体贴图的 alpha 是 230/255，默认的 cutout 会把它当成不透明；
  * 自发光让整张贴图不受天光与方块光压暗，全身一直亮。
@@ -43,8 +45,7 @@ import org.jetbrains.annotations.Nullable;
  * 看起来就是被流体和天上的云挡在后面。这里按 {@code entityTranslucent} 的配方自己配一个：
  * 自发光 shader、不挂光图、保留半透明，写掩码用默认的 {@code COLOR_DEPTH_WRITE}。
  *
- * <p>死亡不播倒地动画：{@code getDeathMaxRotation} 覆写为 0。模型本身没有死亡片段，姿态层会继续
- * 按液面游走的动作摆动，只是不再位移。
+ * <p>模型里没有死亡片段，死亡时姿态层照旧按动画摆动，只是不再位移。
  */
 public final class StringRenderer {
     /** 每种贴图一个类型（小型与大型各一张），第一次用时配好缓存住 */
@@ -55,10 +56,13 @@ public final class StringRenderer {
     private static final ResourceLocation SMALL_TEXTURE = DawnDuskTerminal.id("textures/block/portal_fluid_still.png");
     private static final ResourceLocation LARGE_TEXTURE = DawnDuskTerminal.id("textures/block/portal_fluid_flow.png");
     /**
-     * 两个源片段全部是 YSM 状态查询，转换后只剩 0/0，因此文件里没有片段：
-     * 姿态完全由 {@link StringPose} 在 {@code setCustomAnimations} 里算
+     * 小型与大型各有一条动画条文件，内容就是模型作者的原件（{@code parallel0} 是弦环的朝向解算，
+     * {@code parallel1} 是辐条摆动与本体自转）
      */
     private static final ResourceLocation ANIMATIONS = DawnDuskTerminal.id("animations/string.animation.json");
+
+    private static final ResourceLocation LARGE_ANIMATIONS =
+            DawnDuskTerminal.id("animations/string_large.animation.json");
 
     private StringRenderer() {}
 
@@ -132,8 +136,6 @@ public final class StringRenderer {
     }
 
     private static final class Animatable extends YsmAnimatable<StringEntity> {
-        private final StringPose pose = new StringPose();
-
         private Animatable(StringEntity entity) {
             super(entity, SMALL_GEO, ANIMATIONS, SMALL_TEXTURE);
         }
@@ -144,23 +146,19 @@ public final class StringRenderer {
         }
 
         @Override
+        public ResourceLocation getAnimationFileLocation() {
+            return this.entity.isLargeVariant() ? LARGE_ANIMATIONS : ANIMATIONS;
+        }
+
+        @Override
         public ResourceLocation getTextureLocation() {
             return this.entity.isLargeVariant() ? LARGE_TEXTURE : SMALL_TEXTURE;
         }
 
-        /** 动画文件里没有片段：姿态由 {@link StringPose} 每帧算 */
+        /** 模型里没有 main 片段：姿态全在 parallel0 / parallel1 里，由并行动画控制器循环播放 */
         @Override
         protected String mainClip(AnimationEvent<YsmAnimatable<StringEntity>> event) {
             return null;
-        }
-
-        @Override
-        public boolean setCustomAnimations(AnimationContext<?> context, AnimationEvent<?> event) {
-            boolean updated = super.setCustomAnimations(context, event);
-            if (this.getCurrentModel() != null) {
-                this.pose.apply(this.entity, this.getCurrentModel(), event.getPartialTick());
-            }
-            return updated;
         }
     }
 }

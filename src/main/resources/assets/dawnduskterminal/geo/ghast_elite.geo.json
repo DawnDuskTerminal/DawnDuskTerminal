@@ -536,6 +536,31 @@
 					]
 				},
 				{
+					"name": "ribbonphy_leg_M_all_set",
+					"parent": "root",
+					"pivot": [0, 0, 0]
+				},
+				{
+					"name": "ribbonphy_leg_M_set_a",
+					"parent": "ribbonphy_leg_M_all_set",
+					"pivot": [0, 0, 0]
+				},
+				{
+					"name": "ribbonphy_leg_M_set_x",
+					"parent": "ribbonphy_leg_M_all_set",
+					"pivot": [-1, 0, 0]
+				},
+				{
+					"name": "ribbonphy_leg_M_set_y",
+					"parent": "ribbonphy_leg_M_all_set",
+					"pivot": [0, 1, 0]
+				},
+				{
+					"name": "ribbonphy_leg_M_set_z",
+					"parent": "ribbonphy_leg_M_all_set",
+					"pivot": [0, 0, 1]
+				},
+				{
 					"name": "ribbonphy_leg_F_L_all_set",
 					"parent": "root",
 					"pivot": [36, 0, -36]
@@ -634,31 +659,6 @@
 					"name": "ribbonphy_leg_B_R_set_z",
 					"parent": "ribbonphy_leg_B_R_all_set",
 					"pivot": [-36, 0, 37]
-				},
-				{
-					"name": "ribbonphy_leg_M_all_set",
-					"parent": "root",
-					"pivot": [0, 0, 0]
-				},
-				{
-					"name": "ribbonphy_leg_M_set_a",
-					"parent": "ribbonphy_leg_M_all_set",
-					"pivot": [0, 0, 0]
-				},
-				{
-					"name": "ribbonphy_leg_M_set_x",
-					"parent": "ribbonphy_leg_M_all_set",
-					"pivot": [-1, 0, 0]
-				},
-				{
-					"name": "ribbonphy_leg_M_set_y",
-					"parent": "ribbonphy_leg_M_all_set",
-					"pivot": [0, 1, 0]
-				},
-				{
-					"name": "ribbonphy_leg_M_set_z",
-					"parent": "ribbonphy_leg_M_all_set",
-					"pivot": [0, 0, 1]
 				},
 				{
 					"name": "ribbonphy_all_Coll",

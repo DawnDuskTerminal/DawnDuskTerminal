@@ -3,6 +3,7 @@ package com.dawnduskterminal.gametest;
 import com.dawnduskterminal.DawnDuskTerminal;
 import com.dawnduskterminal.block.Experiment052Block;
 import com.dawnduskterminal.entity.GhastEliteEntity;
+import com.dawnduskterminal.entity.GhastEliteFireball;
 import com.dawnduskterminal.entity.GhastElitePopulation;
 import com.dawnduskterminal.entity.GhastFruityEntity;
 import com.dawnduskterminal.entity.GhastFruityPopulation;
@@ -535,6 +536,31 @@ public final class GhastFruityTests {
                 "the deflected fireball must head for the current target, wanted " + aim + " got " + movement);
         helper.assertTrue(
                 fireball.getOwner() == ghast, "the deflected fireball must count as the ghastfruity's own projectile");
+        helper.succeed();
+    }
+
+    /**
+     * 大恶魂的火球：爆炸威力 2
+     *
+     * <p>威力是 {@link GhastEliteFireball#EXPLOSION_POWER}，由火球自己的 {@code onHit} 交给
+     * {@code level().explode}（照暮色森林 {@code UrGhastFireball} 的写法，不碰原版的 private 字段）。
+     * 这条钉住数值；「直接命中不结算伤害」没有可观察的状态位，靠的是 {@code onHitEntity} 被空实现，
+     * 行为在实机验证。
+     */
+    @GameTest(template = "ddt_empty")
+    public static void eliteFireballHasDoubleExplosionPower(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        GhastEliteEntity owner = helper.spawn(ModEntities.GHAST_ELITE.get(), 3, 4, 3);
+        GhastEliteFireball fireball = new GhastEliteFireball(level, owner, new Vec3(0.0D, 0.0D, 1.0D));
+        helper.assertTrue(
+                GhastEliteFireball.EXPLOSION_POWER == 2,
+                "the elite fireball's explosion power must be 2, was " + GhastEliteFireball.EXPLOSION_POWER);
+        helper.assertTrue(
+                fireball.getDeltaMovement().length() < 0.2D,
+                "the fireball must leave the muzzle at accelerationPower (0.1), like the vanilla and TF fireballs, was "
+                        + fireball.getDeltaMovement().length());
+        fireball.discard();
+        owner.discard();
         helper.succeed();
     }
 

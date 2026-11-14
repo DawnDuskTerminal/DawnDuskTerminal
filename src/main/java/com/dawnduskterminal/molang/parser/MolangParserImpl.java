@@ -109,6 +109,12 @@ final class MolangParserImpl implements MolangParser {
                             throw new ParseException("Missing semicolon", lexer.cursor());
                         }
                         lexer.next();
+                        // 块内允许收尾分号：`{ ...; }`。Bedrock 与 YSM 的 timeline 程序普遍这样写，
+                        // 直接进入下一轮会让 `}` 落到 parseSingle 里报 "Expected an expression"
+                        if (lexer.current().kind() == TokenKind.RBRACE) {
+                            lexer.next();
+                            break;
+                        }
                     }
                 }
                 return new ExecutionScopeExpression(expressions);

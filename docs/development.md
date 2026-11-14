@@ -34,8 +34,9 @@ NeoForge 与 ModDevGradle 的版本分别记录在 `gradle.properties` 与 `sett
 两者都来自
 TouhouLittleMaid（MIT），与上游的差异、以及为什么这样选，见 `docs/ysm.md`。
 
-模型包按 Yes Steve Model 的原样布局放在 `assets/dawnduskterminal/ysm/<模型包>/`，运行时解析；
-新增模型包的步骤同样见 `docs/ysm.md`。
+实体模型、动画、贴图按统一布局放在 `assets/dawnduskterminal/geo/`、`animations/`、`textures/entity/`，
+文件名与实体一致，内容是模型作者的原件；运行时解析。
+新增模型的步骤同样见 `docs/ysm.md`。
 
 ## 开发用的客户端模组
 

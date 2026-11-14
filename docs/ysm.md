@@ -46,9 +46,31 @@
 - `AnimationEvent.isMoving()`：这个 fork 里那个标志是 `limbSwingAmount <= 阈值`，直接把 walk 与 idle 播反。
   改用 `walkAnimation.speed()` 与速度判断，见 `client/TowerGhastRenderer`。
 
-## 模型包怎么放
+## 当前的文件布局
 
-一个模型包就是一个 YSM 模型包，**不改写任何文件**，放在 `assets/dawnduskterminal/ysm/<包名>/`：
+大部分实体的模型、动画、贴图按统一布局平铺，每个实体三份文件、命名与实体一致，
+内容都是模型作者的原件，逐字节不改写：
+
+| 内容 | 位置 | 例子 |
+|---|---|---|
+| 几何 | `assets/dawnduskterminal/geo/<名字>.geo.json` | `geo/ghast_elite.geo.json` |
+| 动画 | `assets/dawnduskterminal/animations/<名字>.animation.json` | `animations/ghast_elite.animation.json` |
+| 贴图 | `assets/dawnduskterminal/textures/entity/<名字>.png` | `textures/entity/ghast_elite.png` |
+
+按这个布局接线的实体：大恶魂、恶果（普通与持块两套几何）、弦（小型与大型两套几何加两条动画）、
+博览轮、试验 057 飞刃。另外 `geo/ghasbigail.geo.json` 与 `geo/ghayelliupiter.geo.json`
+是尚无敌事实体的备用模型，同样按原名原样放着。
+
+一个实体可以按状态换几何与动画：重写 `YsmAnimatable#getModelLocation` 与
+`#getAnimationFileLocation`，`updateModel()` 装载的就是这两个 getter 返回的文件。
+早先按构造参数装载，变体用的第二份几何永远进不了缓存，症状是「只有影子、什么都画不出来」。
+
+唯一的目录式布局是 `ysm/tower_ghast/`：那是一个完整的 YSM 角色包，
+对应测试实体「测试恶魂 591」，后续会整体删除，因此保留 `ysm.json` + `models/main.json` 的结构。
+
+## 模型包怎么放（目录式 YSM 包）
+
+一个 YSM 模型包**不改写任何文件**，放在 `assets/dawnduskterminal/ysm/<包名>/`：
 
 ```
 ysm.json                         包元数据：properties.height_scale / width_scale / default_texture
@@ -70,9 +92,7 @@ controller/*.json                并行动画控制器，仅作分层关系的�
 | 只有 `main` 与 `extra` 两个动画文件会被合并 | 放在别的名字里（`tlm` / `tac` / `arm`）的片段，控制器找不到 |
 | 几何的 `format_version` 必须是 `1.12.0` | 加载时报 `几何文件版本 X 不被支持`，实体只剩影子 |
 
-现有两个包：`ysm/tower_ghast`（高塔恶魂）与 `ysm/ghast_elite`（大恶魂）。
-后者原本只有散装三个文件，
-补齐了一份最小 `ysm.json`。
+现存唯一的包是 `ysm/tower_ghast`（测试恶魂 591）。
 
 加载点是 `client/animation/YsmPacks`：`ResourceManager` → `Converter` / `RawGeometryTree` / `GeoBuilder`
 得到几何，`JsonAnimationUtils` 得到动画，两者都按文件缓存在 `GeckoLibCache` 里。
@@ -148,7 +168,8 @@ build/moddev/artifacts/neoforge-<版本>-merged.jar:." Check \
 ```
 
 `Check` 是个一次性的小程序（见下），它会打印几何的骨骼与立方体数量，以及每条片段解析成功还是失败。
-现在两个包的结果是：高塔恶魂 50 条、大恶魂 2 条，全部通过。
+现在的校验结果是：高塔恶魂 50 条主片段加 22 条手动动作、大恶魂 2 条、弦 2 条加大型 2 条、
+博览轮 1 条、飞刃 1 条、备用模型 6 条，全部通过；5640 条 Molang 表达式逐条解析零失败。
 
 ```java
 // Check.java —— 只依赖运行时本体，不碰客户端
@@ -236,7 +257,8 @@ for (Map.Entry<String, JsonElement> entry : JsonAnimationUtils.getAnimations(jso
 ```
 
 第二个命令把 `id` 用引号写成空串即回到默认包。
-目前两个包是给各自生物量身做的，互换只会证明机制可用，不会好看。
+目前只有测试恶魂 591（`tower_ghast`）支持换包：其余实体按统一布局固定三份文件，
+渲染器不再读包 id，`/ddt pack` 对它们无效。
 
 换包后的重建由 `YsmEntityRenderer.requestedPack` 负责：模型包 id 变了就丢弃旧的动画实例（模型、动画、
 物理状态都挂在实例上），下一帧用新包重建。

@@ -12,7 +12,6 @@ import com.dawnduskterminal.geckolib3.core.event.predicate.AnimationEvent;
 import com.dawnduskterminal.geckolib3.core.molang.context.AnimationContext;
 import com.dawnduskterminal.geckolib3.core.molang.storage.VariableStorage;
 import com.dawnduskterminal.geckolib3.core.molang.util.StringPool;
-import com.dawnduskterminal.geckolib3.file.AnimationFile;
 import com.dawnduskterminal.geckolib3.geo.IGeoEntity;
 import com.dawnduskterminal.geckolib3.geo.animated.ILocationModel;
 import com.dawnduskterminal.molang.runtime.HashMapStruct;
@@ -122,9 +121,17 @@ public abstract class YsmAnimatable<M extends Entity> extends AnimatableEntity<M
         }
     }
 
-    /** 命令里用的是短名（{@code hat}），模型包里声明的是完整变量名（{@code roaming.hat}） */
+    /**
+     * 命令里用的是短名（{@code hat}），模型包里声明的是完整变量名（{@code roaming.hat}）
+     *
+     * <p>平铺布局的实体（大恶魂、恶果、弦…）没有包元数据，也就没有外观开关可言：
+     * 静默忽略，不刷警告——它们的几何里没有按 {@code v.roaming.*} 显示的部件。
+     */
     private void applyRoamingKey(String key, double value) {
-        YsmPack.RoamingOption option = this.pack == null ? null : this.pack.roamingOption(key);
+        if (this.pack == null) {
+            return;
+        }
+        YsmPack.RoamingOption option = this.pack.roamingOption(key);
         if (option == null) {
             DawnDuskTerminal.LOGGER.warn("模型包 {} 没有声明外观开关 {}", this.packId(), key);
             return;
@@ -250,18 +257,23 @@ public abstract class YsmAnimatable<M extends Entity> extends AnimatableEntity<M
     }
 
     protected final boolean hasClip(String clip) {
-        if (this.animationFile == null) {
+        ResourceLocation file = this.getAnimationFileLocation();
+        if (file == null) {
             return false;
         }
-        AnimationFile file = YsmPacks.animations(this.animationFile);
-        return file.getAnimation(clip) != null;
+        return YsmPacks.animations(file).getAnimation(clip) != null;
     }
 
     /**
      * 先把几何与动画读进缓存，再交给基类切换模型
      *
-     * <p>{@link AnimatableEntity#updateModel} 只查缓存，不负责解析文件；模型包是运行期读的资源，
+     * <p>{@link AnimatableEntity#updateModel} 只查缓存，不负责解析文件；几何与动画是运行期读的资源，
      * 这里是唯一的装载点，缺少这一步的后果是「实体渲染出来但永远是静止的初始姿势」。
+     *
+     * <p>装载的是 {@link #getModelLocation()} 与 {@link #getAnimationFileLocation()}，
+     * <strong>不是构造时写死的那两个</strong>：一个实体可以按状态换几何（弦的小型与大型、
+     * 恶果的普通与持块），这两个 getter 才是「这一帧真正要用的文件」。
+     * 早先按构造参数装载，于是变体用到的第二份几何永远没进缓存，渲染器拿不到模型、整帧一个顶点都不画。
      */
     @Override
     public boolean updateModel() {
@@ -269,11 +281,13 @@ public abstract class YsmAnimatable<M extends Entity> extends AnimatableEntity<M
             // 资源重载会把包缓存清掉；重取一次才会重新合并动画文件，否则 main 里的片段会丢
             YsmPacks.get(this.pack.id());
         }
-        if (this.model != null) {
-            YsmPacks.geometry(this.model);
+        ResourceLocation model = this.getModelLocation();
+        if (model != null) {
+            YsmPacks.geometry(model);
         }
-        if (this.animationFile != null) {
-            YsmPacks.animations(this.animationFile);
+        ResourceLocation animations = this.getAnimationFileLocation();
+        if (animations != null) {
+            YsmPacks.animations(animations);
         }
         return super.updateModel();
     }
