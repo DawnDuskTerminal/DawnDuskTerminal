@@ -570,6 +570,8 @@ public final class WorldgenTests {
         } finally {
             if (previous != null) {
                 ChronoLineState.setServerLine(previous);
+            } else {
+                ChronoLineState.resetServerLine();
             }
         }
 
@@ -717,6 +719,8 @@ public final class WorldgenTests {
         } finally {
             if (previous != null) {
                 ChronoLineState.setServerLine(previous);
+            } else {
+                ChronoLineState.resetServerLine();
             }
         }
         helper.succeed();
@@ -795,6 +799,8 @@ public final class WorldgenTests {
         } finally {
             if (previous != null) {
                 ChronoLineState.setServerLine(previous);
+            } else {
+                ChronoLineState.resetServerLine();
             }
         }
         helper.succeed();

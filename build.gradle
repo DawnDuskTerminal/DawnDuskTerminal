@@ -108,9 +108,21 @@ tasks.register('animatedStripTextureCheck', JavaExec) {
     mainClass = 'com.dawnduskterminal.client.animation.AnimatedStripTextureTest'
 }
 
-// 让 ./gradlew build 同时执行框架与动画贴图检查
+// 会话检查必须运行于独立进程，不能清空正在运行的世界生成线程所读取的快照。
+['serverSessionCheck': [], 'serverSessionFailureCheck': ['probe-failure']].each { taskName, testArgs ->
+    tasks.register(taskName, JavaExec) {
+        group = 'verification'
+        description = '检查服务器会话隔离与异常停服保护'
+        dependsOn tasks.named('testClasses')
+        classpath = sourceSets.test.runtimeClasspath
+        mainClass = 'com.dawnduskterminal.server.ServerSessionTest'
+        args testArgs
+    }
+}
+
 tasks.named('check') {
-    dependsOn tasks.named('frameCheck'), tasks.named('animatedStripTextureCheck')
+    dependsOn tasks.named('frameCheck'), tasks.named('animatedStripTextureCheck'),
+        tasks.named('serverSessionCheck'), tasks.named('serverSessionFailureCheck')
 }
 
 repositories {

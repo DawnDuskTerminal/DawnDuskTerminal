@@ -101,6 +101,7 @@ public final class DawnDuskTerminal {
         NeoForge.EVENT_BUS.addListener(DdtServerEvents::onAnvilUpdate);
         // 稳定药水的炼药配方：药水配方没有数据包形式，只能在事件里补，见 ModPotions#registerBrewingRecipes
         NeoForge.EVENT_BUS.addListener(ModPotions::registerBrewingRecipes);
+        NeoForge.EVENT_BUS.addListener(DdtServerEvents::onServerAboutToStart);
         NeoForge.EVENT_BUS.addListener(DdtServerEvents::onServerStarted);
         NeoForge.EVENT_BUS.addListener(DdtServerEvents::onServerStopped);
         NeoForge.EVENT_BUS.addListener(DdtServerEvents::onServerTick);

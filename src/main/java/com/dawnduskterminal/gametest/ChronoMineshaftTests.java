@@ -353,6 +353,8 @@ public final class ChronoMineshaftTests {
         } finally {
             if (previous != null) {
                 ChronoLineState.setServerLine(previous);
+            } else {
+                ChronoLineState.resetServerLine();
             }
         }
         helper.assertTrue(

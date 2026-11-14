@@ -28,6 +28,11 @@ public final class GhastFruityPopulation {
 
     private static final Map<ResourceKey<Level>, Snapshot> SNAPSHOTS = new HashMap<>();
 
+    /** 服务器会话安全结束后清除各维度的计数与预留名额。 */
+    public static void clear() {
+        SNAPSHOTS.clear();
+    }
+
     /** 当前加载中的个体数。不读缓存，测试与调试用 */
     public static int loaded(ServerLevel level) {
         // 整个世界范围：实体管理器只会遍历加载中的区段，所以这就是「加载中的个体」

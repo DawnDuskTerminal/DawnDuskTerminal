@@ -66,6 +66,71 @@ import twilightforest.init.TFEntities;
 @GameTestHolder("dawnduskterminal")
 @PrefixGameTestTemplate(false)
 public final class GhastFruityTests {
+    @GameTest(template = "ddt_large", batch = "ghast_population")
+    public static void populationReservationsDoNotCrossSessions(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        helper.assertTrue(
+                GhastElitePopulation.loaded(level) == 0 && GhastFruityPopulation.loaded(level) == 0,
+                "the isolated population batch must start without loaded ghasts");
+        long gameTime = level.getGameTime();
+        GhastEliteEntity elite = null;
+        GhastFruityEntity fruity = null;
+        try {
+            GhastElitePopulation.clear();
+            GhastFruityPopulation.clear();
+            reserveEmptyPopulation(helper);
+            // 同一维度、同一游戏时间模拟下一会话，旧预留名额不得继续占用。
+            GhastElitePopulation.clear();
+            GhastFruityPopulation.clear();
+            reserveEmptyPopulation(helper);
+            elite = (GhastEliteEntity) helper.spawnWithNoFreeWill(ModEntities.GHAST_ELITE.get(), 8, 5, 8);
+            fruity = (GhastFruityEntity) helper.spawnWithNoFreeWill(ModEntities.GHASTFRUITY.get(), 20, 5, 20);
+            GhastElitePopulation.clear();
+            GhastFruityPopulation.clear();
+            helper.assertFalse(GhastElitePopulation.tryReserve(level), "a loaded elite must consume its actual slot");
+            for (int i = 1; i < GhastFruityPopulation.CAP; i++) {
+                helper.assertTrue(GhastFruityPopulation.tryReserve(level), "remaining fruity slots must be available");
+            }
+            helper.assertFalse(GhastFruityPopulation.tryReserve(level), "loaded and reserved slots must share the cap");
+            helper.assertTrue(level.getGameTime() == gameTime, "session isolation must be checked within one tick");
+        } finally {
+            if (elite != null) {
+                elite.discard();
+            }
+            if (fruity != null) {
+                fruity.discard();
+            }
+            GhastElitePopulation.clear();
+            GhastFruityPopulation.clear();
+        }
+        try {
+            reserveEmptyPopulation(helper);
+            helper.runAfterDelay(1, () -> {
+                try {
+                    reserveEmptyPopulation(helper);
+                    helper.succeed();
+                } finally {
+                    GhastElitePopulation.clear();
+                    GhastFruityPopulation.clear();
+                }
+            });
+        } catch (RuntimeException | Error failure) {
+            GhastElitePopulation.clear();
+            GhastFruityPopulation.clear();
+            throw failure;
+        }
+    }
+
+    private static void reserveEmptyPopulation(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        helper.assertTrue(GhastElitePopulation.tryReserve(level), "the first elite reservation must succeed");
+        helper.assertFalse(GhastElitePopulation.tryReserve(level), "a second elite reservation must fail");
+        for (int i = 0; i < GhastFruityPopulation.CAP; i++) {
+            helper.assertTrue(GhastFruityPopulation.tryReserve(level), "an empty fruity slot must be reservable");
+        }
+        helper.assertFalse(GhastFruityPopulation.tryReserve(level), "a fifth fruity reservation must fail");
+    }
+
     /**
      * 一整套配置钉在这里：生命值 30、索敌 24 格、碰撞箱照 {@code Root_spin_M} 的 1.5 格、
      * 一次只生一只（加载范围内最多 4 只）、火球从脸前 1.3 格出膛，外加两条依附于它的约定

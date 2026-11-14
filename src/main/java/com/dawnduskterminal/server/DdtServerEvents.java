@@ -1,6 +1,8 @@
 package com.dawnduskterminal.server;
 
 import com.dawnduskterminal.DawnDuskTerminal;
+import com.dawnduskterminal.entity.GhastElitePopulation;
+import com.dawnduskterminal.entity.GhastFruityPopulation;
 import com.dawnduskterminal.item.BeetrootProcess;
 import com.dawnduskterminal.item.FireJetProcess;
 import com.dawnduskterminal.item.GhastTrapProcess;
@@ -52,6 +54,7 @@ import net.neoforged.neoforge.event.AnvilUpdateEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
+import net.neoforged.neoforge.event.server.ServerAboutToStartEvent;
 import net.neoforged.neoforge.event.server.ServerStartedEvent;
 import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import net.neoforged.neoforge.event.tick.EntityTickEvent;
@@ -61,6 +64,8 @@ import net.neoforged.neoforge.network.PacketDistributor;
 
 public final class DdtServerEvents {
     private static final double ITEM_SCAN_RADIUS = 12.0D;
+    // 异常停服后不得让旧工作线程读取下一会话的快照；此标记在当前进程内不再解除。
+    private static volatile boolean restartRequired;
 
     private DdtServerEvents() {}
 
@@ -78,6 +83,14 @@ public final class DdtServerEvents {
                 event.setCanceled(true);
                 return;
             }
+        }
+    }
+
+    public static void onServerAboutToStart(ServerAboutToStartEvent event) {
+        if (restartRequired) {
+            throw new IllegalStateException(
+                    "DawnDuskTerminal could not confirm that the previous server's chunk tasks stopped. "
+                            + "Restart the game or server process before opening another world.");
         }
     }
 
@@ -150,8 +163,9 @@ public final class DdtServerEvents {
         }
     }
 
-    /** 服务器停下：把还在跑的喷火过程、恶魂陷阱场、095 与 055 的场、076 的反应、065 / 069 两张场的场心表、反建器二型的场心表与红篝火的气场表清干净，别留到下一次启动 */
+    /** 清理服务器会话；晨昏线与实体容量快照仅在区块任务全部结束后释放。 */
     public static void onServerStopped(ServerStoppedEvent event) {
+        finishServerSession(event.getServer());
         FireJetProcess.clear();
         GhastTrapProcess.clear();
         RequiemProcess.clear();
@@ -161,6 +175,34 @@ public final class DdtServerEvents {
         Experiment069Field.clear();
         AntibuilderType2Field.clear();
         CampCarminiteFireAura.clear();
+    }
+
+    static void finishServerSession(MinecraftServer server) {
+        try {
+            boolean hasWork = false;
+            for (ServerLevel level : server.getAllLevels()) {
+                // c2me 亦通过此方法将尚未释放的生成任务纳入原版停服等待条件。
+                hasWork |= level.getChunkSource().chunkMap.hasWork();
+            }
+            finishServerSession(hasWork);
+        } catch (RuntimeException error) {
+            restartRequired = true;
+            DawnDuskTerminal.LOGGER.error(
+                    "Cannot inspect stopped server's chunk tasks; retaining session snapshots. Restart required.",
+                    error);
+        }
+    }
+
+    static void finishServerSession(boolean hasWork) {
+        if (hasWork || restartRequired) {
+            restartRequired = true;
+            DawnDuskTerminal.LOGGER.error(
+                    "Stopped server may still have chunk tasks; retaining session snapshots. Restart required.");
+            return;
+        }
+        GhastElitePopulation.clear();
+        GhastFruityPopulation.clear();
+        ChronoLineState.resetServerLine();
     }
 
     public static void onPlayerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {

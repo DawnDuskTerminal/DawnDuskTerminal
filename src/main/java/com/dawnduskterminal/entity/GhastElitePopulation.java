@@ -16,7 +16,7 @@ import net.minecraft.world.phys.AABB;
  *
  * <p>{@code getMaxSpawnClusterSize} 约束的是单次生成的数量，无法限制累计数量，本类负责后者。
  *
- * <p>快照以维度为键常驻于进程之内，随进程结束而释放，且只在服务端主线程访问。
+ * <p>快照以维度为键，仅在服务端主线程访问，并在服务器会话安全结束后清理。
  */
 public final class GhastElitePopulation {
     /** 上限：同一维度的加载范围内最多 1 只 */
@@ -24,6 +24,11 @@ public final class GhastElitePopulation {
 
     /** 各维度最近一次统计的结果 */
     private static final Map<ResourceKey<Level>, Snapshot> SNAPSHOTS = new HashMap<>();
+
+    /** 服务器会话安全结束后清除各维度的计数与预留名额。 */
+    public static void clear() {
+        SNAPSHOTS.clear();
+    }
 
     /** 当前加载中的个体数量。不读取缓存，供测试与调试使用 */
     public static int loaded(ServerLevel level) {

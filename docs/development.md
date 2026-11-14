@@ -152,6 +152,16 @@ Twilight Forest 与 c2me 也在覆盖范围之内。
 LWJGL 的 native 包按平台分发。
 在 Windows 上生成校验值后，须补上 Linux 与 macOS 的校验值，否则 CI 首次解析 native 时会报告缺少校验。
 
+## 服务器会话隔离
+
+正常停服并排空区块任务后，清除服务端晨昏线快照与两类恶魂的容量缓存。
+若仍有待处理任务，或无法确认任务状态，则保留快照并拒绝启动下一会话。
+此时必须重启游戏或服务端进程，不得通过清空快照继续使用同一进程。
+
+`./gradlew serverSessionCheck serverSessionFailureCheck` 在独立 JVM 中检查清理与异常保护。
+这些检查已纳入 `build`，预期的故障注入会输出错误日志，但检查本身应正常退出。
+同一客户端的跨世界切换仍须单独验证，不能以这些检查代替。
+
 ## 格式化
 
 格式化由 Spotless 提供，规则写在 `build.gradle` 的 `spotless` 块中。

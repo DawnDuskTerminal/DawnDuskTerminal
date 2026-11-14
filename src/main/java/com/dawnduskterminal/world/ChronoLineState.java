@@ -83,7 +83,8 @@ public final class ChronoLineState extends SavedData {
     }
 
     public static ChronoLine serverLine() {
-        return serverLine != null ? serverLine : ChronoLine.fallback();
+        ChronoLine line = serverLine;
+        return line != null ? line : ChronoLine.fallback();
     }
 
     public static boolean hasServerLine() {
@@ -94,8 +95,14 @@ public final class ChronoLineState extends SavedData {
         serverLine = line;
     }
 
+    /** 仅在服务端世界生成任务全部结束后清除快照。 */
+    public static void resetServerLine() {
+        serverLine = null;
+    }
+
     public static ChronoLine clientLine() {
-        return clientLine != null ? clientLine : serverLine();
+        ChronoLine line = clientLine;
+        return line != null ? line : serverLine();
     }
 
     public static void setClientLine(ChronoLine line) {
