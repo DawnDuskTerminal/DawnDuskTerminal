@@ -229,7 +229,7 @@ public final class Experiment057Tests {
      * 于是「方向已经与视线平行、位置却偏在线外」——只做方向对齐的实现会一直保持 3 格偏距。
      * 手动走 14 拍，横向偏距必须明显缩小、且速度要朝线的方向拐过去
      */
-    @GameTest(template = "ddt_empty")
+    @GameTest(template = "ddt_empty", skyAccess = true)
     public static void bladeGuidesOntoTheSightLine(GameTestHelper helper) {
         BlockPos origin = helper.absolutePos(BlockPos.ZERO);
         Player player = plainPlayer(helper);

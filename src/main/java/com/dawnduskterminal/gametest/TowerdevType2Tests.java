@@ -170,7 +170,7 @@ public final class TowerdevType2Tests {
      * 通着电、有人在看就一直造：21 格照样造下去（暮色森林那一台在第 16 格就收工），
      * 人走了停手但机器不停摆（暮色森林那一台 60 tick 后会切到 timeout），人回来接着造
      */
-    @GameTest(template = "ddt_empty")
+    @GameTest(template = "ddt_large")
     public static void builderKeepsBuildingWhilePoweredAndWatched(GameTestHelper helper) {
         BlockPos machine = helper.absolutePos(CENTRE);
         ServerLevel level = helper.getLevel();

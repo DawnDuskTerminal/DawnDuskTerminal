@@ -451,7 +451,7 @@ public final class ExpowheelTests {
      * <p>让发射者原地朝正上方看（视线是一条竖直的线），飞轮从这条线旁边 3 格处、沿线的方向放出去——
      * 「方向已经与视线平行、位置却偏在线外」。手动走 14 拍，横向偏距必须明显缩小
      */
-    @GameTest(template = "ddt_empty")
+    @GameTest(template = "ddt_empty", skyAccess = true)
     public static void wheelGuidesOntoTheSightLineWhenThereIsNoEnemy(GameTestHelper helper) {
         clearEnemies(helper);
         Player player = plainPlayer(helper);

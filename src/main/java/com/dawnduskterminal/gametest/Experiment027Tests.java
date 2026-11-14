@@ -102,7 +102,7 @@ public final class Experiment027Tests {
     @GameTest(template = "ddt_empty")
     public static void surfacePointIsEmptyBeyondReach(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
-        BlockPos target = helper.absolutePos(new BlockPos(1, 3, 4));
+        BlockPos target = helper.absolutePos(new BlockPos(4, 3, 8));
         level.setBlockAndUpdate(target, Blocks.STONE.defaultBlockState());
 
         Player player = helper.makeMockPlayer(GameType.SURVIVAL);

@@ -1,9 +1,13 @@
 package com.dawnduskterminal.mixin;
 
 import com.dawnduskterminal.DawnDuskTerminal;
+import java.util.Collection;
 import net.minecraft.Util;
 import net.minecraft.gametest.framework.GameTestInfo;
+import net.minecraft.gametest.framework.GameTestListener;
 import net.minecraft.gametest.framework.GameTestRunner;
+import net.minecraft.gametest.framework.GameTestTimeoutException;
+import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
@@ -12,34 +16,30 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * 让 game test 在等不到「区块进入实体刻」时继续往下跑，而不是把整轮测试挂死
+ * 测试区块等待实体刻资格超时后明确失败，避免跳过准备条件或无限等待。
  *
- * <p>原版 {@code GameTestInfo.tick} 只有在 {@code chunksLoaded} 为真、或结构包围盒覆盖的每个区块都
- * {@code isPositionEntityTicking} 时才放结构并跑测试。实测会出现区块已经强制加载（{@code hasChunk}
- * 为真）却永远不进入实体刻的情况：那时这个条件永远为假，测试既不开始也不超时（超时由 {@code tickCount}
- * 判定，而判超时的 {@code tickInternal} 只在这个条件为真之后才会被调用）。于是
- * {@code GameTestServer.tickServer} 里 {@code testTracker.isDone()} 永远为假，而它叠加的
- * {@code waitUntilNextTick} 又不睡觉，结果就是每秒上万 tick 地刷同一行进度格子，永远不退出。实测 10 次
- * 里约 3 次会撞上，刷出来的日志超过 100 MB
- *
- * <p>这里等满 {@link #DDT$GRACE_MILLIS} 就把 {@code chunksLoaded} 置真放行。健康的一轮里这个条件在
- * 开局几个 tick 内就为真（GameTestServer 每秒几万 tick，几个 tick 只有零点几毫秒），所以兜底几乎不会
- * 触发；万一触发会打一条 warn，日志里看得见。本模组的测试都是同步断言（t=0），不依赖实体刻
+ * <p>原版只在区块就绪后推进测试超时，因此此处另设墙钟期限。
+ * 注入点位于原版刻的末尾，使刚刚就绪的区块优先进入正常执行路径。
+ * 等待超时必须通知监听器，否则后续测试批次仍无法启动。
  */
 @Mixin(GameTestInfo.class)
 public abstract class GameTestChunkWaitMixin {
-    /** 走满这么多毫秒还没等到实体刻就不再等，用墙钟而不是游戏刻，因为 GameTestServer 的刻飞快 */
+    /** 区块等待期限使用墙钟毫秒，不受测试服务器的刻速率影响。 */
     @Unique
     private static final long DDT$GRACE_MILLIS = 5000L;
 
     @Shadow
     private boolean chunksLoaded;
 
+    @Shadow
+    @Final
+    private Collection<GameTestListener> listeners;
+
     @Unique
     private long ddt$firstTickMillis = -1L;
 
-    @Inject(method = "tick", at = @At("HEAD"))
-    private void ddt$giveUpWaitingForEntityTicking(GameTestRunner runner, CallbackInfo ci) {
+    @Inject(method = "tick", at = @At("RETURN"))
+    private void ddt$failWaitingForEntityTicking(GameTestRunner runner, CallbackInfo ci) {
         GameTestInfo self = (GameTestInfo) (Object) this;
         if (this.chunksLoaded || self.isDone()) {
             return;
@@ -52,10 +52,13 @@ public abstract class GameTestChunkWaitMixin {
         if (now - this.ddt$firstTickMillis < DDT$GRACE_MILLIS) {
             return;
         }
-        this.chunksLoaded = true;
-        DawnDuskTerminal.LOGGER.warn(
-                "DawnDuskTerminal game test {} waited {} ms for its chunks to enter entity ticking, running it anyway",
+        long waited = now - this.ddt$firstTickMillis;
+        self.fail(new GameTestTimeoutException(
+                "Chunks did not enter entity ticking within " + waited + " ms; refusing to run " + self.getTestName()));
+        DawnDuskTerminal.LOGGER.error(
+                "DawnDuskTerminal game test {} failed after waiting {} ms for entity-ticking chunks",
                 self.getTestName(),
-                now - this.ddt$firstTickMillis);
+                waited);
+        this.listeners.forEach(listener -> listener.testFailed(self, runner));
     }
 }

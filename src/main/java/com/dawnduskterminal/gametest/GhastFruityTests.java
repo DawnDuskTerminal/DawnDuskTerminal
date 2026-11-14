@@ -81,7 +81,7 @@ public final class GhastFruityTests {
      * {@code twilightforest.entity.projectile.UrGhastFireball}，而那个类继承自 {@code LargeFireball}。
      * 反弹只认 {@code instanceof LargeFireball}，这里把该继承关系钉住，暮色森林以后改基类时先在这里炸
      */
-    @GameTest(template = "ddt_empty")
+    @GameTest(template = "ddt_large")
     public static void statsAreTheConfiguredOnes(GameTestHelper helper) {
         GhastFruityEntity ghast = new GhastFruityEntity(ModEntities.GHASTFRUITY.get(), helper.getLevel());
         ghast.setPos(4.0D, 2.0D, 4.0D);

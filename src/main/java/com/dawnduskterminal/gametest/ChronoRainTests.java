@@ -208,7 +208,7 @@ public final class ChronoRainTests {
      * <p>测试结构是空的，所以先铺一层地面，再在它上面搭一块 3×3 的屋顶、屋顶与地面之间留两格空腔，
      * 然后从八格半径之内往回找
      */
-    @GameTest(template = "ddt_empty", batch = "chrono_rain")
+    @GameTest(template = "ddt_empty", batch = "chrono_rain", skyAccess = true)
     public static void shelterSearchFindsCover(GameTestHelper helper) {
         for (int dx = 0; dx < 9; dx++) {
             for (int dz = 0; dz < 9; dz++) {
@@ -244,7 +244,7 @@ public final class ChronoRainTests {
      * <p>测试服不会创建晨昏线维度（{@code GameTestServer} 只装原版那几个 LevelStem），所以分两半钉：
      * 天光上限由 {@link ChronoSkyLight} 的纯函数给出；「露天 = 高度图」在测试维度里搭一块屋顶直接断言
      */
-    @GameTest(template = "ddt_empty", batch = "chrono_rain")
+    @GameTest(template = "ddt_empty", batch = "chrono_rain", skyAccess = true)
     public static void chronoRainIgnoresSkyLightCap(GameTestHelper helper) {
         int cap = ChronoSkyLight.maxSkyLight(ChronoLine.fallback(), 0, 0);
         helper.assertTrue(cap < 15, "晨昏线上的天光上限是 " + cap + "，必须低于 15；露天处 canSeeSky 因此为假");
