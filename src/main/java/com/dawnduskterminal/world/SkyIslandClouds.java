@@ -111,7 +111,7 @@ public final class SkyIslandClouds {
                 originZ,
                 tops,
                 state,
-                SkyIslandDensity::isIsland,
+                SkyIslandDensity.of(level.getLevel().getChunkSource().randomState())::isIsland,
                 level.getSeed(),
                 ISLAND_MIN_TOP_Y,
                 maxBuildY,

@@ -24,10 +24,10 @@ public final class SkyIslandDensityTests {
 
     @GameTest(template = "ddt_empty")
     public static void densityFunctionsAreResolved(GameTestHelper helper) {
-        remember(helper);
+        SkyIslandDensity density = density(helper, 0x5EED5EEDL);
 
         helper.assertTrue(
-                SkyIslandDensity.ready(),
+                density.ready(),
                 "the island predicate must resolve " + SkyIslandDensity.SKY_ISLAND + " and "
                         + SkyIslandDensity.BASE_3D_NOISE);
         helper.succeed();
@@ -35,12 +35,12 @@ public final class SkyIslandDensityTests {
 
     @GameTest(template = "ddt_empty")
     public static void undergroundIsNotIsland(GameTestHelper helper) {
-        remember(helper);
+        SkyIslandDensity density = density(helper, 0x5EED5EEDL);
 
         for (int x = -64; x <= 64; x += 16) {
             for (int z = -64; z <= 64; z += 16) {
                 helper.assertTrue(
-                        !SkyIslandDensity.isIsland(x, -50, z),
+                        !density.isIsland(x, -50, z),
                         "solid ground at y -50 must never be an island, failed at " + x + "," + z);
             }
         }
@@ -48,17 +48,16 @@ public final class SkyIslandDensityTests {
     }
 
     /** 用真实的晨昏线设置建一个带种子的 {@code RandomState}，跟世界生成走的同一条路 */
-    private static void remember(GameTestHelper helper) {
+    private static SkyIslandDensity density(GameTestHelper helper, long seed) {
         var access = helper.getLevel().getServer().registryAccess();
         NoiseGeneratorSettings settings =
                 access.registryOrThrow(Registries.NOISE_SETTINGS).getOrThrow(CHRONO);
-        SkyIslandDensity.remember(
-                RandomState.create(settings, access.lookupOrThrow(Registries.NOISE), 0x5EED5EEDL), settings);
+        return SkyIslandDensity.of(RandomState.create(settings, access.lookupOrThrow(Registries.NOISE), seed));
     }
 
     @GameTest(template = "ddt_empty")
     public static void theIslandBandHasIslands(GameTestHelper helper) {
-        remember(helper);
+        SkyIslandDensity density = density(helper, 0x5EED5EEDL);
 
         int columns = 0;
         int islandColumns = 0;
@@ -66,7 +65,7 @@ public final class SkyIslandDensityTests {
             for (int z = -192; z <= 192; z += 4) {
                 boolean island = false;
                 for (int y = 136; y <= 310; y++) {
-                    if (SkyIslandDensity.isIsland(x, y, z)) {
+                    if (density.isIsland(x, y, z)) {
                         island = true;
                     }
                 }
@@ -76,7 +75,7 @@ public final class SkyIslandDensityTests {
                 }
                 for (int y = 136; y < 140; y++) {
                     helper.assertTrue(
-                            !SkyIslandDensity.isIsland(x, y, z),
+                            !density.isIsland(x, y, z),
                             "no island material may sit below the band, failed at " + x + "," + y + "," + z);
                 }
             }
@@ -90,6 +89,47 @@ public final class SkyIslandDensityTests {
                 coverage < 0.12D,
                 "islands must stay islands, not a continent: " + Math.round(coverage * 100.0D)
                         + "% of sampled columns");
+        helper.succeed();
+    }
+
+    @GameTest(template = "ddt_empty")
+    public static void densityBelongsToItsRandomState(GameTestHelper helper) {
+        var access = helper.getLevel().getServer().registryAccess();
+        NoiseGeneratorSettings settings =
+                access.registryOrThrow(Registries.NOISE_SETTINGS).getOrThrow(CHRONO);
+        RandomState first = RandomState.create(settings, access.lookupOrThrow(Registries.NOISE), 1L);
+        SkyIslandDensity density = SkyIslandDensity.of(first);
+        double original = density.skyValue(20, 220, 30);
+        SkyIslandDensity other = density(helper, 2L);
+        helper.assertTrue(density != other, "different random states must own different predicates");
+        helper.assertTrue(density == SkyIslandDensity.of(first), "one random state must reuse its predicate");
+        helper.assertTrue(
+                original == density.skyValue(20, 220, 30), "another seed must not replace the first predicate");
+        NoiseGeneratorSettings vanilla =
+                access.registryOrThrow(Registries.NOISE_SETTINGS).getOrThrow(NoiseGeneratorSettings.OVERWORLD);
+        SkyIslandDensity missing =
+                SkyIslandDensity.of(RandomState.create(vanilla, access.lookupOrThrow(Registries.NOISE), 3L));
+        helper.assertFalse(missing.ready(), "a state without island markers must not reuse previous functions");
+        helper.assertFalse(missing.isIsland(20, 220, 30), "missing markers must disable the predicate");
+        helper.assertTrue(density.ready(), "a failed resolution must not invalidate another state");
+        helper.succeed();
+    }
+
+    @GameTest(template = "ddt_empty")
+    public static void concurrentResolutionPublishesOneCompletePair(GameTestHelper helper) {
+        var access = helper.getLevel().getServer().registryAccess();
+        NoiseGeneratorSettings settings =
+                access.registryOrThrow(Registries.NOISE_SETTINGS).getOrThrow(CHRONO);
+        RandomState state = RandomState.create(settings, access.lookupOrThrow(Registries.NOISE), 4L);
+        var tasks = java.util.stream.IntStream.range(0, 8)
+                .mapToObj(index -> java.util.concurrent.CompletableFuture.supplyAsync(() -> SkyIslandDensity.of(state))
+                        .orTimeout(10, java.util.concurrent.TimeUnit.SECONDS))
+                .toList();
+        SkyIslandDensity first = tasks.getFirst().join();
+        for (var task : tasks) {
+            helper.assertTrue(
+                    task.join() == first && task.join().ready(), "all callers must see the same complete pair");
+        }
         helper.succeed();
     }
 }
