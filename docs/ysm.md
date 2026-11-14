@@ -275,14 +275,21 @@ for (Map.Entry<String, JsonElement> entry : JsonAnimationUtils.getAnimations(jso
 
 ## 贴图动画条
 
-原版只给图集里的贴图做帧动画，实体按 `ResourceLocation` 直接绑贴图时不会。
-而弦用的两张贴图是竖向的
-32 帧条（`16x512` 与 `32x1024`），几何里声明的 `texture_height` 只有一帧高，UV 的 0..1 于是横跨整条竖条——
-画出来就是把 32 帧压成一张。
+实体贴图不经过原版图集动画。
+弦的两张贴图均为竖向 32 帧动画条，尺寸分别为 `16x512` 与 `32x1024`。
+几何声明的 `texture_height` 仅包含一帧，因此渲染时必须提取当前帧。
 
-`client/animation/AnimatedStripTexture` 为每条竖条注册一张**一帧大小**的动态贴图，按 `.mcmeta` 的
-`frametime` 把当前帧拷进去再 `upload()`，渲染类型绑这张动态贴图。
-资源重载时整块作废重读。
+`client/animation/AnimatedStripTexture` 将当前帧上传至单帧大小的动态贴图。
+帧间隔读取自 `.mcmeta` 的 `animation.frametime`，最小值为一 tick。
+元数据缺失或不可读时，仍按每 tick 一帧播放，不回退为静态贴图。
+
+缓存持有源图，纹理管理器持有动态纹理及其目标图。
+资源重载时在渲染线程关闭源图，并通过纹理管理器释放动态纹理及目标图。
+单帧贴图或加载失败时返回原始贴图位置，同一资源代次内不重复加载。
+加载中途失败时回收尚未移交的资源；重载清除全部缓存，后续访问时允许重试。
+
+`./gradlew animatedStripTextureCheck` 检查图像释放、失败缓存、异常回收与重载后重试。
+该检查不执行 GPU 上传，不能替代客户端中弦的动画与连续十次 F3+T 验收。
 
 ## 手持物品
 

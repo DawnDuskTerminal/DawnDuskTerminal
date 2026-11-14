@@ -95,9 +95,22 @@ tasks.register('frameCheck', JavaExec) {
     }
 }
 
-// 让 ./gradlew build 也跑一遍框架的不变量检查
+// 动画贴图检查直接使用 Minecraft 与现有 LWJGL 依赖，不新增测试框架。
+sourceSets.test.compileClasspath += sourceSets.main.compileClasspath
+sourceSets.test.runtimeClasspath += sourceSets.main.runtimeClasspath
+
+// 仅检查原生图像与缓存生命周期；GPU 上传和资源重载仍须通过 runClient 验证。
+tasks.register('animatedStripTextureCheck', JavaExec) {
+    group = 'verification'
+    description = '检查动画贴图的失败缓存与图像释放'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.dawnduskterminal.client.animation.AnimatedStripTextureTest'
+}
+
+// 让 ./gradlew build 同时执行框架与动画贴图检查
 tasks.named('check') {
-    dependsOn tasks.named('frameCheck')
+    dependsOn tasks.named('frameCheck'), tasks.named('animatedStripTextureCheck')
 }
 
 repositories {
