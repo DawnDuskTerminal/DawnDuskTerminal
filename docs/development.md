@@ -277,7 +277,9 @@ native 仅重试几何输出，不能重复实体事件、动画推进、牵引�
 需要露天条件的用例须显式声明 `skyAccess=true`，否则生成屏障顶面。
 
 `run/gametest/world` 在多轮运行间保留，不能自动删除既有测试世界。
-隔离验证使用新的运行目录，保留原目录与存档。
+隔离验证通过 `-Pgametest_directory=<新目录>` 指定新的运行目录，保留原目录与存档。
+外部 c2me 使用 `./gradlew prepareGameTestC2me` 安装，版本与依赖校验均复用 `c2meCompat`。
+准备依赖与运行测试时必须指定同一目录；该任务不会清除目录中的其他模组。
 框架只按模板真实边界清理，越界方块、实体与静态过程必须由测试自行恢复。
 `CubeField` 边长 17，会超出默认模板；场地之间还存在水平 5 格、纵向 6 格的预留间隔。
 不能据此假定场不会影响相邻测试，须使用独立 batch 并在失败路径同样清理。
@@ -349,13 +351,18 @@ native 仅重试几何输出，不能重复实体事件、动画推进、牵引�
 
 ## CI
 
-`build.yml` 在 main、版本标签及 PR 上执行 `./gradlew build` 并上传 jar。
-`gametest.yml` 在 PR 上分别运行无外部 c2me 与安装外部 c2me 的默认 GameTest。
-独立命名空间未纳入默认名单，不能将该流程称为全部测试覆盖。
+`build.yml` 在 main、版本标签及 PR 上执行构建、完整产物检查与动画静态校验，并上传 jar。
+动画检查命令为 `./gradlew animationCheck animationCheckTest`，不替代客户端运行验收。
+`gametest.yml` 在 PR 上分别运行无外部 c2me 与安装同版本外部 c2me 的默认 GameTest。
+expo 与 native 批次各使用独立 runner 和游戏进程，单独记录结果与日志。
+外部 c2me 从 `c2me_version` 解析并经过现有依赖校验，不单独维护下载地址。
 
 `release.yml` 在 main 与 `v*` 标签推送时发布，也支持手动触发。
 main 推送会自动递增 `mod_version` 补丁号并提交，标签版本必须与该属性一致。
-发布检查五个平台 native、嵌套 c2me 与 JarJar 元数据后上传单文件 jar。
+普通构建与发布均通过 `build` 的 `check` 阶段校验完整 jar，然后上传单文件产物。
+`./gradlew verifyDistributionJar` 可单独检查五个平台 native、嵌套 c2me 与 JarJar 元数据。
+校验要求各文件非空，c2me 与已校验的官方依赖逐字节一致，元数据的坐标、版本范围与路径匹配。
+`./gradlew distributionJarCheckTest` 使用构造产物验证缺失、空文件、元数据错误及 c2me 改写均会失败。
 PR 的 concurrency 启用 `cancel-in-progress`，其他触发不采用该取消规则。
 
 ### c2me 分发约束

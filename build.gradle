@@ -64,11 +64,12 @@ neoForge {
         }
         gameTestServer {
             type = "gameTestServer"
-            gameDirectory = project.file('run/gametest')
-            // 默认跑本模组全部用例（含 057 自己那批挂在 dawnduskterminal057 下的）
+            gameDirectory = project.file(providers.gradleProperty('gametest_directory').getOrElse('run/gametest'))
+            // 默认仅运行主批次与 057 命名空间。
             // 博览轮舞那批（dawnduskterminalexpo）不进默认名单：它的第 1 档索敌不限距离，
             // 和别的用例同场跑时会被隔壁场地里的僵尸抢走目标，必须单独跑
-            // 只跑某一批时：./gradlew runGameTestServer -Pgametest_namespaces=dawnduskterminalexpo
+            // native 故障注入会熔断内核，也必须使用独立进程。
+            // 指定批次：./gradlew runGameTestServer -Pgametest_namespaces=dawnduskterminalexpo
             systemProperty 'neoforge.enabledGameTestNamespaces',
                 (project.findProperty('gametest_namespaces') ?: "${mod_id},dawnduskterminal057")
             programArguments.addAll '--nogui'
@@ -245,6 +246,15 @@ def patchC2me = tasks.register('patchC2me') {
             java.nio.file.StandardCopyOption.REPLACE_EXISTING)
         logger.lifecycle("c2me bundled unmodified")
     }
+}
+
+// 外部 c2me 与内置版本共用坐标及 SHA-256 校验，不向开发 classpath 添加依赖。
+tasks.register('prepareGameTestC2me', Copy) {
+    group = 'verification'
+    description = '将同版本官方 c2me 复制到指定 GameTest 目录'
+    from(configurations.c2meCompat)
+    into(providers.gradleProperty('gametest_directory').map { file("${it}/mods") }
+        .getOrElse(file('run/gametest/mods')))
 }
 
 // 手写 JarJar 元数据，避免 ModDevGradle 的 jarJar 配置在配置期解析尚未生成的本地 jar。
@@ -693,4 +703,147 @@ def verifyNativeAbi = tasks.register('verifyNativeAbi') {
 
 tasks.named('check') {
     dependsOn verifyNativeAbi
+}
+
+// 检查最终 zip 条目与协商元数据，并确认嵌套 c2me 与已校验的官方依赖逐字节一致。
+def verifyDistributionArchive = { File archive, File officialC2me, String bundledVersion ->
+    new java.util.zip.ZipFile(archive).withCloseable { zip ->
+        [
+            'native/windows-x86_64/ddt_native.dll',
+            'native/linux-x86_64/libddt_native.so',
+            'native/linux-aarch64/libddt_native.so',
+            'native/macos-x86_64/libddt_native.dylib',
+            'native/macos-aarch64/libddt_native.dylib',
+            'META-INF/jarjar/metadata.json',
+            "META-INF/jars/c2me-neoforge-${bundledVersion}.jar".toString(),
+        ].each { path ->
+            def entry = zip.getEntry(path)
+            if (entry == null || entry.directory || entry.size <= 0) {
+                throw new GradleException("分发 jar 缺少非空文件：${path}")
+            }
+        }
+        def metadata
+        try {
+            zip.getInputStream(zip.getEntry('META-INF/jarjar/metadata.json')).withCloseable { input ->
+                metadata = new groovy.json.JsonSlurper().parse(input)
+            }
+        } catch (Exception cause) {
+            throw new GradleException('JarJar 元数据无法解析', cause)
+        }
+        def nestedPath = "META-INF/jars/c2me-neoforge-${bundledVersion}.jar".toString()
+        def expected = [jars: [[identifier: [group: 'com.ishland.c2me', artifact: 'c2me-neoforge'],
+            version: [range: "[${bundledVersion},)".toString(), artifactVersion: bundledVersion],
+            path: nestedPath]]]
+        if (metadata != expected) {
+            throw new GradleException('JarJar 元数据的坐标、版本范围或嵌套路径不匹配')
+        }
+        def digest = java.security.MessageDigest.getInstance('SHA-256')
+        byte[] bundled
+        zip.getInputStream(zip.getEntry(nestedPath)).withCloseable { input ->
+            bundled = digest.digest(input.readAllBytes())
+        }
+        if (!java.security.MessageDigest.isEqual(bundled, digest.digest(officialC2me.bytes))) {
+            throw new GradleException('嵌套 c2me 与已校验的官方依赖不一致')
+        }
+    }
+}
+
+def distributionJar = tasks.named('jar', Jar).flatMap { it.archiveFile }
+def officialC2meJar = configurations.c2meCompat.elements.map { files ->
+    if (files.size() != 1) {
+        throw new GradleException('c2meCompat 必须只解析一个官方 jar')
+    }
+    files.first().asFile
+}
+def distributionVersion = c2meBundleVersion
+def verifyDistributionJar = tasks.register('verifyDistributionJar') {
+    group = 'verification'
+    description = '校验最终 jar 的五平台 native、完整 c2me 与 JarJar 元数据'
+    inputs.file(distributionJar)
+    inputs.file(officialC2meJar)
+    inputs.property('c2meVersion', distributionVersion)
+    doLast {
+        verifyDistributionArchive(distributionJar.get().asFile, officialC2meJar.get(), distributionVersion)
+        logger.lifecycle('Distribution verified: 5 native libraries, unmodified c2me and matching JarJar metadata')
+    }
+}
+
+// 使用小型构造产物检查失败路径，不改写或删除正式 jar。
+def distributionCheckDirectory = layout.buildDirectory.dir('distribution-check-test').get().asFile
+def distributionCheckVersion = c2meBundleVersion
+tasks.register('distributionJarCheckTest') {
+    group = 'verification'
+    description = '检查完整分发 jar 校验器的成功与拒绝路径'
+    doLast {
+        distributionCheckDirectory.mkdirs()
+        def source = new File(distributionCheckDirectory, 'c2me.jar')
+        source.bytes = 'official c2me fixture'.getBytes('UTF-8')
+        def nestedPath = "META-INF/jars/c2me-neoforge-${distributionCheckVersion}.jar".toString()
+        def metadataPath = 'META-INF/jarjar/metadata.json'
+        def metadata = [jars: [[identifier: [group: 'com.ishland.c2me', artifact: 'c2me-neoforge'],
+            version: [range: "[${distributionCheckVersion},)", artifactVersion: distributionCheckVersion],
+            path: nestedPath]]]
+        def entries = [
+            'native/windows-x86_64/ddt_native.dll': [1] as byte[],
+            'native/linux-x86_64/libddt_native.so': [1] as byte[],
+            'native/linux-aarch64/libddt_native.so': [1] as byte[],
+            'native/macos-x86_64/libddt_native.dylib': [1] as byte[],
+            'native/macos-aarch64/libddt_native.dylib': [1] as byte[],
+        ]
+        def nativePaths = entries.keySet().toList()
+        entries[nestedPath] = source.bytes
+        entries[metadataPath] = groovy.json.JsonOutput.toJson(metadata).getBytes('UTF-8')
+        def writeArchive = { String name, Map contents ->
+            def archive = new File(distributionCheckDirectory, "${name}.jar")
+            new java.util.zip.ZipOutputStream(new FileOutputStream(archive)).withCloseable { zip ->
+                contents.each { path, bytes ->
+                    zip.putNextEntry(new java.util.zip.ZipEntry(path))
+                    zip.write(bytes)
+                    zip.closeEntry()
+                }
+            }
+            archive
+        }
+        verifyDistributionArchive(writeArchive('complete', entries), source, distributionCheckVersion)
+        logger.lifecycle('PASS complete distribution')
+        def rejected = { String name, Map contents ->
+            boolean failed = false
+            try {
+                verifyDistributionArchive(writeArchive(name, contents), source, distributionCheckVersion)
+            } catch (GradleException expected) {
+                logger.lifecycle("PASS ${name}: ${expected.message}")
+                failed = true
+            }
+            if (!failed) {
+                throw new GradleException("残缺产物未被拒绝：${name}")
+            }
+        }
+        (nativePaths + [nestedPath, metadataPath]).eachWithIndex { path, index ->
+            def incomplete = new LinkedHashMap(entries)
+            incomplete.remove(path)
+            rejected("missing-${index}", incomplete)
+        }
+        nativePaths.eachWithIndex { path, index ->
+            def empty = new LinkedHashMap(entries)
+            empty[path] = new byte[0]
+            rejected("empty-native-${index}", empty)
+        }
+        def changed = new LinkedHashMap(entries)
+        changed[nestedPath] = 'changed c2me'.getBytes('UTF-8')
+        rejected('changed-c2me', changed)
+        def malformed = new LinkedHashMap(entries)
+        malformed[metadataPath] = '{'.getBytes('UTF-8')
+        rejected('malformed-metadata', malformed)
+        ['path', 'identifier', 'version'].each { field ->
+            def wrong = new LinkedHashMap(entries)
+            def wrongMetadata = new groovy.json.JsonSlurper().parse(entries[metadataPath])
+            wrongMetadata.jars[0][field] = field == 'path' ? 'META-INF/jars/missing.jar' : [:]
+            wrong[metadataPath] = groovy.json.JsonOutput.toJson(wrongMetadata).getBytes('UTF-8')
+            rejected("wrong-${field}", wrong)
+        }
+    }
+}
+
+tasks.named('check') {
+    dependsOn verifyDistributionJar, tasks.named('distributionJarCheckTest')
 }

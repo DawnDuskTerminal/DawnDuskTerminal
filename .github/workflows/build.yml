@@ -29,7 +29,9 @@ jobs:
           java-version: '21'
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
-      - name: Build
+      - name: Check animations
+        run: ./gradlew animationCheck animationCheckTest --no-daemon --stacktrace
+      - name: Build and verify distribution
         run: ./gradlew build --no-daemon --stacktrace
       - name: Upload jar
         uses: actions/upload-artifact@v7
