@@ -14,16 +14,29 @@ public record ChronoLine(double originX, double originZ, double normalX, double 
                     Codec.DOUBLE.fieldOf("normal_z").forGetter(ChronoLine::normalZ))
             .apply(inst, ChronoLine::new));
 
+    public ChronoLine {
+        if (!Double.isFinite(originX)
+                || !Double.isFinite(originZ)
+                || !Double.isFinite(normalX)
+                || !Double.isFinite(normalZ)
+                || Math.abs(Math.hypot(normalX, normalZ) - 1.0D) > 1.0E-6D) {
+            throw new IllegalArgumentException("Chrono line requires finite coordinates and a unit normal");
+        }
+    }
+
     public static ChronoLine create(RandomSource random) {
-        String override = DdtConfig.lineNormalOverride();
+        return create(random, DdtConfig.lineNormalOverride());
+    }
+
+    static ChronoLine create(RandomSource random, String override) {
         if (override != null && !override.isBlank()) {
-            String[] parts = override.split(",");
+            String[] parts = override.split(",", -1);
             if (parts.length == 2) {
                 try {
                     double nx = Double.parseDouble(parts[0].trim());
                     double nz = Double.parseDouble(parts[1].trim());
                     double length = Math.hypot(nx, nz);
-                    if (length > 1.0E-6D) {
+                    if (Double.isFinite(length) && length > 1.0E-6D) {
                         return new ChronoLine(0.0D, 0.0D, nx / length, nz / length);
                     }
                 } catch (NumberFormatException ignored) {

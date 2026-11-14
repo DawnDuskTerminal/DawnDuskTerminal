@@ -1,11 +1,16 @@
 package com.dawnduskterminal.world;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Objects;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtOps;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.saveddata.SavedData;
+import net.minecraft.world.level.storage.DimensionDataStorage;
+import net.minecraft.world.level.storage.LevelResource;
 
 public final class ChronoLineState extends SavedData {
     private static final String DATA_NAME = "dawnduskterminal_chrono_line";
@@ -21,7 +26,7 @@ public final class ChronoLineState extends SavedData {
     }
 
     public ChronoLineState(ChronoLine line) {
-        this.line = line;
+        this.line = Objects.requireNonNull(line);
     }
 
     public ChronoLine line() {
@@ -30,33 +35,51 @@ public final class ChronoLineState extends SavedData {
 
     public void setLine(ChronoLine line) {
         if (!line.equals(this.line)) {
-            this.line = line;
+            this.line = Objects.requireNonNull(line);
             setDirty();
         }
     }
 
     public static ChronoLineState load(CompoundTag tag, HolderLookup.Provider registries) {
-        return ChronoLine.CODEC
-                .parse(NbtOps.INSTANCE, tag.get("line"))
-                .result()
-                .map(ChronoLineState::new)
-                .orElseGet(() -> new ChronoLineState(ChronoLine.fallback()));
+        return new ChronoLineState(ChronoLine.CODEC
+                .parse(NbtOps.INSTANCE, tag.getCompound("line"))
+                .getOrThrow(error -> new IllegalStateException("Invalid saved chrono line: " + error)));
     }
 
     @Override
     public CompoundTag save(CompoundTag tag, HolderLookup.Provider registries) {
-        ChronoLine.CODEC.encodeStart(NbtOps.INSTANCE, this.line).result().ifPresent(t -> tag.put("line", t));
+        tag.put(
+                "line",
+                ChronoLine.CODEC
+                        .encodeStart(NbtOps.INSTANCE, this.line)
+                        .getOrThrow(error -> new IllegalStateException("Cannot save chrono line: " + error)));
         return tag;
     }
 
     public static ChronoLineState get(ServerLevel anyLevel) {
         ServerLevel overworld = anyLevel.getServer().overworld();
-        return overworld
-                .getDataStorage()
-                .computeIfAbsent(
-                        new SavedData.Factory<>(
-                                () -> new ChronoLineState(overworld.getSeed()), ChronoLineState::load, null),
-                        DATA_NAME);
+        Path dataFile = overworld
+                .getServer()
+                .getWorldPath(LevelResource.ROOT)
+                .resolve("data")
+                .resolve(DATA_NAME + ".dat");
+        return get(overworld.getDataStorage(), overworld.getSeed(), dataFile);
+    }
+
+    static ChronoLineState get(DimensionDataStorage storage, long seed, Path dataFile) {
+        return storage.computeIfAbsent(
+                new SavedData.Factory<>(
+                        () -> {
+                            // 原版会捕获读档异常并尝试创建数据；仅在确认文件不存在时允许创建。
+                            if (!Files.notExists(dataFile)) {
+                                throw new IllegalStateException("Cannot load chrono line from " + dataFile
+                                        + "; refusing to replace existing or inaccessible saved data");
+                            }
+                            return new ChronoLineState(seed);
+                        },
+                        ChronoLineState::load,
+                        null),
+                DATA_NAME);
     }
 
     public static ChronoLine serverLine() {

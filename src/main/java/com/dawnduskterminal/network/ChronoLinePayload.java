@@ -25,14 +25,11 @@ public record ChronoLinePayload(ChronoLine line) implements CustomPacketPayload 
                 double originZ = buffer.readDouble();
                 double normalX = buffer.readDouble();
                 double normalZ = buffer.readDouble();
-                // NaN 与无穷会让天光 群系与假太阳一路传播成不可用的渲染状态 在解码处直接拒绝
-                if (!Double.isFinite(originX)
-                        || !Double.isFinite(originZ)
-                        || !Double.isFinite(normalX)
-                        || !Double.isFinite(normalZ)) {
-                    throw new DecoderException("Rejected a non-finite chrono line from the server");
+                try {
+                    return new ChronoLinePayload(new ChronoLine(originX, originZ, normalX, normalZ));
+                } catch (IllegalArgumentException error) {
+                    throw new DecoderException("Rejected an invalid chrono line from the server", error);
                 }
-                return new ChronoLinePayload(new ChronoLine(originX, originZ, normalX, normalZ));
             });
 
     @Override
