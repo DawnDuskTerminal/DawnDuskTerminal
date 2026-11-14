@@ -109,22 +109,33 @@ OpenYSM 自带一份分叉的 GeckoLib，包名在 `org.openysm.geckolib3` 与 `
 分批的依据是**模板命名空间**：NeoForge 只按这个命名空间过滤用例，没有按方法名过滤的口子。
 因此把某一批用例的 `@GameTestHolder` 换成自己的命名空间，例如 057 那批用 `dawnduskterminal057`。
 再把要用的模板结构同名复制一份到 `data/dawnduskterminal057/structure/` 即可。
-博览轮舞那批用 `dawnduskterminalexpo`，同样是把 `ddt_empty.nbt` 复制一份。
-模板只是空结构，复制没有维护成本。
+博览轮舞那批用 `dawnduskterminalexpo`，同样使用一份 `ddt_empty.nbt`。
+独立 native 故障检查使用 `dawnduskterminalnative` 命名空间。
+四个命名空间的空模板均为 16×16×16，`size` 必须编码为包含三个整数的 NBT 列表。
+不得编码为整数数组，否则 Minecraft 会将尺寸读为 0×0×0。
+`GameTestInfrastructureTests` 同时检查原始标签、运行时尺寸与实际测试边界。
 
-有两批不进默认名单，要用上面的参数点名跑：
+主命名空间另有 32×32×32 的 `ddt_large`，用于大实体飞行与长距离建造测试。
+需要露天条件的用例必须显式声明 `skyAccess=true`，否则框架会生成屏障顶面。
 
-- `dawnduskterminalexpo`（博览轮舞）：它的第 1 档索敌按需求是不限距离的锥，
-  和别的用例同场跑时会被隔壁场地里的僵尸抢走目标，量出来的不是自己的目标；
-- 想单独验某一批新改动时同样点名跑，跑完再跑一次默认的全量。
+以下两个命名空间不在默认名单中，须单独运行：
 
-`run/gametest/world` 会在多次运行之间保留，前一版用例摆下的方块、刷出的实体都会留在场地里。
-`ddt_empty` 模板里一个方块都没有，重新摆一遍模板清不掉它们。
-改完世界生成或测试互相打架时，删掉该目录重跑。
+- `dawnduskterminalexpo`（博览轮舞）：其第 1 档按需求使用不限距离的锥形索敌，
+  与其他用例同时运行时，其他场地的敌怪可能改变索敌结果；
+- `dawnduskterminalnative`（native 故障注入）：检查会禁用本进程的 native 路径，须与其他用例分开运行。
 
-场类用例尤其要注意：`CubeField` 的场是 17×17×17，而模板只有 16×16×16，场一定会探出自己这一格。
-用例之间只隔 7 到 8 格，一个没拆掉的场会把隔壁伤害类用例的伤害整片取消，表现为 `runGameTestServer` 里几条不相干的用例一起红。
-`gametest/Experiment065Tests` 用 `withField` 把拆场放在 `finally` 里，正常与失败路径都清干净，新增落场用例时照这个写法。
+验证指定批次后，仍须执行默认完整套件。
+
+`run/gametest/world` 会在多次运行之间保留。
+测试框架按模板的真实边界清理场地，但边界外的方块与实体仍须由用例自行清理。
+隔离验证应使用新的运行目录，保留原目录与既有存档。
+
+场类用例尤其需要注意：`CubeField` 的场为 17×17×17，会超出默认 16×16×16 模板。
+框架在相邻列之间预留 5 格，在相邻行之间预留 6 格，场地尺寸还会影响后续用例的位置。
+原先观察到的 7 至 8 格场地间距源于模板尺寸误读，不能作为隔离依据。
+未清理的场仍可能干扰相邻用例的伤害判定。
+`gametest/Experiment065Tests` 使用 `withField`，在 `finally` 中清理正常与失败路径的场。
+新增场类用例时须保留相同的清理保障。
 
 首次构建会下载并反编译 Minecraft。
 
@@ -344,6 +355,17 @@ jar 中的 `native/<target>/` 一次性带齐全部平台，运行时由 `Native
 
 `NativeMesh` 不实现纯 Java 的顶点变换。
 它的 Java 路径就是 `client/animation/YsmEntityRenderer` 里 `renderCubesOfBone` 沿用的默认实现。
+native 批次在几何阶段提交；提交失败时仅按原骨骼姿态重试几何输出。
+实体事件、动画推进、牵引绳、图层与名称栏不随几何重试而重复执行。
+
+句柄失效的故障注入检查使用独立命名空间，避免熔断影响同进程的其他检查：
+
+```bash
+./gradlew runGameTestServer -Pgametest_namespaces=dawnduskterminalnative
+```
+
+该检查要求宿主能够加载 native 内核，并验证失效句柄触发熔断且不写出部分顶点。
+它不替代客户端对渲染事件次数、动画连续性与画面的检查。
 
 ### ABI 协议
 
@@ -433,22 +455,25 @@ Windows DLL 只依赖 UCRT 与 `kernel32.dll`，不需要 `libwinpthread-1.dll` 
 
 整轮测试应当全部通过，退出码为失败数，全部通过时为 0。
 
-**结构所在区块等不到实体刻会导致整轮测试卡死**（该问题已由 `mixin/GameTestChunkWaitMixin` 作保底处理）
+**区块等待超时必须失败，不得绕过实体刻资格。**
 
-原版 `GameTestInfo.tick` 只在两种情况下放置结构并运行测试：
-`chunksLoaded` 为真，或结构包围盒覆盖的每个区块都满足 `isPositionEntityTicking`。
-实测会出现区块已经强制加载（`hasChunk` 为真）却始终不进入实体刻的情况。
-此时该条件恒为假，测试既不开始也不超时——判定超时的 `tickInternal` 只在该条件为真之后才会被调用。
-于是进度格子中一直保留着空格。
+原版 `GameTestInfo.tick` 仅在结构覆盖的区块均可执行实体刻后推进测试。
+其测试超时也从此时开始，因此区块始终未就绪时可能无限等待。
+`hasChunk` 只能说明区块已经加载，不能证明其中实体会执行 tick。
 
-而 `GameTestServer` 叠加的 `waitUntilNextTick` 不进入休眠。
-它以每秒上万 tick 的频率重复打印同一行，日志曾增长到 102 MB，且永不退出。
-实测 10 次中约出现 3 次，每次都是排在网格最前面的几个测试（结构网格由 `GameTestServer.startTests` 在随机原点铺开）。
+曾经的空模板将 `size` 写为整数数组，运行时实际尺寸为 0×0×0。
+错误边界破坏了强制加载、清理与相邻场地隔离，并可使等待范围与加载范围不一致。
+该问题现由正确的尺寸列表与运行时边界检查防止回归。
+不能使用延长断言等待或反复运行来替代模板修复。
 
-`GameTestChunkWaitMixin` 在等待满 5 秒后即将 `chunksLoaded` 置为真并放行。
-在健康的一轮中，几个 tick 之内条件即为真（GameTestServer 每秒运行几万 tick），因此几乎不会触发；
-触发时会打印一条 warn。
-修复前 21 次中有 3 次卡死，修复后 37 次全部运行完毕，其中 4 次由该保底措施挽回，通过数不变。
+`mixin/GameTestChunkWaitMixin` 保留 5 秒墙钟期限，不再将 `chunksLoaded` 强行置为真。
+检查位于原版刻的末尾，刚刚就绪的区块优先执行正常路径。
+等待超时后记录明确错误，将该测试标记为失败，并通知监听器推进后续批次。
+测试包含装备更新与弹体飞行等实体刻行为，不得假定全部断言均在 t=0 同步完成。
+
+`GameTestInfrastructureTests` 注入已到期的等待时间，验证测试体不会运行且失败只通知一次。
+另一项检查验证已就绪的区块不会因旧等待时间而误报超时。
+故障注入会记录一次预期的超时错误，最终是否通过应以测试汇总与退出码为准。
 
 ### WorldgenTests
 

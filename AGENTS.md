@@ -185,11 +185,23 @@ TouhouLittleMaid（MIT），说明与「和上游的差异」见 `docs/ysm.md`�
 
 维度 `dimension/chrono.json` 使用 `dawnduskterminal:palette` 群系源。
 
-`PaletteBiomeSource` 将原版按气候选出的群系替换为同名副本，副本位于 `worldgen/biome/` 下。
+晨昏线维度使用本模组命名空间下的群系，定义位于 `worldgen/biome/` 下。
 
-`data/dawnduskterminal/tags/worldgen/biome/palette_biomes.json` 列出全部副本。
+现阶段允许使用原版与暮色森林的群系内容作为占位，后续逐个替换为本模组的自有群系内容。
+占位来源不决定最终设计，也不要求自有群系保持来源群系的地形、植被、环境或刷怪配置。
 
-副本中的特征引用必须指向 `dawnduskterminal:` 命名空间。
+替换占位内容时，优先保留已有群系注册 ID。
+需要删除或重命名 ID 时，必须单独评估存档兼容与引用迁移。
+
+`PaletteBiomeSource` 当前使用原版气候参数预设、晨昏线温度映射与追加气候点选择群系。
+原版选点结果再映射到模组群系，流程见 `docs/architecture.md` 的「群系源」一节。
+
+`data/dawnduskterminal/tags/worldgen/biome/palette_biomes.json` 列出群系源使用的模组群系。
+
+需要使用模组方块调色板的原版特征，必须引用对应的模组移植版本。
+直接复用的暮色森林特征允许保留 `twilightforest:` 引用，后续可按自有群系设计移除或替换。
+本模组新增的特征使用 `dawnduskterminal:` 命名空间。
+所有特征引用必须真实存在。
 
 数据包无法覆盖的硬编码部分由 `mixin/` 中的补丁接管，详见 `docs/worldgen.md`。
 
@@ -204,7 +216,10 @@ feature 引用与 `neoforge:remove_features` 中的 ID 必须真实存在，否�
 
 在 1.21.1 中，密度函数 JSON 字段是 `argument`，不是 `input`。
 
-`runGameTestServer` 偶发卡死（区块等不到实体刻）时，由 `mixin/GameTestChunkWaitMixin` 作为回退保障。
+GameTest 空模板的 `size` 必须是整数列表，不得使用整数数组。
+默认模板为 16×16×16，大实体与长距离建造测试使用 32×32×32 的 `ddt_large`。
+区块等待实体刻资格超过 5 秒时，`mixin/GameTestChunkWaitMixin` 明确判定失败并推进后续批次。
+不得跳过实体刻准备条件，也不得以强行放行为测试通过依据。
 详见 `docs/development.md` 的「已知的失败与卡死」一节。
 
 天光被烘焙进区块，因此修改天光后老存档需要重新计算。

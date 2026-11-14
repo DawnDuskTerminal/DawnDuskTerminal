@@ -2344,6 +2344,7 @@ thirdperson 为 [-80,260,-40] / [-80,-280,40] 与 -1,-2,2.5 的位移，firstper
 `registry/ModDimensions.CHRONO` 是维度的 `ResourceKey`。
 
 `world/ChronoLine` 是一个 record，存储原点与单位法向。
+构造时拒绝非有限坐标以及非单位法向，配置、存档与网络共用该验证规则。
 
 `ChronoLine.distance(x,z)` 计算点到该线的有符号距离。
 
@@ -2354,6 +2355,8 @@ thirdperson 为 [-80,260,-40] / [-80,-280,40] 与 -1,-2,2.5 的位移，firstper
 配置项 `normal_override` 可以固定法向。
 
 `world/ChronoLineState` 继承 `SavedData`，存储在主世界，键为 `dawnduskterminal_chrono_line`。
+仅在确认数据文件不存在时创建晨昏线。
+既有文件无法读取或解码时中止启动，不以默认方向替代，也不覆盖原文件。
 
 服务端与客户端各有一份静态缓存 `serverLine` 与 `clientLine`。
 
@@ -2365,28 +2368,41 @@ thirdperson 为 [-80,260,-40] / [-80,-280,40] 与 -1,-2,2.5 的位移，firstper
 
 `world/PaletteBiomeSource` 是自行编写的 `BiomeSource`，注册为 `dawnduskterminal:palette`。
 
-它要求提供一个 `delegate` 与一个 `palette` 群系标签。
+### 当前实现
 
-`preset` 是原版主世界参数表，`extra` 是追加在表尾的自建气候点（极昼与极夜）。
-选格使用原版那套 `ParameterList.findValue`。
+编解码要求提供 `preset` 与 `palette`，并允许提供可选的 `extra` 列表。
+当前维度使用原版主世界气候参数预设 `minecraft:overworld`，以及模组的 `palette_biomes` 群系标签。
+`extra` 将自建气候点追加到原版参数表末尾。
 
-`getNoiseBiome` 先执行 delegate，再把 `minecraft:*` 群系替换为同名副本。
+`getNoiseBiome` 通过 `ChronoTemperature` 将采样温度映射到晨昏线分带，并保留其他气候维度的采样值。
+采样深度低于阈值时，直接返回调色板中的 `floatrees` 群系。
+其余情况使用扩展气候表的 `ParameterList.findValue` 选点，再将 `minecraft:*` 结果映射到模组群系。
+非原版命名空间的选点结果直接返回。
 
-副本名与命名空间的对应关系按路径匹配，例如 `minecraft:plains` 替换为 `dawnduskterminal:plains`。
+默认替换关系按路径匹配，例如 `minecraft:plains` 映射为 `dawnduskterminal:plains`。
+替换表另将 `minecraft:desert` 映射为白地（`dawnduskterminal:white_land`）。
+映射只决定选点结果对应哪个模组群系，不改变气候表的选点算法。
 
-`extra` 的条目按温度出界来编写：原版参数表只覆盖 `[-1, 1]`，出界的跨度一经写出即生效。
-温度由 `ChronoTemperature` 在极带推到 `±2`。
+原版气候参数表的温度范围为 `[-1, 1]`，`ChronoTemperature` 在极带将温度向 `±2` 延伸。
+维度 JSON 的 `extra` 当前包含三项：极昼的 `polar_dawn`，以及极夜按湿度区分的 `polar_dusk` 与 `blue_desert`。
+极带因此使用自建群系，并非继续沿用相邻带的群系。
 
-某一格可以在替换表中再次改指：`minecraft:desert` 替换为白地（昼区）。
-这只决定那一格装载哪个副本，选格仍然由气候表计算。
+替换表延迟构建，因为群系源在数据包解析期创建，此时标签中的 holder 尚未提供 key。
 
-`floatrees` 群系走另一条路径，采样深度低于阈值时直接返回。
+### 占位内容与替换方向
 
-群系源中没有任何按 `param` 判定群系的特例，极带暂时与相邻带使用同一群系。
+晨昏线维度使用本模组的群系 ID，其中部分群系内容暂以原版或暮色森林的内容占位。
+后续逐个替换为自有群系设计，不要求保留来源群系的地形、植被、环境或刷怪配置。
 
-替换表延迟构建，因为 biome source 在数据包解析期创建，此时标签中的 holder 还没有 key。
+替换内容时优先保留已有群系注册 ID，避免同时引入注册身份变化。
+删除或重命名 ID 前，必须单独评估存档兼容与引用迁移。
+自有群系需要不同的气候分布时，再调整替换映射或追加气候点；当前占位分布不构成最终设计约束。
 
-细节见 `worldgen.md`。
+特征引用遵循 `AGENTS.md` 的世界生成约定。
+需要使用模组调色板的原版特征引用模组移植版本，复用的暮色森林特征可以直接引用。
+占位内容替换后，不再需要的暮色森林特征可逐项移除或替换。
+
+世界生成细节见 `worldgen.md`。
 
 ## 世界生成补丁
 

@@ -1295,8 +1295,10 @@ data/dawnduskterminal/structure/
 这两个函数实例从 `RandomState` 已经换过种子的函数树里抓。
 `RandomState` 会把 `HolderHolder` 换成直接持有者，引用键随之消失，所以按名字在生成期找不到它们；
 两个 JSON 各套一层值直通的 `dawnduskterminal:sky_island_marker`，按类型认。
-抓取挂在 `NoiseBasedChunkGenerator.createBiomes` 的 `HEAD`，不能挪到构造函数，那一刻注册表还没绑定。
-抓不到时判据一律返回 false，整个模组退化成「没有空岛」。
+`SkyIslandDensityMixin` 为每个 `RandomState` 保存一份不可变的函数对。
+首次使用时同步解析，构造完成后整体发布，不使用进程级函数缓存。
+云层装饰从当前服务端世界的 `RandomState` 获取判据，不会沿用其他种子的函数。
+抓不到任一标记时，该实例的判据一律返回 false，不影响其他生成状态。
 
 `SkyIslandClouds` 在 `FEATURES` 末尾给每个空岛列挂云，即 `ChunkGenerator.applyBiomeDecoration` 的 `TAIL`。
 范围是岛底下 1 到 9 格、横向 ±4 格，
