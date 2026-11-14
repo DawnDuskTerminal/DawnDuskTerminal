@@ -126,10 +126,8 @@ NeoForge 自带 191 个原版配方覆盖，其中 13 条与本模组需要修�
 
 ## 七 试验物品的烧炼
 
-烧炼配方都在 `data/dawnduskterminal/recipe/` 下，命名是 `<试验物品>_smelting.json`，与已有的
-`experiment_003/005/009/013` 同一套：003 烧成铜锭，005 烧成土，009 烧成骨粉，013 烧成砷铅铁锭。
-
-这一批新增三条：
+烧炼配方位于 `data/dawnduskterminal/recipe/`，命名为 `<试验物品>_smelting.json`。
+003、005、009、013 分别烧成铜锭、土、骨粉与砷铅铁锭，其他特殊产物如下。
 
 | 配方 | 输入 | 产物 |
 |---|---|---|
@@ -174,7 +172,7 @@ NeoForge 自带 191 个原版配方覆盖，其中 13 条与本模组需要修�
 
 ## 八 苍穹船与狄拉克精炼粉
 
-三条新配方都在 `data/dawnduskterminal/recipe/` 下，另有一条为暮色森林的玻璃剑。
+以下配方均位于 `data/dawnduskterminal/recipe/`。
 
 ### 苍穹船
 
@@ -182,8 +180,7 @@ NeoForge 自带 191 个原版配方覆盖，其中 13 条与本模组需要修�
 |---|---|---|
 | `canopy_boat` | 原版船那个 U 形，五块苍穹锭（`"a a"` / `"aaa"`） | `canopy_boat` |
 
-船体照竹筏做：实体 `entity/CanopyBoatEntity`、物品 `item/CanopyBoatItem`，
-能浮在水、岩浆与 `portal_fluid` 上，细节见 `architecture.md` 的「苍穹船」一节。
+船体与流体承载规则见 [苍穹船](architecture.md#苍穹船)。
 
 ### 狄拉克精炼粉
 
@@ -192,8 +189,7 @@ NeoForge 自带 191 个原版配方覆盖，其中 13 条与本模组需要修�
 | `dirac_mix` | 无序：苍穹锭 + 混乱石 + 狄拉克 + 弦 | `dirac_mix` |
 | `dirac_mix_smelting` | 烧炼，200 tick、0.7 经验 | `dirac_ingot` |
 
-狄拉克锭**只能**从这条链得到：原先那两条「狄拉克直接烧成狄拉克锭」的配方
-（`dirac_ingot_smelting` 与 `dirac_ingot_blasting`）已经删掉，别再补回去，否则精炼粉这一步就形同虚设。
+狄拉克锭只能通过精炼粉链取得，不提供狄拉克直接烧炼或高炉炼锭的配方。
 
 「弦」是本模组那只怪掉的材料（`dawnduskterminal:string`），不是原版的线。
 
@@ -239,14 +235,12 @@ NeoForge 自带 191 个原版配方覆盖，其中 13 条与本模组需要修�
 因此 `gametest/BloodRupertTests` 除了核对产物与数量，还核对命中的配方 ID：
 两条若混淆，拿试验物品029 的那一叠会被当成单颗那条，白吃一份粗钼铅矿。
 
-试验物品030 顺手补上了自己的图标（`textures/item/experiment_030.png`），
-于是它从 `ModExperimentItems.PLACEHOLDERS` 搬到 `TEXTURED`：
-占位降为 40 个，有贴图的升到 32 个，`ExperimentItemTests` 里那两处计数断言随之改动。
+试验序号与图标登记规则见 [注册与资源约定](experiments.md#注册与资源约定)。
 
 ## 十 拆解
 
-试验物品051（拆解台那台机器）读的是暮色森林的 `twilightforest:uncrafting` 配方表，
-文件都在 `data/dawnduskterminal/recipe/` 下：
+051 读取暮色森林的 `twilightforest:uncrafting` 配方，文件位于 `data/dawnduskterminal/recipe/`。
+机器的燃料、扫描缓存、界面与漏斗规则见 [051：拆解台](experiments.md#051拆解台)。
 
 | 配方 | 输入 | 一次吃掉 | 产物 |
 |---|---|---|---|
@@ -256,9 +250,18 @@ NeoForge 自带 191 个原版配方覆盖，其中 13 条与本模组需要修�
 
 「黏土块」是 `minecraft:clay`，不是黏土球（`clay_ball`）。
 
-后两条是两格排布（`"AB"`），产物落在 3x3 的第一行前两格；017 那条是 3x3 的斜排。
-三件试验物品都没有合成配方，所以反查合成配方那一档不会抢在拆解配方前面。
-`gametest/Experiment051Tests` 逐条钉住产物与位置，并顺带钉住「不可合成」。
+后两条使用 `"AB"` 两格排布，产物位于 3×3 网格第一行前两格；017 使用 3×3 斜排。
+字段含义如下。
+
+| 字段 | 含义 |
+|---|---|
+| `input` | 原料物品 |
+| `input_count` | 原料数量，默认 1 |
+| `key`、`pattern` | 3×3 产物网格，空白格不产出 |
+| `cost` | 暮色森林拆解台收取的经验等级；051 不扣经验，可写 0 |
+
+三件物品均不提供合成配方，以免被优先级更高的反向合成配方覆盖。
+`gametest/Experiment051Tests` 检查产物、位置与不可合成约束。
 
 ## 十一 易矿与转换粉
 
@@ -289,7 +292,7 @@ NeoForge 自带 191 个原版配方覆盖，其中 13 条与本模组需要修�
 投掷物是同一个类 `entity/TransformationPowderEntity`，方向由实体类型分——
 `dawnduskterminal:potent_transformation_powder` 与 `dawnduskterminal:reversed_transformation_powder`。
 
-落地那一下在 `world/TransformationBlast`，半径都是半径 5 格的**球**：
+`world/TransformationBlast` 在命中位置处理半径为 5 格的球形区域。
 
 | 项 | 强效转换粉 | 逆转转换粉 |
 |---|---|---|
@@ -328,8 +331,7 @@ NeoForge 自带 191 个原版配方覆盖，其中 13 条与本模组需要修�
 - 反转用哭泣的黑曜石的滴落 `dripping_obsidian_tear`：挂在取样点上，然后往下滴
 
 `spread × 3`（高斯尾巴）仍要落在作用半径 5 格以内。
-那份计划是纯数据、可以被测试读，所以「粒子种类串了」「散布溢出球外」「图腾被摊开」「连线粒子换了」
-都会在 `gametest/TransformationPowderTests#particleBurstsUseTheRightIds` 里先红。
+`gametest/TransformationPowderTests#particleBurstsUseTheRightIds` 检查粒子种类、分布范围与连线参数。
 
 命中判定有两条：撞到方块或活物走原版投掷物那条，**碰到液体**由实体自己每 tick 查一次
 （液体没有碰撞箱，原版那条看不见它）。所以射进水里会炸在水面那一格，不会一路穿到底。
@@ -337,7 +339,7 @@ NeoForge 自带 191 个原版配方覆盖，其中 13 条与本模组需要修�
 但**自己那一侧的液体不算落点**：强效那瓶穿过水，反转那瓶穿过不稳定液体——那正是它们各自造出来的东西，
 否则往刚造出来的水里再扔一瓶就会炸在半空。判断走 `FluidType`，源与流动两种都算同一种流体。
 
-对照表全在 `world/TransformationConversion`，内容不是新定的，逐条来自项目里已有的记载：
+`world/TransformationConversion` 集中定义转换关系，来源如下。
 
 - 方块照 `biomes.md` 附录那张「原版方块到模组方块」表，再加 `ModChronoOres` 的十二块两档矿石。
   岩浆与热情的暮光（`enthu_fluid`）不参与转换；模组独有的矿（赤钼、狄拉克、carid、易矿）与混乱石、
@@ -444,9 +446,10 @@ NeoForge 自带 191 个原版配方覆盖，其中 13 条与本模组需要修�
 - `gametest/CompoundErosionTests` 钉住加罐与空罐、四条酿造链、默认内容、时长与颜色，
   以及伤害的节拍、数值与伤害类型。
 
+## 十五 锻铁玻璃
 
-
-
-
-
-
+`wrought_iron_glass` 无序配方使用 8 个原版玻璃与 1 个 `twilightforest:wrought_iron_bar`，产出 8 个。
+方块使用原版 `TransparentBlock`，硬度为 0.3，带 `noOcclusion`，不窒息、不遮挡视线并允许天光穿透。
+加入通用 `#c:glass_blocks` 标签，供其他模组识别。
+同类方块之间剔除内部面，外露顶面保留，竖直连接纹理依赖该行为。
+`gametest/WroughtIronGlassTests` 检查方块语义、标签、面剔除与最终生效配方。
