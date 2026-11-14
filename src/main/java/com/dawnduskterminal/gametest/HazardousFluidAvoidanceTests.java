@@ -171,10 +171,11 @@ public final class HazardousFluidAvoidanceTests {
     }
 
     /**
-     * 两只不走寻路的恶魂：扫得到身边的流体，而且退开点在自己与流体连线的反方向上、比现在更高
+     * 两只不依赖寻路的恶魂：能够发现身边的危险流体，且退开点位于本体与流体连线的反方向上并高于当前位置
      *
-     * <p>恶魂是 {@code FlyingMob}，移动全靠 {@code MoveControl}，寻路那道网管不到它们；这里直接跑
-     * {@link AvoidHazardousFluidGoal} 的「发现—转向」两步，读它写给移动控制器的目标点
+     * <p>两只恶魂均为 {@code FlyingMob}，移动完全依赖 {@code MoveControl}，寻路层的约束对其无效。
+     * 此处直接执行 {@link AvoidHazardousFluidGoal} 的「发现」与「转向」两个步骤，读取其写入移动控制器的目标点。
+     * 该 goal 是否已注册到实体之上，另由 {@code GhastFruityTests} 断言。
      */
     @GameTest(template = "ddt_empty", batch = "hazardous_fluid")
     public static void theFlyingGhastsBackAwayFromTheFluid(GameTestHelper helper) {

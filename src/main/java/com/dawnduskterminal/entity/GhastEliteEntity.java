@@ -1,23 +1,25 @@
 package com.dawnduskterminal.entity;
 
 import com.dawnduskterminal.registry.ModSounds;
+import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.List;
+import java.util.ListIterator;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
-import net.minecraft.world.Difficulty;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.MobSpawnType;
-import net.minecraft.world.entity.SpawnGroupData;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.control.MoveControl;
@@ -30,170 +32,206 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.ServerLevelAccessor;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
+import net.neoforged.neoforge.event.EventHooks;
 import net.neoforged.neoforge.event.entity.ProjectileImpactEvent;
-import org.jetbrains.annotations.Nullable;
 import twilightforest.entity.monster.CarminiteGhastling;
 import twilightforest.init.TFDamageTypes;
 import twilightforest.init.TFEntities;
+import twilightforest.init.TFParticleType;
 
 /**
- * 「大恶魂」：暮色恶魂的精英模式
+ * 「大恶魂」：暮色恶魂的精英形态
  *
- * <p>除了「会改天气、受伤减免」这类暮色恶魂专属机制之外，行为与它相似：飘着飞、按原版恶魂的节奏喷火球，
- * 外加两样自己的东西 ——
+ * <p>本类不实现暮色恶魂的「改变天气」与「伤害减免」两项专属机制，其余行为与该生物相似：
+ * 以漂浮方式移动，按原版恶魂的节奏发射火球。在此之上另有下列两套专属机制。
  *
  * <ul>
- *   <li>常驻：每 10 tick 落一阵泪滴。玩家站在天光下就被砸 3 点（伤害类型借用暮色森林的
- *       {@code twilightforest:ghast_tear}）；泪滴落在迷你恶魂身上时把那一只吸收掉并治疗自己 2 点
- *   <li>一次性：第一次锁定目标时，在自身 24 格内召一批 {@code twilightforest:carminite_ghastling}
- *       并把目标共享给它们
+ *   <li>常驻：每 tick 生成一颗泪粒子（{@code TFParticleType.BOSS_TEAR}），以 {@code longDistance} 方式
+ *       发放给 512 格以内的玩家；每 {@value #TEAR_INTERVAL} tick 结算一次伤害，伤害类型为
+ *       {@code twilightforest:ghast_tear}，每次 {@value #TEAR_DAMAGE} 点，与暮色恶魂的泪滴一致。
+ *   <li>一次性：第一次取得索敌对象时，于本体正下方水平半径 {@value #MINION_SPAWN_RADIUS} 格的方形区域内
+ *       依次召出 {@value #MINION_COUNT} 只 {@code twilightforest:carminite_ghastling}，并将该目标共享给它们。
  * </ul>
  *
- * <p>与「恶果」一样，火球撞到它身上会被拨走：有索敌就砸向索敌对象，没有就原路弹回，
- * 反弹时用 {@code affectionate_scream}
+ * <p>与「恶果」相同，火球撞击本体时不会爆炸，而是被改向：存在索敌对象时打向该对象，否则沿来路折返。
  */
 public class GhastEliteEntity extends Ghast implements YsmPackUser {
-    /** 生命值 250 */
+    /** 最大生命值 */
     public static final float MAX_HEALTH = 250.0F;
 
-    /** 索敌范围 100 格 */
+    /** 索敌范围，单位为格 */
     public static final double FOLLOW_RANGE = 100.0D;
 
-    /** 掉落经验：与暮色恶魂的 {@code UrGhast} 同一个数 */
+    /** 击杀经验：与暮色恶魂 {@code UrGhast} 的取值相同 */
     public static final int XP_REWARD = 317;
 
     /**
-     * 被打上这个标记的小鬼是大恶魂召的
+     * 标记本类召唤的小鬼
      *
-     * <p>{@code mixin/GhastlingShouldAttackMixin} 靠它放开暮色森林那条「玩家要看着我才打」的守卫规则；
-     * 野生的砷铅铁恶魂守卫没有这个标记，行为不变
+     * <p>{@code mixin/GhastlingShouldAttackMixin} 依据该标记放开暮色森林的守卫规则
+     * （原规则要求玩家准星对准该生物）。
+     * 自然生成的砷铅铁恶魂守卫不带该标记，行为不受影响。
      */
     public static final String MINION_TAG = "dawnduskterminal:elite_minion";
 
     /**
-     * 生成时抬高多少格
+     * 嘴部在模型空间中的水平前伸量
      *
-     * <p>几何在原点下方还有一块 {@code origin=[-64,-48,-64]}、{@code size=[128,48,128]} 的裙摆，
-     * 即脚下 48 单位 = 3 格；贴地放会埋掉三格，所以抬这三格
+     * <p>嘴部的模型空间坐标为 {@code (0, 31, -66)}（像素）。Bedrock 模型中 −Z 为正面，16 单位等于 1 格；
+     * 该坐标取自几何本身：{@code thehead} 主立方体的范围为 y 0..128、z −64..64，
+     * 两片脸的薄片位于 z≈−64.2 与 −64.4，故脸面位于 z=−64 单位，嘴部再向前 2 单位。
+     * 换算到世界坐标为正前方 {@code 66/16 = 4.125} 格，见 {@link #MOUTH_HEIGHT}。
      */
-    private static final double SPAWN_LIFT = 3.0D;
+    private static final double MOUTH_FORWARD = 66.0D / 16.0D;
 
-    /** 出膛距离：照暮色恶魂 {@code UrGhastAttackGoal}，视向量 × 8.5 */
-    private static final double VOLLEY_REACH = 8.5D;
+    /** 嘴部相对本体脚部的竖直高度：{@code 31/16 = 1.9375} 格 */
+    private static final double MOUTH_HEIGHT = 31.0D / 16.0D;
 
-    /** 第一发比另外两发高 2 格：暮色恶魂的 spitFireball 就这么摆 */
-    private static final double FIRST_BALL_LIFT = 2.0D;
-
-    /** 拨出去的火球出现在身外多远：8 格箱子的半对角线约 6.93 格，取 7.5 保证任何方向都在箱外 */
+    /**
+     * 拨出的火球相对本体中心的偏移距离
+     *
+     * <p>本体碰撞箱为 8 格见方，其半对角线约 6.93 格；取 7.5 格可保证任何方向均在碰撞箱之外，
+     * 否则下一 tick 火球将再次撞击本体，形成无限反弹。
+     */
     private static final double DEFLECT_ORIGIN = 7.5D;
 
-    /** 泪滴每 10 tick 落一次（暮色恶魂的 tantrum 也是这个节奏） */
+    /** 伤害结算周期（tick）：粒子每 tick 生成一颗，伤害每 10 tick 结算一次 */
     private static final int TEAR_INTERVAL = 10;
 
-    /** 泪滴砸玩家的伤害 */
+    /** 每一次泪滴伤害的数值，与暮色恶魂一致 */
     private static final float TEAR_DAMAGE = 3.0F;
 
-    /** 泪滴吸收一只迷你恶魂之后治疗的点数（暮色恶魂吃小鬼也是 2 点） */
-    private static final float TEAR_HEAL = 2.0F;
-
-    /** 泪滴覆盖范围：碰撞箱向下 16 格、竖直再放大 16 格（与暮色恶魂一致，水平方向不放大） */
+    /**
+     * 泪滴判定范围在竖直方向的扩展量
+     *
+     * <p>以本体碰撞箱为基准向下扩展该距离，并在竖直方向放大同一距离，水平方向不放大，
+     * 与暮色恶魂一致。
+     */
     private static final double TEAR_DROP = 16.0D;
 
     /** 一次召唤的迷你恶魂数量 */
     private static final int MINION_COUNT = 6;
 
-    /** 召唤半径：8~24 格；同时也是小鬼被拽回来的距离 */
-    private static final double MINION_MIN_RADIUS = 8.0D;
+    /** 召唤区域：本体下方的方形区域，x、z 方向均为 ±该值。公开以供游戏测试断言该数值 */
+    public static final double MINION_SPAWN_RADIUS = 3.0D;
 
-    private static final double MINION_MAX_RADIUS = 24.0D;
+    /** 生成高度：位于本体脚部下方该距离处，使小鬼自本体下方出现 */
+    private static final double MINION_SPAWN_DROP = 2.0D;
 
-    /** 每隔这么多 tick 补一次索敌、并给没事干的小鬼指一次回家的路 */
+    /** 单只小鬼随机延迟的上界（tick）：实际取值为 0 至 59，各只依次出现而非同一 tick 同时生成 */
+    private static final int MINION_SPAWN_DELAY = 60;
+
+    /**
+     * 跟随 goal 的优先级
+     *
+     * <p>必须小于暮色森林自带两个飞行 goal 的优先级 5：在 {@code MOVE} 标志上优先级数值较小者取得控制权，
+     * 若取 8 则始终无法取得控制权，表现为召唤出的小鬼不跟随本体。
+     */
+    private static final int MINION_FOLLOW_PRIORITY = 4;
+
+    /** 补充分配索敌对象的周期（tick） */
     private static final int MINION_TEND_INTERVAL = 20;
 
-    /**
-     * 小鬼待在本体身边多远
-     *
-     * <p>必须大于泪滴柱子的半宽（本体 8 格宽，半宽 4 格），否则它一靠近就被泪滴吸收
-     */
+    /** 小鬼环绕本体飞行时的半径，单位为格 */
     private static final double MINION_HOLD_DISTANCE = 6.0D;
 
-    /** 照看范围：再远的小鬼直接放弃，交给它自己 */
+    /** 照看半径：超出该距离的小鬼不再处理，交由自身的 AI 决定去向 */
     private static final double MINION_TEND_RADIUS = 48.0D;
 
-    /** 一轮三发 */
+    /** 单轮齐射的发数 */
     private static final int FIREBALL_COUNT = 3;
 
-    /** 除第一发之外的另外两发：瞄准向量在水平面上带随机抖动 */
+    /** 需要施加瞄准抖动的发数：除第一发之外的全部 */
     private static final int JITTERED_BALLS = FIREBALL_COUNT - 1;
 
-    /** 抖动幅度：{@code (rand - rand) * 8}，与暮色恶魂逐字一致 */
+    /** 瞄准抖动的幅度：{@code (rand - rand) * 8}，与暮色恶魂的实现一致 */
     private static final float VOLLEY_AIM_JITTER = 8.0F;
 
-    /** 暮色森林的泪滴伤害类型；缺暮色森林时退回普通生物伤害 */
-
     /**
-     * 脸上那两张薄片的状态，必须同步
+     * 面部状态，必须同步
      *
-     * <p>{@code getTarget()} 只在服务端有值，客户端要知道「现在有没有盯人」只能靠数据位；
-     * 蓄力（{@code isCharging()}）本来就在原版恶魂的同步数据里，这里一并折进来，渲染器只读这一位
+     * <p>{@code getTarget()} 只在服务端有值，客户端要判断「当前是否存在索敌对象」只能依赖同步数据；
+     * 蓄力状态（{@code isCharging()}）原本就在原版恶魂的同步数据之内，此处一并折算进来，渲染器只读取这一位。
      */
-    /** 模型包 id，空串表示用默认包；见 {@link YsmPackUser} */
-    private static final EntityDataAccessor<String> DATA_PACK =
-            SynchedEntityData.defineId(GhastEliteEntity.class, EntityDataSerializers.STRING);
-
-    private static final EntityDataAccessor<Integer> DATA_PACK_SEQ =
-            SynchedEntityData.defineId(GhastEliteEntity.class, EntityDataSerializers.INT);
-    /** 外观开关，形如 {@code hat=1;cloth=2} */
-    private static final EntityDataAccessor<String> DATA_ROAMING =
-            SynchedEntityData.defineId(GhastEliteEntity.class, EntityDataSerializers.STRING);
-
-    private static final EntityDataAccessor<Integer> DATA_ROAMING_SEQ =
-            SynchedEntityData.defineId(GhastEliteEntity.class, EntityDataSerializers.INT);
-    /** 手动动作的按钮键与序号 */
-    private static final EntityDataAccessor<String> DATA_ACTION =
-            SynchedEntityData.defineId(GhastEliteEntity.class, EntityDataSerializers.STRING);
-
-    private static final EntityDataAccessor<Integer> DATA_ACTION_SEQ =
-            SynchedEntityData.defineId(GhastEliteEntity.class, EntityDataSerializers.INT);
-
     private static final EntityDataAccessor<Byte> DATA_FACE =
             SynchedEntityData.defineId(GhastEliteEntity.class, EntityDataSerializers.BYTE);
 
-    /** 平静 / 有索敌 / 蓄力中，顺序与 {@link #DATA_FACE} 里存的序号一致 */
+    /** 模型包 id，空串表示使用默认模型包；见 {@link YsmPackUser} */
+    private static final EntityDataAccessor<String> DATA_PACK =
+            SynchedEntityData.defineId(GhastEliteEntity.class, EntityDataSerializers.STRING);
+
+    /** 模型包 id 的递增序号：客户端仅在序号变化时重新装载 */
+    private static final EntityDataAccessor<Integer> DATA_PACK_SEQ =
+            SynchedEntityData.defineId(GhastEliteEntity.class, EntityDataSerializers.INT);
+
+    /** 外观开关，格式为 {@code hat=1;cloth=2} */
+    private static final EntityDataAccessor<String> DATA_ROAMING =
+            SynchedEntityData.defineId(GhastEliteEntity.class, EntityDataSerializers.STRING);
+
+    /** 外观开关的递增序号 */
+    private static final EntityDataAccessor<Integer> DATA_ROAMING_SEQ =
+            SynchedEntityData.defineId(GhastEliteEntity.class, EntityDataSerializers.INT);
+
+    /** 手动动作的按键名 */
+    private static final EntityDataAccessor<String> DATA_ACTION =
+            SynchedEntityData.defineId(GhastEliteEntity.class, EntityDataSerializers.STRING);
+
+    /** 手动动作的递增序号 */
+    private static final EntityDataAccessor<Integer> DATA_ACTION_SEQ =
+            SynchedEntityData.defineId(GhastEliteEntity.class, EntityDataSerializers.INT);
+
+    /** 平静、有索敌、蓄力中三种面部状态，其序号与 {@link #DATA_FACE} 中存储的值一致 */
     public enum Face {
         CALM,
         ANNOYED,
-        ATTACK
+        ATTACK;
+
+        /** {@link #values()} 的缓存，避免每帧读取面部状态时复制一次数组 */
+        private static final Face[] VALUES = values();
+
+        /** 由同步数据中的数值取得枚举值，越界时按 {@link #CALM} 处理 */
+        public static Face of(int ordinal) {
+            return ordinal >= 0 && ordinal < VALUES.length ? VALUES[ordinal] : CALM;
+        }
     }
 
     private boolean minionsSummoned;
 
+    /** 已经排队、尚未落地的小鬼的剩余延迟（tick） */
+    private final List<Integer> pendingMinionDelays = new ArrayList<>();
+
     public GhastEliteEntity(EntityType<? extends GhastEliteEntity> type, Level level) {
         super(type, level);
-        // 暮色恶魂的 317 点经验，见 {@code UrGhast} 的 constructor
+        // 不设 noPhysics：本体的「拨开火球」依赖于在 ProjectileImpactEvent 中取消撞击，
+        // 而 AbstractHurtingProjectile#canHitEntity 会直接跳过 noPhysics 的实体，拨开机制将永不触发
         this.xpReward = XP_REWARD;
-        // 仍然吃碰撞：{@code noPhysics} 的实体不被任何弹体命中（见
-        // {@code AbstractHurtingProjectile#canHitEntity}），拔弹会失效，而且不吃碰撞就会穿到地面以下。
-        // 移动这一侧不做整条直线的碰撞预检：8 格见方的箱子在树林里找不到一条无障碍的直线，
-        // 撞上东西交给实体自己的移动去滑
-        this.moveControl = new EliteMoveControl(this);
     }
 
     public static AttributeSupplier.Builder createAttributes() {
         return Ghast.createAttributes()
                 .add(Attributes.MAX_HEALTH, MAX_HEALTH)
-                .add(Attributes.FOLLOW_RANGE, FOLLOW_RANGE);
+                .add(Attributes.FOLLOW_RANGE, FOLLOW_RANGE)
+                .add(Attributes.ARMOR, 10.0D)
+                .add(Attributes.KNOCKBACK_RESISTANCE, 0.9D);
     }
 
+    /**
+     * 注册 AI
+     *
+     * <p>此处不调用父类实现：父类注册的 {@code GhastShootFireballGoal} 与本模组的 {@link GhastShootGoal}
+     * 功能重叠，且其音效写死在 {@code levelEvent} 中，无法替换。
+     * 由于父类的 {@code GhastLookGoal} 随之一并缺失，本类按原实现补回 {@link EliteLookGoal}：
+     * 该 goal 负责设定本体的 {@code yRot}，缺失时本体出生后不再转向。
+     */
     @Override
     protected void registerGoals() {
-        // 不走寻路的飞行生物只能自己躲会伤人的流体，见 AvoidHazardousFluidGoal
+        // 不走寻路的飞行生物无法依靠 PathNavigation 回避危险流体，见 AvoidHazardousFluidGoal
         this.goalSelector.addGoal(4, new AvoidHazardousFluidGoal(this));
         this.goalSelector.addGoal(5, new RandomFloatAroundGoal(this));
         this.goalSelector.addGoal(7, new EliteLookGoal(this));
         this.goalSelector.addGoal(
                 7, new GhastShootGoal<GhastEliteEntity>(this, GhastEliteEntity::mouthPosition, this::fireVolley));
-        // 普通索敌：100 格内找玩家（跟索敌范围来自 FOLLOW_RANGE），没有原版恶魂那条 |Δy| <= 4 的过滤
+        // 常规实体索敌：范围取自 FOLLOW_RANGE（100 格），不叠加原版恶魂的 |Δy| <= 4 过滤
         this.targetSelector.addGoal(1, new NearestAttackableTargetGoal<>(this, Player.class, true));
     }
 
@@ -212,54 +250,31 @@ public class GhastEliteEntity extends Ghast implements YsmPackUser {
         return ModSounds.GHAST_UNIVERSAL_DEATH.get();
     }
 
-    /**
-     * 交战中不自然消失
-     *
-     * <p>原版 {@code Mob#checkDespawn} 有两条：离最近玩家超过 128 格直接删；离玩家超过 32 格、
-     * 且 {@code noActionTime > 600}（30 秒）时每 tick 有 1/800 概率删。{@code noActionTime} 只在
-     * 「贴近到 32 格以内」时清零，而这只从不靠近目标（飘着随机飞、只在远处喷火），
-     * 于是战斗时永远停在第二条上，半分钟后大概率凭空消失。
-     *
-     * <p>有索敌期间一律按持久处理；脱战之后索敌会在 100 格外被 {@code TargetGoal} 放掉，
-     * 那时恢复原版规则，不会永久占着 {@link GhastElitePopulation} 的那一个名额
-     */
-    @Override
-    public boolean requiresCustomPersistence() {
-        return super.requiresCustomPersistence() || this.getTarget() != null;
-    }
-
-    /** 一次只生成一只；「加载范围内最多 1 只」归 {@link GhastElitePopulation} 管 */
-    @Override
-    public int getMaxSpawnClusterSize() {
-        return 1;
-    }
-
     @Override
     public void tick() {
         super.tick();
-        if (this.level().isClientSide()) {
+        if (!(this.level() instanceof ServerLevel level)) {
             return;
         }
         this.entityData.set(DATA_FACE, (byte) this.currentFace().ordinal());
+        // 泪粒子每 tick 生成一颗：远距离可见性依赖 sendParticles 的 longDistance（512 格），不依赖射弹实体
+        this.spawnTearParticle(level);
         if (this.tickCount % TEAR_INTERVAL == 0) {
-            this.doTearRain();
+            this.doTearDamage(level);
         }
         if (this.tickCount % MINION_TEND_INTERVAL == 0) {
             this.tendMinions();
         }
+        this.spawnPendingMinions();
         if (!this.minionsSummoned && this.getTarget() != null) {
-            // 只有真的放出小鬼才算用掉这次技能
+            // 只有确实排入队列，才算消耗掉这一次性技能
             this.minionsSummoned = this.summonMinions();
         }
     }
 
-    /** 蓄力中 → 攻击脸；有索敌 → 不悦脸；否则平静 */
+    /** 蓄力中为攻击脸，存在索敌对象为不悦脸，其余为平静 */
     public Face getFace() {
-        return switch (this.entityData.get(DATA_FACE)) {
-            case 1 -> Face.ANNOYED;
-            case 2 -> Face.ATTACK;
-            default -> Face.CALM;
-        };
+        return Face.of(this.entityData.get(DATA_FACE));
     }
 
     private Face currentFace() {
@@ -283,18 +298,13 @@ public class GhastEliteEntity extends Ghast implements YsmPackUser {
 
     @Override
     public void setYsmPack(String id) {
-        this.entityData.set(DATA_PACK, id);
+        this.entityData.set(DATA_PACK, id == null ? "" : id);
         this.entityData.set(DATA_PACK_SEQ, this.entityData.get(DATA_PACK_SEQ) + 1);
     }
 
     @Override
     public String ysmPackId() {
         return this.entityData.get(DATA_PACK);
-    }
-
-    @Override
-    public int ysmPackSeq() {
-        return this.entityData.get(DATA_PACK_SEQ);
     }
 
     @Override
@@ -330,283 +340,314 @@ public class GhastEliteEntity extends Ghast implements YsmPackUser {
     }
 
     @Override
+    public int ysmPackSeq() {
+        return this.entityData.get(DATA_PACK_SEQ);
+    }
+
+    @Override
     public void addAdditionalSaveData(CompoundTag tag) {
         super.addAdditionalSaveData(tag);
         tag.putBoolean("MinionsSummoned", this.minionsSummoned);
+        // 排队中的小鬼必须一并写入：否则读档之后这几只不会再出现
+        int[] delays = new int[this.pendingMinionDelays.size()];
+        for (int index = 0; index < delays.length; index++) {
+            delays[index] = this.pendingMinionDelays.get(index);
+        }
+        tag.putIntArray("PendingMinionDelays", delays);
     }
 
     @Override
     public void readAdditionalSaveData(CompoundTag tag) {
         super.readAdditionalSaveData(tag);
         this.minionsSummoned = tag.getBoolean("MinionsSummoned");
-    }
-
-    /** 被打中之后立刻记仇，与距离无关 */
-    @Override
-    public boolean hurt(DamageSource source, float amount) {
-        boolean hurt = super.hurt(source, amount);
-        if (hurt
-                && !this.level().isClientSide()
-                && source.getEntity() instanceof LivingEntity attacker
-                && this.canAttack(attacker)
-                && !this.isAlliedTo(attacker)) {
-            this.setTarget(attacker);
+        this.pendingMinionDelays.clear();
+        for (int delay : tag.getIntArray("PendingMinionDelays")) {
+            this.pendingMinionDelays.add(delay);
         }
-        return hurt;
     }
 
-    @SuppressWarnings("deprecation")
+    /** 交战中不按距离消失：玩家离开之后亦不会消失 */
     @Override
-    public SpawnGroupData finalizeSpawn(
-            ServerLevelAccessor level,
-            net.minecraft.world.DifficultyInstance difficulty,
-            MobSpawnType spawnType,
-            @Nullable SpawnGroupData spawnGroupData) {
-        SpawnGroupData data = super.finalizeSpawn(level, difficulty, spawnType, spawnGroupData);
-        if (spawnType != MobSpawnType.COMMAND) {
-            // 裙摆在脚下 3 格，抬起来才不会埋进地里；/summon 的坐标由玩家自己写，不动
-            this.setPos(this.getX(), this.getY() + SPAWN_LIFT, this.getZ());
-        }
-        return data;
+    public boolean requiresCustomPersistence() {
+        return this.getTarget() != null;
     }
 
-    /**
-     * 自然生成判定：和平难度不刷；自然生成时再问 {@link GhastElitePopulation}，加载范围内已有一只就拒绝
-     */
+    /** 自然生成的判定：仅在出生时占用一个名额，刷怪蛋与 {@code /summon} 不占用 */
     public static boolean checkGhastEliteSpawnRules(
             EntityType<GhastEliteEntity> type,
             ServerLevelAccessor level,
             MobSpawnType spawnType,
             BlockPos pos,
             RandomSource random) {
-        if (level.getDifficulty() == Difficulty.PEACEFUL || !checkMobSpawnRules(type, level, spawnType, pos, random)) {
-            return false;
-        }
         return spawnType != MobSpawnType.NATURAL || GhastElitePopulation.tryReserve(level.getLevel());
     }
 
     /**
-     * 火球出膛的位置：视向量 × {@link #VOLLEY_REACH}，高度取体中心再加视向量的竖直分量
+     * 火球出膛的位置：模型嘴部所在的点，按本体当前的水平朝向放置到世界坐标中
      *
-     * <p>照暮色森林 {@code UrGhastAttackGoal.spitFireball}：三方都从这个点出膛，与瞄准点无关。
-     * 体型 8 格见方，8.5 格足以把球送到箱外，任何朝向都不例外。
+     * <p>模型空间的嘴位于 {@code (0, 31, -66)}（像素），换算为脚下 1.9375 格、正前方 4.125 格，
+     * 见 {@link #MOUTH_FORWARD} 与 {@link #MOUTH_HEIGHT}。此处只取水平朝向：
+     * 头骨没有俯仰通道，嘴不随视线上下移动，竖直方向固定为脚上方 1.9375 格。
      */
     public static Vec3 mouthPosition(GhastEliteEntity elite) {
         Vec3 view = elite.getViewVector(1.0F);
+        Vec3 forward = new Vec3(view.x, 0.0D, view.z);
+        if (forward.lengthSqr() < 1.0E-6D) {
+            // 垂直向上或向下看时不存在水平朝向，固定取正 Z，避免归一化产生 NaN
+            forward = new Vec3(0.0D, 0.0D, 1.0D);
+        }
+        forward = forward.normalize();
         return new Vec3(
-                elite.getX() + view.x * VOLLEY_REACH,
-                elite.getY() + elite.getBbHeight() / 2.0D + view.y * VOLLEY_REACH,
-                elite.getZ() + view.z * VOLLEY_REACH);
+                elite.getX() + forward.x * MOUTH_FORWARD,
+                elite.getY() + MOUTH_HEIGHT,
+                elite.getZ() + forward.z * MOUTH_FORWARD);
     }
 
     /**
-     * 把撞上来的火球改向
+     * 改变撞击本体的火球的飞行方向
      *
-     * <p>改向本身在 {@link GhastDeflect}，这里只交出本体的 {@link #DEFLECT_ORIGIN} 并补一声
+     * <p>存在索敌对象时打向该对象的眼睛，否则沿来路折返；火球的所有者改为执行改向的本体，
+     * 因此后续命中均计为本体的攻击。改向实现见 {@link GhastDeflect#deflect}，并播放一声
+     * {@code ghast_universal_deflect}。
      */
     public void deflectFireball(LargeFireball fireball) {
         GhastDeflect.deflect(this, fireball, DEFLECT_ORIGIN);
-        this.playVoice(ModSounds.GHAST_UNIVERSAL_DEFLECT.get());
+        GhastVoice.playVoice(this, ModSounds.GHAST_UNIVERSAL_DEFLECT.get());
     }
 
-    /** 撞击落在大恶魂身上时把火球接住，见 {@link GhastDeflect#handleImpact} */
+    /** 撞击落在大恶魂身上时取消撞击并改向，实现见 {@link GhastDeflect#handleImpact} */
     public static void onProjectileImpact(ProjectileImpactEvent event) {
         GhastDeflect.handleImpact(event, GhastEliteEntity.class, GhastEliteEntity::deflectFireball);
     }
 
-    private void playVoice(SoundEvent sound) {
-        GhastVoice.playVoice(this, sound);
-    }
-
     /**
-     * 一阵泪滴
+     * 生成一颗泪粒子
      *
-     * <p>范围照暮色恶魂：自己的碰撞箱向下 16 格、竖直再放大 16 格；玩家必须站在能看见天光的位置
-     * 才会被砸到。落进这片泪滴里的迷你恶魂会被吸收：治疗自己 {@value #TEAR_HEAL} 点，然后消失
-     */
-    /**
-     * 泪滴的范围
+     * <p>远距离可见性依赖 {@code sendParticles(player, type, longDistance = true, ...)}：
+     * 该重载的分发半径为 <strong>512 格</strong>，而非普通粒子的 32 格。泪雨的远距离表现由此实现，
+     * 既不需要射弹实体，也不额外生成任何对象。
      *
-     * <p>照暮色恶魂 {@code doTantrumDamageEffects} 的公式：自己的碰撞箱向下 16 格、竖直再放大 16 格，
-     * 水平方向不放大，也就是只有自己那 8 格见方的一条柱子
+     * <p>生成位置与暮色恶魂的 {@code aiStep} 相同：水平方向落在身体宽度之内，竖直方向落在 0 至半高之间，
+     * 粒子自行下落。
      */
-    public AABB tearField() {
-        return this.getBoundingBox().move(0.0D, -TEAR_DROP, 0.0D).inflate(0.0D, TEAR_DROP, 0.0D);
-    }
-
-    private void doTearRain() {
-        if (!(this.level() instanceof ServerLevel level)) {
-            return;
+    private void spawnTearParticle(ServerLevel level) {
+        double x = this.getX() + (this.getRandom().nextDouble() - 0.5D) * this.getBbWidth() * 0.75D;
+        double y = this.getY() + this.getRandom().nextDouble() * this.getBbHeight() * 0.5D;
+        double z = this.getZ() + (this.getRandom().nextDouble() - 0.5D) * this.getBbWidth() * 0.75D;
+        for (ServerPlayer player : level.players()) {
+            level.sendParticles(player, TFParticleType.BOSS_TEAR.get(), true, x, y, z, 1, 0.0D, 0.0D, 0.0D, 0.0D);
         }
-        AABB below = this.tearField();
-        DamageSource tear = this.tearDamage();
+    }
+
+    /**
+     * 泪雨的伤害结算，与暮色恶魂的 {@code doTantrumDamageEffects} 一致
+     *
+     * <p>判定范围为以本体碰撞箱为基准的竖直柱体：向下扩展 {@value #TEAR_DROP} 格，竖直方向再放大
+     * {@value #TEAR_DROP} 格，水平方向不放大。仅当玩家处于可见天光处时结算，每次
+     * {@value #TEAR_DAMAGE} 点，伤害类型为 {@code twilightforest:ghast_tear}。
+     * 该判定只针对玩家：小鬼不受影响，本体亦不会因此恢复生命。
+     */
+    private void doTearDamage(ServerLevel level) {
+        AABB below = this.getBoundingBox().move(0.0D, -TEAR_DROP, 0.0D).inflate(0.0D, TEAR_DROP, 0.0D);
+        DamageSource tear = TFDamageTypes.getEntityDamageSource(
+                this.level(), TFDamageTypes.GHAST_TEAR, this, TFEntities.UR_GHAST.get());
         for (Player player : level.getEntitiesOfClass(Player.class, below)) {
             if (level.canSeeSkyFromBelowWater(player.blockPosition())) {
                 player.hurt(tear, TEAR_DAMAGE);
             }
         }
-        // 泪滴落到小鬼身上就把它吸收掉：治疗本体 {@value #TEAR_HEAL} 点，然后消失
-        for (CarminiteGhastling minion : level.getEntitiesOfClass(CarminiteGhastling.class, below)) {
-            minion.discard();
-            this.heal(TEAR_HEAL);
-        }
-        level.sendParticles(
-                ParticleTypes.FALLING_DRIPSTONE_WATER,
-                this.getX(),
-                this.getY() + this.getBbHeight() * 0.5D,
-                this.getZ(),
-                32,
-                this.getBbWidth() * 0.75D,
-                this.getBbHeight() * 0.5D,
-                this.getBbWidth() * 0.75D,
-                0.02D);
-    }
-
-    private DamageSource tearDamage() {
-        return this.damageSources().source(TFDamageTypes.GHAST_TEAR, this);
-    }
-
-    /** 一次性技能：在自身 24 格内召一批迷你恶魂，并把当前索敌共享给它们 */
-    private boolean summonMinions() {
-        if (!(this.level() instanceof ServerLevel level)) {
-            return false;
-        }
-        LivingEntity target = this.getTarget();
-        int spawned = 0;
-        for (int i = 0; i < MINION_COUNT; i++) {
-            CarminiteGhastling minion = TFEntities.CARMINITE_GHASTLING.get().create(level);
-            if (minion == null) {
-                continue;
-            }
-            double angle = this.getRandom().nextDouble() * Mth.TWO_PI;
-            double distance =
-                    MINION_MIN_RADIUS + this.getRandom().nextDouble() * (MINION_MAX_RADIUS - MINION_MIN_RADIUS);
-            double x = this.getX() + Math.cos(angle) * distance;
-            double z = this.getZ() + Math.sin(angle) * distance;
-            double y =
-                    this.getY() + this.getBbHeight() * 0.5D + (this.getRandom().nextDouble() - 0.5D) * 12.0D;
-            minion.moveTo(x, y, z, this.getRandom().nextFloat() * 360.0F, 0.0F);
-            // 别开在树干或地里：被卡住的小鬼几 tick 就闷死了
-            for (int attempt = 0; attempt < 8 && !level.noCollision(minion); attempt++) {
-                y += 2.0D;
-                minion.moveTo(x, y, z, minion.getYRot(), 0.0F);
-            }
-            // 不设 persistence：与暮色森林的 boss 小鬼一样（TF 的 makeBossMinion 也不设），
-            // 战斗结束后玩家走远就自然消失，不会打一次攒一堆
-            if (target != null && target.isAlive()) {
-                minion.setTarget(target);
-            }
-            minion.getPersistentData().putBoolean(MINION_TAG, true);
-            level.addFreshEntity(minion);
-            spawned++;
-        }
-        if (spawned > 0) {
-            this.playVoice(ModSounds.GHAST_UNIVERSAL_CHARGE.get());
-        }
-        return spawned > 0;
     }
 
     /**
-     * 照看自己的小鬼：补索敌，没仗打的时候让它们飞回本体身边
+     * 一次性技能：将一批迷你恶魂排入队列，落地位置为本体下方水平半径 {@value #MINION_SPAWN_RADIUS} 格的方形区域
      *
-     * <p>两件事都不动它们的速度和位置，只给「下一步去哪」与「打谁」：
+     * <p>每个条目携带一段随机延迟，各只依次出现，不会在同一 tick 内同时生成。本方法只在服务端调用，
+     * 调用方已保证这一点，因此不再重复判断运行环境。
      *
-     * <ul>
-     *   <li>没有索敌的，把本体的索敌再发一次——暮色森林的 {@code NearestAttackableTargetGoal} 在看不见目标时
-     *       会把 target 清成 null，所以要反复补
-     *   <li>仍然没有索敌的，把移动目标指到本体身边 {@value #MINION_HOLD_DISTANCE} 格处，它们自己飞过去；
-     *       有索敌的不管，交给它们自己的 AI 去打
-     * </ul>
+     * <p>落地流程与暮色恶魂的 {@code UrGhast#spawnMinionGhastsAt} 一致：{@code moveTo} →
+     * {@code makeBossMinion()}（6 点生命、isMinion 标记、wanderFactor）→ {@code EventHooks.finalizeMobSpawn}
+     * → {@code checkSpawnRules(MOB_SUMMONED)} → {@code addFreshEntity} → {@code spawnAnim()}。
+     */
+    private boolean summonMinions() {
+        if (this.getTarget() == null) {
+            return false;
+        }
+        this.pendingMinionDelays.clear();
+        for (int index = 0; index < MINION_COUNT; index++) {
+            // 此处只安排延迟，落点在真正生成的那一刻按本体的当前位置计算
+            this.pendingMinionDelays.add(this.getRandom().nextInt(MINION_SPAWN_DELAY));
+        }
+        GhastVoice.playVoice(this, ModSounds.GHAST_UNIVERSAL_CHARGE.get());
+        return true;
+    }
+
+    /** 每 tick 将队列中的剩余延迟减一，减至零的条目立即生成 */
+    private void spawnPendingMinions() {
+        if (this.pendingMinionDelays.isEmpty() || !(this.level() instanceof ServerLevel level)) {
+            return;
+        }
+        for (ListIterator<Integer> iterator = this.pendingMinionDelays.listIterator(); iterator.hasNext(); ) {
+            int delay = iterator.next() - 1;
+            if (delay > 0) {
+                iterator.set(delay);
+                continue;
+            }
+            iterator.remove();
+            this.spawnMinion(level);
+        }
+    }
+
+    /**
+     * 在本体下方水平半径 ±{@value #MINION_SPAWN_RADIUS} 格的方形区域内生成一只小鬼
      *
-     * <p>停这么远是为了不被泪滴吸收：泪滴柱子水平只有本体自己那 8 格（半宽 4 格），
-     * {@value #MINION_HOLD_DISTANCE} 格在柱子外
+     * <p>落点在生成的那一刻按本体的当前位置计算，因此始终位于「当前本体」的下方。
+     * 落点若与方块相交，则逐次向上抬升两格，最多尝试八次；
+     * 随后挂上标记、持久标记与本类提供的跟随 goal。
+     */
+    private void spawnMinion(ServerLevel level) {
+        CarminiteGhastling minion = TFEntities.CARMINITE_GHASTLING.get().create(level);
+        if (minion == null) {
+            return;
+        }
+        double x = this.getX() + (this.getRandom().nextDouble() * 2.0D - 1.0D) * MINION_SPAWN_RADIUS;
+        double z = this.getZ() + (this.getRandom().nextDouble() * 2.0D - 1.0D) * MINION_SPAWN_RADIUS;
+        double y = this.getY() - MINION_SPAWN_DROP;
+        minion.moveTo(x, y, z, this.getRandom().nextFloat() * 360.0F, 0.0F);
+        // 避免将小鬼生成在树干或地面之内：被方块卡住的小鬼会在数 tick 内窒息死亡
+        for (int attempt = 0; attempt < 8 && !level.noCollision(minion); attempt++) {
+            y += 2.0D;
+            minion.moveTo(x, y, z, minion.getYRot(), 0.0F);
+        }
+        minion.makeBossMinion();
+        EventHooks.finalizeMobSpawn(
+                minion, level, level.getCurrentDifficultyAt(minion.blockPosition()), MobSpawnType.MOB_SUMMONED, null);
+        if (!minion.checkSpawnRules(level, MobSpawnType.MOB_SUMMONED)) {
+            return;
+        }
+        LivingEntity target = this.getTarget();
+        if (target != null && target.isAlive()) {
+            minion.setTarget(target);
+        }
+        minion.getPersistentData().putBoolean(MINION_TAG, true);
+        // 本体存活期间小鬼不得自行消失：玩家拉开距离也无法摆脱它们
+        minion.setPersistenceRequired();
+        minion.goalSelector.addGoal(MINION_FOLLOW_PRIORITY, new MinionFollowGoal(minion, this));
+        level.addFreshEntity(minion);
+        minion.spawnAnim();
+    }
+
+    /**
+     * 照看本体召唤的小鬼：仅补充分配索敌对象，移动交由每只小鬼自己的 {@link MinionFollowGoal} 负责
+     *
+     * <p>暮色森林的 {@code NearestAttackableTargetGoal} 在失去视线时会将其 {@code target} 置为 {@code null}，
+     * 因此需要周期性地重新分配。
      */
     private void tendMinions() {
         if (!(this.level() instanceof ServerLevel level)) {
             return;
         }
         LivingEntity target = this.getTarget();
-        Vec3 center = this.getBoundingBox().getCenter();
         for (CarminiteGhastling minion : level.getEntitiesOfClass(
                 CarminiteGhastling.class, this.getBoundingBox().inflate(MINION_TEND_RADIUS))) {
             if (minion.getTarget() == null && target != null && target.isAlive() && this.canAttack(target)) {
                 minion.setTarget(target);
             }
-            if (minion.getTarget() == null) {
-                Vec3 hold = holdPoint(center, minion.position());
-                minion.getMoveControl().setWantedPosition(hold.x, hold.y, hold.z, 1.0D);
-            }
         }
     }
 
     /**
-     * 小鬼的落脚点：本体中心朝它那一侧、水平 {@value #MINION_HOLD_DISTANCE} 格、再高一格
+     * 小鬼跟随本体：每 tick 将移动目标设为本体周围的一个环绕点
      *
-     * <p>抽成静态方法是为了能直接测：落下距离必须大于泪滴柱子的半宽 4 格，否则它会被本体吸掉
-     */
-    public static Vec3 holdPoint(Vec3 eliteCenter, Vec3 minionPosition) {
-        Vec3 horizontal = new Vec3(minionPosition.x - eliteCenter.x, 0.0D, minionPosition.z - eliteCenter.z);
-        Vec3 direction = horizontal.lengthSqr() < 1.0E-4D ? new Vec3(1.0D, 0.0D, 0.0D) : horizontal.normalize();
-        return eliteCenter.add(direction.scale(MINION_HOLD_DISTANCE)).add(0.0D, 1.0D, 0.0D);
-    }
-
-    /**
-     * 原版 {@code Ghast.RandomFloatAroundGoal}：每 16 格内的一个随机点为下一段路的终点
+     * <p>优先级 {@value #MINION_FOLLOW_PRIORITY} 必须小于暮色森林自带的两个飞行 goal 的优先级 5，
+     * 否则在 {@code MOVE} 标志上永远无法取得控制权，表现为召唤出的小鬼不跟随本体。
      *
-     * <p>移动行为照抄原版恶魂；只把 {@code canReach} 的整条直线预检去掉了 —— 这只 8 格见方的箱子
-     * 在树林里几乎找不到一条十几格无阻的直线，留着它就永远停在原地
+     * <p>本体死亡之后 {@link #canUse()} 返回 {@code false}，控制权交还给小鬼自身的飞行 goal，
+     * 并在 {@link #stop()} 中将其解散：被召唤的小鬼带有持久标记，若不在此处解散，将永久滞留于该区域。
      */
-    private static final class RandomFloatAroundGoal extends Goal {
-        private final GhastEliteEntity ghast;
+    private static final class MinionFollowGoal extends Goal {
+        private final Mob minion;
+        private final GhastEliteEntity elite;
 
-        private RandomFloatAroundGoal(GhastEliteEntity ghast) {
-            this.ghast = ghast;
+        private MinionFollowGoal(Mob minion, GhastEliteEntity elite) {
+            this.minion = minion;
+            this.elite = elite;
             this.setFlags(EnumSet.of(Goal.Flag.MOVE));
         }
 
         @Override
         public boolean canUse() {
-            MoveControl control = this.ghast.getMoveControl();
-            if (!control.hasWanted()) {
-                return true;
-            }
-            double x = control.getWantedX() - this.ghast.getX();
-            double y = control.getWantedY() - this.ghast.getY();
-            double z = control.getWantedZ() - this.ghast.getZ();
-            double distance = x * x + y * y + z * z;
-            return distance < 1.0D || distance > 3600.0D;
+            return this.elite.isAlive() && this.elite.level() == this.minion.level();
         }
 
         @Override
         public boolean canContinueToUse() {
-            return false;
+            return this.canUse();
         }
 
         @Override
-        public void start() {
-            RandomSource random = this.ghast.getRandom();
-            double x = 0.0D;
-            double y = 0.0D;
-            double z = 0.0D;
-            // 原版挑点不看地形，一半的点会落在土里；8 格见方的箱子顶在那儿就再也推不动。
-            // 这里最多重挑 8 次，取一个放得下的点；都不行就用最后一个，交给移动控制器自己发现卡住
-            for (int attempt = 0; attempt < 8; attempt++) {
-                x = this.ghast.getX() + (double) ((random.nextFloat() * 2.0F - 1.0F) * 16.0F);
-                y = this.ghast.getY() + (double) ((random.nextFloat() * 2.0F - 1.0F) * 16.0F);
-                z = this.ghast.getZ() + (double) ((random.nextFloat() * 2.0F - 1.0F) * 16.0F);
-                AABB destination = this.ghast
-                        .getBoundingBox()
-                        .move(x - this.ghast.getX(), y - this.ghast.getY(), z - this.ghast.getZ());
-                if (this.ghast.level().noCollision(this.ghast, destination)) {
-                    break;
-                }
+        public void tick() {
+            Vec3 center = this.elite.getBoundingBox().getCenter();
+            double angle = this.minion.tickCount * 0.06D + this.minion.getId() * 1.7D;
+            double x = center.x + Math.cos(angle) * MINION_HOLD_DISTANCE;
+            double z = center.z + Math.sin(angle) * MINION_HOLD_DISTANCE;
+            double y = center.y + Math.sin(angle * 0.8D) * 2.0D;
+            this.minion.getMoveControl().setWantedPosition(x, y, z, 1.4D);
+        }
+
+        @Override
+        public void stop() {
+            // 本体已不存在时，小鬼随之解散；本体仍然存活时只是交出移动控制权，不做处理
+            if (!this.elite.isAlive()) {
+                this.minion.discard();
             }
-            this.ghast.getMoveControl().setWantedPosition(x, y, z, 1.0D);
         }
     }
 
-    /** 原版 {@code Ghast.GhastLookGoal}：没有索敌时朝着飞行方向，有索敌时朝着目标（64 格内） */
+    /**
+     * 一轮三发，摆法与暮色森林的 {@code UrGhastAttackGoal#spitFireball} 一致
+     *
+     * <p>三发<strong>在同一 tick 内</strong>出膛，出膛点同为 {@link #mouthPosition} 返回的那一点，
+     * 因此三发等高。第一发直接瞄准目标碰撞箱的中心；其余两发仅对瞄准向量的 x、z 分量施加
+     * {@code (rand - rand) * 8} 的抖动，竖直分量保持不变。
+     *
+     * <p>瞄准向量自<strong>嘴部</strong>起算，而非自本体中心起算。
+     */
+    private void fireVolley(LivingEntity target, Vec3 muzzle) {
+        Level level = this.level();
+        if (!(level instanceof ServerLevel serverLevel)) {
+            return;
+        }
+        double targetY = target.getBoundingBox().minY + target.getBbHeight() / 2.0D;
+        double dx = target.getX() - muzzle.x;
+        double dy = targetY - muzzle.y;
+        double dz = target.getZ() - muzzle.z;
+
+        GhastEliteFireball first = new GhastEliteFireball(level, this, new Vec3(dx, dy, dz));
+        first.setPos(muzzle.x, muzzle.y, muzzle.z);
+        serverLevel.addFreshEntity(first);
+
+        for (int index = 0; index < JITTERED_BALLS; index++) {
+            double jitterX = (this.getRandom().nextFloat() - this.getRandom().nextFloat()) * VOLLEY_AIM_JITTER;
+            double jitterZ = (this.getRandom().nextFloat() - this.getRandom().nextFloat()) * VOLLEY_AIM_JITTER;
+            GhastEliteFireball extra = new GhastEliteFireball(level, this, new Vec3(dx + jitterX, dy, dz + jitterZ));
+            extra.setPos(muzzle.x, muzzle.y, muzzle.z);
+            serverLevel.addFreshEntity(extra);
+        }
+    }
+
+    /**
+     * 原版 {@code Ghast.GhastLookGoal} 的等价实现
+     *
+     * <p>原版该类为 {@code Ghast} 的包私有内部类，本模组无法直接引用，故按原实现重写。
+     * 该 goal 负责设定本体的 {@code yRot}：不存在索敌对象时朝向飞行方向；存在索敌对象且距离在 64 格以内时朝向该对象。
+     * 缺少该 goal 时，本体在出生之后不再转向，{@link #mouthPosition} 的水平朝向与火球的出膛朝向都将固定为出生时的取值。
+     */
     private static final class EliteLookGoal extends Goal {
+        /** 64 格的平方：超出该距离后不再朝向索敌对象 */
+        private static final double LOOK_RANGE_SQR = 4096.0D;
+
+        private static final float DEGREES_PER_RADIAN = 180.0F / (float) Math.PI;
+
         private final GhastEliteEntity ghast;
 
         private EliteLookGoal(GhastEliteEntity ghast) {
@@ -626,129 +667,79 @@ public class GhastEliteEntity extends Ghast implements YsmPackUser {
 
         @Override
         public void tick() {
-            if (this.ghast.getTarget() == null) {
+            LivingEntity target = this.ghast.getTarget();
+            if (target == null) {
                 Vec3 movement = this.ghast.getDeltaMovement();
-                this.ghast.setYRot(-((float) Mth.atan2(movement.x, movement.z)) * (180.0F / (float) Math.PI));
-                this.ghast.yBodyRot = this.ghast.getYRot();
+                this.ghast.setYRot(-((float) Mth.atan2(movement.x, movement.z)) * DEGREES_PER_RADIAN);
+            } else if (target.distanceToSqr(this.ghast) < LOOK_RANGE_SQR) {
+                double dx = target.getX() - this.ghast.getX();
+                double dz = target.getZ() - this.ghast.getZ();
+                this.ghast.setYRot(-((float) Mth.atan2(dx, dz)) * DEGREES_PER_RADIAN);
             } else {
-                LivingEntity target = this.ghast.getTarget();
-                if (target.distanceToSqr(this.ghast) < 4096.0D) {
-                    double x = target.getX() - this.ghast.getX();
-                    double z = target.getZ() - this.ghast.getZ();
-                    this.ghast.setYRot(-((float) Mth.atan2(x, z)) * (180.0F / (float) Math.PI));
-                    this.ghast.yBodyRot = this.ghast.getYRot();
-                }
+                // 超出范围时不改变朝向，与原版一致
+                return;
             }
+            this.ghast.yBodyRot = this.ghast.getYRot();
         }
     }
 
     /**
-     * 一轮三发，照暮色森林 {@code UrGhastAttackGoal#spitFireball}
+     * 原版 {@code Ghast.RandomFloatAroundGoal} 的等价实现：以 16 格范围内的一个随机点作为下一段航线的终点
      *
-     * <p>三发<strong>同 tick</strong> 出膛，出膛点都是 {@link #mouthPosition} 那一个点
-     * （第一发再高 {@link #FIRST_BALL_LIFT} 格）。第一发直接朝目标体中心瞄；
-     * 另外两发只在瞄准向量的 x / z 上加 {@code (rand - rand) * 8} 的抖动，竖直分量不动。
-     *
-     * <p>节奏、蓄力与视线判定都在共用的 {@link GhastShootGoal} 里；这里只管把三发摆开。
+     * <p>移动控制器沿用父类构造函数装入的原版 {@code Ghast.GhastMoveControl}。该控制器会对整条直线做碰撞预检，
+     * 而本体的碰撞箱为 8 格见方，在树林中往往找不到一条十余格无阻的直线；此时控制器会放弃当前目标点，
+     * 本体随之停住。为此本实现补充进度判定：目标距离连续 {@value #WAYPOINT_TIMEOUT} tick 未见缩短时，
+     * 视为该点不可达并重新选点。
      */
-    private void fireVolley(LivingEntity target, Vec3 muzzle) {
-        Level level = this.level();
-        if (!(level instanceof ServerLevel serverLevel)) {
-            return;
-        }
-        double dx = target.getX() - this.getX();
-        double dy =
-                target.getBoundingBox().minY + target.getBbHeight() / 2.0D - (this.getY() + this.getBbHeight() / 2.0D);
-        double dz = target.getZ() - this.getZ();
-
-        GhastEliteFireball first = new GhastEliteFireball(level, this, new Vec3(dx, dy, dz));
-        first.setPos(muzzle.x, muzzle.y + FIRST_BALL_LIFT, muzzle.z);
-        serverLevel.addFreshEntity(first);
-
-        for (int index = 0; index < JITTERED_BALLS; index++) {
-            double jitterX = (this.getRandom().nextFloat() - this.getRandom().nextFloat()) * VOLLEY_AIM_JITTER;
-            double jitterZ = (this.getRandom().nextFloat() - this.getRandom().nextFloat()) * VOLLEY_AIM_JITTER;
-            GhastEliteFireball extra = new GhastEliteFireball(level, this, new Vec3(dx + jitterX, dy, dz + jitterZ));
-            extra.setPos(muzzle.x, muzzle.y, muzzle.z);
-            serverLevel.addFreshEntity(extra);
-        }
-    }
-
-    /**
-     * 暮色森林 {@code NoClipMoveControl} 的推法：每 2~6 tick 沿目标方向推 0.1 的加速度
-     *
-     * <p>与原版恶魂的 {@code GhastMoveControl} 只差一点：不做整条直线的碰撞预检。
-     * 8 格见方的箱子在树林里找不到一条十几格无障碍的直线，预检通不过就永远停在原地。
-     * 实体的碰撞照常生效，撞上树干由它自己的移动去滑
-     */
-    private static final class EliteMoveControl extends MoveControl {
-        /** 这么多 tick 几乎没挪动就算卡住 */
-        private static final int STUCK_TICKS = 30;
-
-        /** 0.05 格：贴地磨树皮时每 tick 的抖动也算「没动」 */
-        private static final double STUCK_EPSILON_SQR = 0.0025D;
+    private static final class RandomFloatAroundGoal extends Goal {
+        /** 连续多少个 tick 未能接近目标点即放弃该点：目标点位于地下时不得持续推动本体 */
+        private static final int WAYPOINT_TIMEOUT = 30;
 
         private final GhastEliteEntity ghast;
-        private int courseChangeCooldown;
-        private Vec3 lastPosition;
+        private double lastDistance = Double.MAX_VALUE;
         private int stuckTicks;
 
-        private EliteMoveControl(GhastEliteEntity ghast) {
-            super(ghast);
+        private RandomFloatAroundGoal(GhastEliteEntity ghast) {
             this.ghast = ghast;
+            this.setFlags(EnumSet.of(Goal.Flag.MOVE));
         }
 
         @Override
-        public void tick() {
-            if (this.operation != MoveControl.Operation.MOVE_TO) {
-                this.lastPosition = null;
+        public boolean canUse() {
+            MoveControl control = this.ghast.getMoveControl();
+            if (!control.hasWanted()) {
+                return true;
+            }
+            double x = control.getWantedX() - this.ghast.getX();
+            double y = control.getWantedY() - this.ghast.getY();
+            double z = control.getWantedZ() - this.ghast.getZ();
+            double distance = x * x + y * y + z * z;
+            if (distance < 1.0D || distance > 3600.0D) {
+                return true;
+            }
+            if (distance < this.lastDistance - 0.05D) {
+                this.lastDistance = distance;
                 this.stuckTicks = 0;
-                return;
+                return false;
             }
-            this.dropWaypointWhenStuck();
-            if (this.operation != MoveControl.Operation.MOVE_TO) {
-                return;
-            }
-            double dx = this.wantedX - this.ghast.getX();
-            double dy = this.wantedY - this.ghast.getY();
-            double dz = this.wantedZ - this.ghast.getZ();
-            if (this.courseChangeCooldown-- > 0) {
-                return;
-            }
-            this.courseChangeCooldown += this.ghast.getRandom().nextInt(5) + 2;
-            double distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
-            if (distance < 1.0E-4D) {
-                this.operation = MoveControl.Operation.WAIT;
-                return;
-            }
-            this.ghast.setDeltaMovement(this.ghast
-                    .getDeltaMovement()
-                    .add(dx / distance * 0.1D, dy / distance * 0.1D, dz / distance * 0.1D));
+            this.lastDistance = distance;
+            return ++this.stuckTicks > WAYPOINT_TIMEOUT;
         }
 
-        /**
-         * 一直推却推不动，就把目标点丢掉
-         *
-         * <p>{@link RandomFloatAroundGoal} 只在「到了」或「超过 60 格」时才换点；目标点落在
-         * 地面以下时这只 8 格见方的箱子永远顶在那儿，于是它就一直贴着地面不动。
-         * 丢掉之后 {@code hasWanted()} 变假，下一 tick 那条目标会自己挑一个新点
-         */
-        private void dropWaypointWhenStuck() {
-            Vec3 current = this.ghast.position();
-            if (this.lastPosition == null) {
-                this.lastPosition = current;
-                return;
-            }
-            if (current.distanceToSqr(this.lastPosition) >= STUCK_EPSILON_SQR) {
-                this.lastPosition = current;
-                this.stuckTicks = 0;
-                return;
-            }
-            if (++this.stuckTicks > STUCK_TICKS) {
-                this.operation = MoveControl.Operation.WAIT;
-                this.lastPosition = null;
-                this.stuckTicks = 0;
-            }
+        @Override
+        public boolean canContinueToUse() {
+            return false;
+        }
+
+        @Override
+        public void start() {
+            RandomSource random = this.ghast.getRandom();
+            double x = this.ghast.getX() + (random.nextFloat() * 2.0F - 1.0F) * 16.0F;
+            double y = this.ghast.getY() + (random.nextFloat() * 2.0F - 1.0F) * 16.0F;
+            double z = this.ghast.getZ() + (random.nextFloat() * 2.0F - 1.0F) * 16.0F;
+            this.ghast.getMoveControl().setWantedPosition(x, y, z, 1.0D);
+            this.lastDistance = Double.MAX_VALUE;
+            this.stuckTicks = 0;
         }
     }
 }

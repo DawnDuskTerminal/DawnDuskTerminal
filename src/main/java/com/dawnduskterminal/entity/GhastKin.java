@@ -2,6 +2,7 @@ package com.dawnduskterminal.entity;
 
 import com.dawnduskterminal.registry.ModEntities;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
 import twilightforest.init.TFEntities;
 
 /**
@@ -23,7 +24,7 @@ public final class GhastKin {
     }
 
     private static boolean isGhastFamily(Entity entity) {
-        var type = entity.getType();
+        EntityType<?> type = entity.getType();
         return type == ModEntities.GHASTFRUITY.get()
                 || type == ModEntities.GHAST_ELITE.get()
                 || type == TFEntities.CARMINITE_GHASTLING.get();

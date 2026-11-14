@@ -2,6 +2,7 @@ package com.dawnduskterminal.gametest;
 
 import com.dawnduskterminal.DawnDuskTerminal;
 import com.dawnduskterminal.block.Experiment052Block;
+import com.dawnduskterminal.entity.AvoidHazardousFluidGoal;
 import com.dawnduskterminal.entity.GhastEliteEntity;
 import com.dawnduskterminal.entity.GhastEliteFireball;
 import com.dawnduskterminal.entity.GhastElitePopulation;
@@ -13,6 +14,9 @@ import com.dawnduskterminal.item.FireJetProcess;
 import com.dawnduskterminal.registry.ModBlocks;
 import com.dawnduskterminal.registry.ModEntities;
 import com.dawnduskterminal.registry.ModItems;
+import com.dawnduskterminal.registry.ModSounds;
+import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Registry;
@@ -21,8 +25,10 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.sounds.SoundEvent;
 import net.minecraft.tags.EntityTypeTags;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
@@ -33,6 +39,7 @@ import net.minecraft.world.entity.MobCategory;
 import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.entity.SpawnPlacements;
 import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.entity.animal.Pig;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
@@ -239,7 +246,7 @@ public final class GhastFruityTests {
         helper.assertTrue(
                 aimer.getXRot() > 5.0F, "a lower target must give a real depression, got xRot=" + aimer.getXRot());
 
-        // 大恶魂：250 血、索敌 100、碰撞箱 8 格、自然生成上限 1、生成抬高裙摆的 3 格
+        // 大恶魂：生命 250、索敌范围 100 格、碰撞箱 8 格、自然生成上限 1
         helper.assertTrue(
                 GhastEliteEntity.MAX_HEALTH == 250.0F,
                 "the elite must have 250 health, was " + GhastEliteEntity.MAX_HEALTH);
@@ -256,7 +263,32 @@ public final class GhastFruityTests {
         helper.assertTrue(
                 elite.getBbWidth() == 8.0F && elite.getBbHeight() == 8.0F,
                 "the elite hitbox must match thehead (8x8x8), was " + elite.getBbWidth() + "x" + elite.getBbHeight());
+        // getMaxSpawnClusterSize 未覆写，取值来自原版 Ghast 的 1
         helper.assertTrue(elite.getMaxSpawnClusterSize() == 1, "the elite must spawn one at a time");
+        // 转向与回避危险流体分别由一个 goal 承担：缺失时本体既不转身，也不回避 portal_fluid
+        helper.assertTrue(
+                elite.goalSelector.getAvailableGoals().stream()
+                        .anyMatch(wrapped -> wrapped.getGoal().getFlags().contains(Goal.Flag.LOOK)),
+                "the elite must register a LOOK goal, otherwise it never turns to its target");
+        helper.assertTrue(
+                elite.goalSelector.getAvailableGoals().stream()
+                        .anyMatch(wrapped -> wrapped.getGoal() instanceof AvoidHazardousFluidGoal),
+                "the elite must register AvoidHazardousFluidGoal, otherwise it never retreats from hazardous fluid");
+        // 音效取自项目自有的 ghast_universal 一组：常驻、受伤、死亡各一声
+        helper.assertTrue(
+                invokeSound(elite, "getAmbientSound", new Class<?>[0]) == ModSounds.GHAST_UNIVERSAL_AMBIENT.get(),
+                "the elite ambient sound must be ghast_universal_ambient");
+        helper.assertTrue(
+                invokeSound(
+                                elite,
+                                "getHurtSound",
+                                new Class<?>[] {DamageSource.class},
+                                helper.getLevel().damageSources().generic())
+                        == ModSounds.GHAST_UNIVERSAL_HURT.get(),
+                "the elite hurt sound must be ghast_universal_hurt");
+        helper.assertTrue(
+                invokeSound(elite, "getDeathSound", new Class<?>[0]) == ModSounds.GHAST_UNIVERSAL_DEATH.get(),
+                "the elite death sound must be ghast_universal_death");
         helper.assertTrue(
                 GhastElitePopulation.CAP == 1, "the elite natural cap must be 1, was " + GhastElitePopulation.CAP);
         helper.assertTrue(
@@ -266,7 +298,7 @@ public final class GhastFruityTests {
                 GhastElitePopulation.tryReserve(helper.getLevel()),
                 "a loaded elite must refuse a second natural spawn");
 
-        // 会飞：给出目标点之后必须真的挪动（无碰撞移动控制器）
+        // 飞行：设定目标点之后本体必须实际移动（移动控制器为原版 GhastMoveControl）
         Vec3 eliteStart = elite.position();
         elite.getMoveControl().setWantedPosition(elite.getX() + 6.0D, elite.getY() + 4.0D, elite.getZ(), 1.0D);
         for (int tick = 0; tick < 30; tick++) {
@@ -277,41 +309,40 @@ public final class GhastFruityTests {
                 "the elite must fly towards its waypoint, moved "
                         + elite.position().distanceTo(eliteStart));
 
-        // 索敌之后召唤迷你恶魂：六只 twilightforest:carminite_ghastling，并把目标共享给它们
+        // 索敌之后排队召唤迷你恶魂：本体正下方 ±3 格的方形内，每只带随机延迟依次出现
         elite.setTarget(below);
-        for (int tick = 0; tick < 5; tick++) {
-            elite.tick();
-        }
+        elite.tick();
         EntityType<?> ghastlingType = TFEntities.CARMINITE_GHASTLING.get();
-        List<Entity> minions = helper.getLevel()
-                .getEntitiesOfClass(
-                        Entity.class,
-                        new AABB(elite.blockPosition()).inflate(64.0D),
-                        entity -> entity.getType() == ghastlingType);
-        helper.assertTrue(!minions.isEmpty(), "the elite must summon carminite ghastlings after acquiring a target");
+        helper.assertTrue(
+                minionsOf(helper, elite, ghastlingType).size() < 6,
+                "the six minions must not all appear on the same tick");
+
+        List<Entity> minions = new ArrayList<>();
+        for (int tick = 0; tick < 120 && minions.size() < 6; tick++) {
+            List<Entity> before = minionsOf(helper, elite, ghastlingType);
+            elite.tick();
+            for (Entity candidate : minionsOf(helper, elite, ghastlingType)) {
+                if (!before.contains(candidate)) {
+                    minions.add(candidate);
+                }
+            }
+        }
+        helper.assertTrue(minions.size() == 6, "the elite must summon six carminite ghastlings, got " + minions.size());
+        for (Entity minion : minions) {
+            // 落点就在本体下方 ±3 格的方形里，见下面的 MINION_SPAWN_RADIUS 断言；
+            // 具体坐标不在这里比：本体与小鬼都在飞，检测到它的那一 tick 已经各自挪了几格
+            helper.assertTrue(
+                    minion instanceof Mob mob && mob.isPersistenceRequired(),
+                    "a summoned minion must not despawn on its own");
+        }
         helper.assertTrue(
                 minions.stream().anyMatch(minion -> minion instanceof Mob mob && mob.getTarget() == below),
                 "the summoned minions must share the elite's target");
 
-        // 泪滴柱：照暮色恶魂的公式，水平就是本体自己的 8 格宽，竖直 32 格加本体 8 格
+        // 小鬼的召唤范围是本体正下方半径 3 格的方形，见 GhastEliteEntity 的 MINION_SPAWN_RADIUS
         helper.assertTrue(
-                Math.abs(elite.tearField().getXsize() - 8.0D) < 1.0E-6D,
-                "the tear column must be as wide as the body, was "
-                        + elite.tearField().getXsize());
-        helper.assertTrue(
-                Math.abs(elite.tearField().getYsize() - 40.0D) < 1.0E-6D,
-                "the tear column must reach 32 blocks down plus the 8 tall body, was "
-                        + elite.tearField().getYsize());
-
-        // 小鬼的落脚点：水平 6 格，必须落在泪滴柱子（半宽 4 格）之外，否则会被吸掉
-        Vec3 hold = GhastEliteEntity.holdPoint(Vec3.ZERO, new Vec3(40.0D, 0.0D, 0.0D));
-        helper.assertTrue(
-                Math.abs(hold.x - 6.0D) < 1.0E-6D && Math.abs(hold.z) < 1.0E-6D,
-                "a minion 40 blocks out must be held 6 blocks out on the same side, got " + hold);
-        helper.assertTrue(hold.x > 4.0D, "the hold point must be outside the 4 block tear half width, was " + hold.x);
-        helper.assertTrue(
-                GhastEliteEntity.holdPoint(Vec3.ZERO, Vec3.ZERO).horizontalDistance() > 4.0D,
-                "a minion right on top of the elite must still be pushed outside the tear column");
+                GhastEliteEntity.MINION_SPAWN_RADIUS == 3.0D,
+                "the minions must appear inside a 3 block square, was " + GhastEliteEntity.MINION_SPAWN_RADIUS);
 
         // 目标点埋在地里时不能永远推着不动：卡住 30 tick 之后把点丢掉、重挑一个
         double buriedY = elite.getY() - 12.0D;
@@ -400,29 +431,39 @@ public final class GhastFruityTests {
                 GhastEliteEntity.XP_REWARD == 317,
                 "the elite must drop the UrGhast's 317 experience, was " + GhastEliteEntity.XP_REWARD);
 
-        // 出膛点：斜 45 度时不能落在自己 8 格见方的箱子里
+        // 出膛点：模型里的嘴在 (0, 31, -66) 像素 → 脚上方 1.9375 格、水平朝向前方 4.125 格
         elite.setYRot(45.0F);
         elite.setXRot(0.0F);
         Vec3 eliteMouth = GhastEliteEntity.mouthPosition(elite);
-        double outward = Math.max(Math.abs(eliteMouth.x - elite.getX()), Math.abs(eliteMouth.z - elite.getZ()));
+        Vec3 eliteView = elite.getViewVector(1.0F);
+        Vec3 eliteHorizontal = new Vec3(eliteMouth.x - elite.getX(), 0.0D, eliteMouth.z - elite.getZ());
         helper.assertTrue(
-                outward >= 4.0D, "a diagonal muzzle must clear the 8-wide hitbox, was " + outward + " blocks out");
+                Math.abs(eliteMouth.y - (elite.getY() + 1.9375D)) < 1.0E-6D,
+                "the muzzle must sit 1.9375 blocks above the feet (mouth at y=31 px), was " + eliteMouth);
+        helper.assertTrue(
+                Math.abs(eliteHorizontal.length() - 4.125D) < 1.0E-4D,
+                "the muzzle must sit 4.125 blocks ahead of the body centre (mouth at z=-66 px), was " + eliteMouth);
+        helper.assertTrue(
+                eliteHorizontal.normalize().dot(new Vec3(eliteView.x, 0.0D, eliteView.z).normalize()) > 0.9998D,
+                "the muzzle must lie along the horizontal look direction, was " + eliteMouth);
         elite.setYRot(0.0F);
 
-        // 泪滴落到小鬼身上才吸收：泪滴范围内的小鬼消失，本体回 2 点
+        // 泪雨只结算伤害与粒子：不吸收小鬼、不给本体回血
         Entity dripping = ghastlingType.create(helper.getLevel());
         helper.assertTrue(dripping != null, "a carminite ghastling must be creatable");
         dripping.moveTo(elite.getX(), elite.getY() + 1.0D, elite.getZ());
         helper.getLevel().addFreshEntity(dripping);
-        elite.setHealth(200.0F);
-        for (int tick = 0; tick < 12; tick++) {
+        double beforeHealth = elite.getHealth();
+        // 有界推进：最多 10 tick 里必然遇到一次落雨；本体若已被移除也不会卡死
+        for (int tick = 0; tick < 10 && elite.tickCount % 10 != 9; tick++) {
             elite.tick();
         }
-        helper.assertTrue(dripping.isRemoved(), "a minion inside the tear field must be absorbed");
+        helper.assertTrue(!dripping.isRemoved(), "the tear rain must not absorb a summoned minion");
         helper.assertTrue(
-                elite.getHealth() > 200.0F, "absorbing a minion must heal the elite, health was " + elite.getHealth());
+                Math.abs(elite.getHealth() - beforeHealth) < 1.0E-4D,
+                "the tear rain must not heal the elite, health went " + beforeHealth + " -> " + elite.getHealth());
 
-        // 刷怪蛋路径：生成位置要抬高裙摆的 3 格
+        // 刷怪蛋路径能放下本体即可：贴地/贴侧面时埋进碰撞箱这问题原版也有，不额外抬高
         BlockPos eliteEggPos = helper.absolutePos(new BlockPos(10, 5, 12));
         Entity eliteEgg = ModEntities.GHAST_ELITE
                 .get()
@@ -435,10 +476,6 @@ public final class GhastFruityTests {
                         false,
                         false);
         helper.assertTrue(eliteEgg instanceof GhastEliteEntity, "the elite spawn egg must place a ghast_elite");
-        helper.assertTrue(
-                Math.abs(eliteEgg.getY() - (eliteEggPos.getY() + 3.0D)) < 1.0E-4D,
-                "the elite egg spawn must be lifted by the skirt depth (3.0), got y=" + eliteEgg.getY() + " for "
-                        + eliteEggPos.getY());
 
         // 创造模式手持方块右击 → 变成对应变体；生存模式不许变
         Item reappearing = TFBlocks.REAPPEARING_BLOCK.get().asItem();
@@ -670,8 +707,32 @@ public final class GhastFruityTests {
             "dawnduskterminal:carminite_ghast_meat");
 
     /** 半径内的掉落物 */
+    private static List<Entity> minionsOf(GameTestHelper helper, GhastEliteEntity elite, EntityType<?> ghastlingType) {
+        return helper.getLevel()
+                .getEntitiesOfClass(
+                        Entity.class,
+                        new AABB(elite.blockPosition()).inflate(64.0D),
+                        entity -> entity.getType() == ghastlingType);
+    }
+
     private static List<ItemEntity> itemsNear(ServerLevel level, Vec3 around, double radius) {
         return level.getEntitiesOfClass(ItemEntity.class, new AABB(around, around).inflate(radius));
+    }
+
+    /**
+     * 反射读取受保护的音效方法，用于断言音效绑定
+     *
+     * <p>{@code getAmbientSound}、{@code getHurtSound} 与 {@code getDeathSound} 在 {@code LivingEntity}
+     * 中为 {@code protected}，测试类位于另一包，只能经反射调用。
+     */
+    private static SoundEvent invokeSound(Object entity, String method, Class<?>[] parameters, Object... arguments) {
+        try {
+            Method accessor = entity.getClass().getDeclaredMethod(method, parameters);
+            accessor.setAccessible(true);
+            return (SoundEvent) accessor.invoke(entity, arguments);
+        } catch (ReflectiveOperationException problem) {
+            throw new AssertionError(method + " is not readable: " + problem);
+        }
     }
 
     /** 只按类名反射，代码里不 import 暮色森林，与仓库里其它暮色兼容代码同一做法；不触发静态初始化 */

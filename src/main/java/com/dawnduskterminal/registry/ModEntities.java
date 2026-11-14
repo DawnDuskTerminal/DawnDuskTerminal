@@ -132,13 +132,7 @@ public final class ModEntities {
                     .updateInterval(2)
                     .build("string"));
 
-    /**
-     * 「大恶魂」。碰撞箱与恶魂一样取几何里的主立方体 {@code thehead}：128 单位见方，即 8x8x8 格，
-     * 眼高取这个立方体的中心（模型 y=64 单位 = 4 格）；触手与腿在箱子外，与恶果的裙摆同理，不参与判定
-     *
-     * <p>模型按 1:1 绘制，不做任何缩放；{@code fireImmune()} 照抄原版恶魂
-     */
-    /** 大恶魂的火球：不与其他弹体相撞，见 {@code GhastEliteFireball} */
+    /** 大恶魂的火球：不与其他弹体相撞，见 {@link GhastEliteFireball} */
     public static final DeferredHolder<EntityType<?>, EntityType<GhastEliteFireball>> GHAST_ELITE_FIREBALL =
             ENTITIES.register("ghast_elite_fireball", () -> EntityType.Builder.<GhastEliteFireball>of(
                             GhastEliteFireball::new, MobCategory.MISC)
@@ -147,6 +141,14 @@ public final class ModEntities {
                     .updateInterval(10)
                     .build("ghast_elite_fireball"));
 
+    /**
+     * 「大恶魂」
+     *
+     * <p>碰撞箱与恶魂相同，取几何中的主立方体 {@code thehead}：128 单位见方，即 8×8×8 格；
+     * 眼高取该立方体的中心（模型 y=64 单位，即 4 格）。触手与腿位于碰撞箱之外，与恶果的裙摆同理，不参与判定。
+     *
+     * <p>模型按 1:1 绘制，不做缩放；{@code fireImmune()} 与原版恶魂一致。
+     */
     public static final DeferredHolder<EntityType<?>, EntityType<GhastEliteEntity>> GHAST_ELITE =
             ENTITIES.register("ghast_elite", () -> EntityType.Builder.of(GhastEliteEntity::new, MobCategory.MONSTER)
                     .sized(8.0F, 8.0F)

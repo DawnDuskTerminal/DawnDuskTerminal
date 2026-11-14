@@ -161,94 +161,129 @@
 ### 大恶魂
 
 `entity/GhastEliteEntity` 是暮色恶魂的精英形态，继承 `Ghast`。
-碰撞箱取几何里的主立方体 `thehead`：128 单位见方，即 8×8×8 格，眼高 4 格。
-生命 250，索敌 100 格，经验 317（与暮色森林 `UrGhast` 同一个数）。
+碰撞箱取几何中的主立方体 `thehead`：128 单位见方，即 8×8×8 格，眼高 4 格。
+生命 250，索敌范围 100 格，护甲 10，击退抗性 0.9，击杀经验 317（与暮色森林 `UrGhast` 取值相同）。
+本类不实现暮色恶魂的「改变天气」与「伤害减免」两项机制。
 
-索敌用的是普通 `NearestAttackableTargetGoal<Player>`，没有原版恶魂那条 |Δy| ≤ 4 的过滤。
-挨打之后立刻记仇，来源是谁就盯谁。
+索敌使用常规 `NearestAttackableTargetGoal<Player>`，范围取自 `FOLLOW_RANGE` 的 100 格，不限定高度差。
+受击之后不再立即反击，索敌对象的更新完全由该 goal 周期执行。
 
-自然生成要问 `GhastElitePopulation`：它按维度存一张每 tick 刷新的快照，加载范围内已经有一只就拒绝。
-所以一个玩家身边最多一只。
-群系表里只挂在 `old_growth_birch_forest` 的 monster 表上（权重 1、单批 1 只），刷怪蛋与刷怪笼不受这条容量限制。
-掉落为砷铅铁 2~4、恶魂之泪 1~3、高塔恶魂皮 2~4、生恶魂肉 2~4，都带抢夺加成。
+自然生成时向 `GhastElitePopulation` 申请名额：该类以维度为键保存快照，加载范围内已有一只即拒绝申请。
+因此同一维度的加载范围内最多一只。
+群系表只在 `old_growth_birch_forest` 的 monster 表登记该实体，权重 1。
+单批数量沿用原版 `Ghast#getMaxSpawnClusterSize` 返回的 1；刷怪蛋与刷怪笼不受容量限制。
+掉落为砷铅铁 1~4、恶魂之泪 1~3、高塔恶魂皮 1~4、生恶魂肉 1~4 与火药 0~3，均带抢夺加成。
 
-**有索敌期间按持久处理**（`requiresCustomPersistence`）。
-它从不靠近目标，`noActionTime` 因此永远清不了零。
-原版那条「离玩家超过 32 格且 30 秒没动作就掷骰删除」会让它在战斗中半分钟后凭空消失。
-脱战后索敌在 100 格外被 `TargetGoal` 放掉，于是回到原版的消失规则，不会永久占着容量名额。
+**存在索敌对象期间按持久处理**（`requiresCustomPersistence`）。
+该实体不主动接近目标，`noActionTime` 因而无法归零。
+原版「离玩家超过 32 格且 30 秒无动作即掷骰删除」的规则会使其在交战后半分钟内消失。
+脱战之后索敌对象在 100 格外被 `TargetGoal` 释放，随即回到原版消失规则，不会长期占用容量名额。
 
-**它必须吃碰撞**。`AbstractHurtingProjectile#canHitEntity` 要求目标不是 `noPhysics`。
-不吃碰撞火球就根本不命中它，拨火球那一套全部失效；不吃碰撞还会穿到地面以下。
-移动改由 `EliteMoveControl` 负责，照暮色森林 `NoClipMoveControl` 每 2~6 tick 沿目标方向推 0.1 的加速度。
-只去掉整条直线的碰撞预检：8 格见方的箱子在树林里找不到一条无障碍的直线。
-撞上树干则交给实体自己的移动去滑。
+**该实体必须参与碰撞**。`AbstractHurtingProjectile#canHitEntity` 要求目标不是 `noPhysics`。
+不参与碰撞时火球无法命中本体，拨开火球机制整体失效，同时本体可能穿入地面。
+
+移动控制器沿用父类构造函数装入的原版 `GhastMoveControl`，其整条直线碰撞预检保持不变。
+`RandomFloatAroundGoal` 补充了进度判定：目标距离连续 30 tick 未缩短时视为该点不可达并重新选点，
+避免碰撞预检失败之后本体停在原地。
+
+AI 由下列 goal 组成。
+
+- 优先级 `4`：`entity/AvoidHazardousFluidGoal`，发现脚下的危险流体即退开，见 `portal.md`。
+- 优先级 `5`：`RandomFloatAroundGoal`，以 16 格范围内的随机点作为下一段航线终点。
+- 优先级 `7`：`EliteLookGoal`，设定本体的 `yRot`。
+- 优先级 `7`：`entity/GhastShootGoal`，负责蓄力、开火与冷却。
+- 索敌选择器优先级 `1`：`NearestAttackableTargetGoal`，周期性寻找 100 格以内的玩家。
+
+`EliteLookGoal` 是原版 `GhastLookGoal` 的等价实现，原类为包私有内部类，无法直接引用。
+该 goal 在无索敌对象时使本体朝向飞行方向，存在索敌对象且距离在 64 格以内时朝向该对象。
+缺少该 goal 时本体在出生后不再转向，出膛点与火球朝向将固定为出生时的取值。
+
+音效全部取自项目自有的 `ghast_universal_*` 一组。
+常驻音、受伤音与死亡音分别覆写 `getAmbientSound`、`getHurtSound` 与 `getDeathSound`。
+蓄力声与喷吐声由 `entity/GhastVoice` 播放，见下一节。
+拨开火球时另播 `ghast_universal_deflect`。
 
 ### 射击与拨弹
 
 射击与拨弹与「恶果」共用同一份实现。
 
 `entity/GhastShootGoal` 是原版 `GhastShootFireballGoal` 的骨架。
-蓄力 20 tick、第 10 tick 起算蓄力、打完冷却 40 tick，64 格内且视线可见才开火。
-蓄力与喷吐两声音效由 `entity/GhastVoice` 播。
-出膛点与「一轮打几发」作为两个钩子传入。
+蓄力满 20 tick 之后开火；蓄力计时超过 10 时视为正在喷火，开火时该计时置为 −40，即冷却 40 tick 之后重新蓄力。
+仅在 64 格以内且视线可达时开火。
+蓄力声与喷吐声由 `entity/GhastVoice` 播放，分别为 `ghast_universal_charge` 与 `ghast_universal_shoot`。
+出膛点与单轮发数通过两个函数式接口传入。
 
-大恶魂一轮三发：左右各偏 8 度，沿射线拉开 2 格，左右错开 1.2 格，免得三发在出膛时互相命中。
+大恶魂单轮三发：三发在同一 tick 内出膛，出膛点同为 `mouthPosition` 返回的那一点，三发等高。
+第一发直接瞄准目标碰撞箱的中心；其余两发仅对瞄准向量的 x、z 分量施加 `(rand - rand) * 8` 的抖动。
+瞄准向量自嘴部起算，而非自本体中心起算。
 
-它的火球是 `entity/GhastEliteFireball`。
-`canHitEntity` 排除一切 `AbstractHurtingProjectile`，这是暮色森林 `UrGhastFireball` 的做法。
-其余仍是原版火球的表现：6 点伤害、威力 1 的爆炸。
+它的火球是 `entity/GhastEliteFireball`，与原版火球存在四处差异。
 
-出膛点取 `mouthPosition`：正对时 4.6 格，斜飞时放大到 `(4.0 + 0.5) / 水平分量`。
-原因是脸的正面只是立方体的一个面：斜 45 度时 `view * 4.6` 落在 (3.25, 3.25)，还在 8 格箱子里，球会从头顶的角冒出来。
+- `canHitEntity` 排除一切 `AbstractHurtingProjectile`，避免同一轮齐射在途中相互抵消。
+- `onHitEntity` 为空实现，不造成 6 点直接命中伤害。
+- 爆炸威力为 2，原版恶魂为 1。
+- 爆炸对实体的伤害由该实体自行结算。
+  所用伤害类型 `dawnduskterminal:ghast_elite_explosion` 列入 `minecraft:bypasses_cooldown`。
 
-火球登记进 `data/minecraft/tags/entity_type/redirectable_projectile.json`。
-原版 `Player#attack` 只对 `#minecraft:redirectable_projectile` 里的弹体做 `AIM_DEFLECT`。
-不加这条标签，拿剑砍它只会空挥一下、球照飞。
+自行结算的原因是原版爆炸伤害经 `LivingEntity#hurt` 结算，目标处于 10 tick 受击冷却时该次伤害被拒绝，
+一轮三发将只有第一发生效。
+原版爆炸仍负责破坏方块、粒子、音效与击退，其对实体的伤害经 `shouldDamageEntity` 关闭。
+自行结算取原版公式，与原版存在两处差异：遮挡比为 0 时不结算伤害；不调用 `Entity#ignoreExplosion`。
 
-拨火球挂在 `ProjectileImpactEvent` 上。
-`entity/GhastDeflect` 取消撞击：`onHitEntity` 的 6 点伤害与爆炸都不发生，火球本身还活着。
-它再把球挪到体中心外 7.5 格（8 格箱的半对角线约 6.93 格）并按当前索敌改向。
-没有索敌就沿来路弹回，那一声是 `ghast_universal_deflect`（模型包里的 `affectionate_scream`）。
+出膛点取 `mouthPosition`：位于脚部上方 1.9375 格、水平朝向前方 4.125 格。
+该数值取自几何：嘴部模型坐标为 `(0, 31, -66)` 像素，`thehead` 的脸面位于 z=−64 单位，嘴再向前 2 单位。
+竖直方向固定，因为头骨没有俯仰通道。
 
-两张脸的薄片由同步数据 `DATA_FACE` 决定：`annoyed` 是有索敌，`atack` 是蓄力中（名字在模型包里就这么拼）。
-服务端每 tick 把 `isCharging()` 折进去，客户端只读这一位。
+火球登记于 `data/minecraft/tags/entity_type/redirectable_projectile.json`。
+原版 `Player#attack` 仅对 `#minecraft:redirectable_projectile` 内的弹体执行 `AIM_DEFLECT`。
+缺少该标签时，持剑攻击只会命中空气，火球仍按原轨迹飞行。
+
+拨开火球挂于 `ProjectileImpactEvent`，实现见 `entity/GhastDeflect`。
+事件取消之后，`onHitEntity` 的 6 点伤害与爆炸均不发生，火球本身仍然存活。
+随后火球被移至本体中心外 7.5 格（8 格碰撞箱的半对角线约 6.93 格），并按当前索敌对象改向。
+不存在索敌对象时沿来路折返。该过程播放一声 `ghast_universal_deflect`。
+
+两张脸的薄片由同步数据 `DATA_FACE` 决定：`annoyed` 表示存在索敌对象，`atack` 表示正在蓄力。
+服务端每 tick 将 `isCharging()` 折算进去，客户端只读取该字段。
+薄片名称取自模型包，拼写即为 `annoyed` 与 `atack`。
 
 ### 泪滴与召唤
 
-常驻技能是泪滴，每 10 tick 落一阵。
-范围照暮色恶魂：自己的碰撞箱向下 16 格、竖直再放大 16 格、水平方向不放大。
-只有站在能看见天光处的玩家被砸 3 点。
-伤害类型借用暮色森林的 `twilightforest:ghast_tear`（缺该模组时退回普通生物伤害），伴随 32 颗下落水滴。
+常驻技能为泪雨：每 tick 生成一颗 `TFParticleType.BOSS_TEAR` 粒子，以 `longDistance` 方式发给 512 格内的玩家。
+伤害每 10 tick 结算一次，判定范围为本体碰撞箱向下 16 格、竖直方向再放大 16 格、水平方向不放大。
+仅位于可见天光处的玩家会被命中，每次 3 点，伤害类型为暮色森林的 `twilightforest:ghast_tear`。
+该判定只针对玩家：小鬼不受影响，本体也不会因此恢复生命。
 
-落进这片泪滴里的迷你恶魂会被吸收：消失，本体回 2 点。
-吸收**只在这片泪滴里**判定——贴身吸收是暮色恶魂本体的做法，本模组按「泪滴接触到迷你恶魂」的规格来。
+一次性技能为召唤：第一次取得索敌对象时，于本体下方水平半径 3 格的方形区域内排入 6 只
+`twilightforest:carminite_ghastling`，并播放 `ghast_universal_charge`。
+每个条目携带 0~59 tick 的随机延迟，各只依次出现，不会在同一 tick 内同时生成。
+生成位置在落地那一刻按本体当前位置计算；落点若与方块相交，则每次抬高 2 格，最多尝试 8 次。
+生成流程依次执行 `makeBossMinion`、`EventHooks.finalizeMobSpawn`、`checkSpawnRules(MOB_SUMMONED)`，
+随后写入 `MINION_TAG` 与持久标记，加入跟随 goal，最后执行 `addFreshEntity` 与 `spawnAnim`。
 
-一次性技能是召唤：第一次拿到索敌时，在 8~24 格的环带里放 6 只 `twilightforest:carminite_ghastling`。
-高度在中心 ±6 格内随机，撞上就把落点往上抬 2 格、最多试 8 次，并把当前索敌共享给它们。
-此后每 100 tick 再把索敌共享一次给 24 格内还没目标的小鬼。
+小鬼带有持久标记，本体存活期间不会自然消失。
+本体死亡之后，跟随 goal 在 `stop()` 中将小鬼解散，避免其永久滞留于该区域。
 
-小鬼**不设** `setPersistenceRequired`（暮色森林的 `makeBossMinion` 也不设）。
-战斗结束后玩家走远便自然消失，不会打一次攒一堆。
-
-每 20 tick 照看一次 48 格内的小鬼。
-没索敌的补一次本体的索敌：暮色森林的 `NearestAttackableTargetGoal` 看不见目标时会把它清成 null，所以要反复补。
-仍然没索敌的就把**移动目标**指到本体身边 6 格处，它们自己飞过去。
-有索敌的不动它们的移动，交给它们自己的 AI。
-这里不改速度也不改位置，6 格又在泪滴柱子（半宽 4 格）之外，所以既不会贴着本体也不会被吸掉。
+每 20 tick 照看一次 48 格内的小鬼：对没有索敌对象的小鬼补发本体的索敌对象。
+暮色森林的 `NearestAttackableTargetGoal` 在失去视线时会清空 `target`，因此需要周期性补发。
+移动由每只小鬼自己的 `MinionFollowGoal` 负责：以本体中心为圆心、半径 6 格环绕飞行。
+该 goal 的优先级为 4，小于暮色森林两个飞行 goal 的 5；否则在 `MOVE` 标志上无法取得控制权。
+小鬼的挑人规则见下一节。
 
 ### 小鬼的挑人规则
 
-打不打人由暮色森林自己的 `CarminiteGhastling#shouldAttack` 决定：
+是否攻击目标由暮色森林自身的 `CarminiteGhastling#shouldAttack` 决定：
 
-- 玩家头顶戴着雕刻南瓜：不打；
-- 3.5 格以内：只要看得见就打；
-- 更远：必须**玩家的准星对着它**（`dot(玩家视线, 指向它的方向) > 1 − 0.025/距离`）且有视线。
+- 玩家头顶戴着雕刻南瓜：不攻击；
+- 距离在 3.5 格以内：只要视线可达即攻击；
+- 更远：要求**玩家的准星对准该小鬼**（`dot(玩家视线, 指向它的方向) > 1 − 0.025/距离`）且视线可达。
 
-照原样，侧身路过的玩家不会被追打，看上去就像「待在天上不动」。
-因此召唤时会给小鬼打上 `persistentData` 标记 `dawnduskterminal:elite_minion`。
-`mixin/GhastlingShouldAttackMixin` 对带标记的只在 `shouldAttack` 开头放行（仍然要求有视线，免得隔着树开火）。
-野生的砷铅铁恶魂守卫没有这个标记，仍按原规则挑人。
-`@Mixin` 直接写暮色森林的类字面量，目标改名时编译期就报错。
+按原规则，侧身经过的玩家不会被追击。
+因此召唤时会为小鬼写入 `persistentData` 标记 `dawnduskterminal:elite_minion`。
+`mixin/GhastlingShouldAttackMixin` 对带有该标记的小鬼在 `shouldAttack` 开头直接放行，但仍要求视线可达，
+以免隔着树木开火。
+自然生成的砷铅铁恶魂守卫不带该标记，仍遵循原规则。
+`@Mixin` 以暮色森林的类字面量作为目标，类名变更时编译期即报错。
 
 ### 大恶魂的模型
 
