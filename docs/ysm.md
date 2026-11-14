@@ -104,8 +104,10 @@ controller/*.json                并行动画控制器，仅作分层关系的�
 
 加载点是 `client/animation/YsmPacks`：`ResourceManager` → `Converter` / `RawGeometryTree` / `GeoBuilder`
 得到几何，`JsonAnimationUtils` 得到动画，两者都按文件缓存在 `GeckoLibCache` 里。
-F3+T 或换资源包时由
-`client/animation/YsmEntityReload` 整块作废，并重新合并动画文件。
+F3+T 或切换资源包时，`client/animation/YsmEntityReload` 使缓存整体失效，后续加载重新合并动画文件。
+实体渲染器按模型对象身份检查 native 网格，发现模型变更时先显式关闭旧网格，再按新模型重建。
+渲染提交发生 native 异常时也会显式关闭网格，并回退至 Java 渲染路径。
+`NativeGeoMesh` 的 Cleaner 为未显式关闭且已不可达的网格句柄提供兜底回收。
 
 ## 导入一个新模型
 

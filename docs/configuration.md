@@ -54,8 +54,8 @@
 
 ## render
 
-- `native_mesh`：默认值 true，用于指定高塔恶魂的渲染是否使用 jar 内自带的 native 网格内核。
-  取值为 false 时改用渲染器的 Java 顶点变换，画面效果一致，代价是每帧多出约两万个临时对象。
+- `native_mesh`：默认值 true，控制是否使用 jar 内自带的共用 native 网格内核，不限于高塔恶魂。
+  取值为 false 时，使用该内核的渲染器改用 Java 顶点变换。
 
 - `ribbon_speed`：默认值 1.0，取值范围 0.2 到 3.0。
   骨骼物理（`ysm.first_order` / `ysm.second_order`，即布条、头发、触手这类次级运动）的时间倍率。

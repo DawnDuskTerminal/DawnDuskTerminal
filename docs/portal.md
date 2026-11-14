@@ -69,12 +69,15 @@
 
 `isCompletePortalPart` 要求相邻的传送门方块至少有 2 个。
 
-`PortalTrigger.shouldTeleport` 判定实体是否处在完整的传送门之中，玩家游泳时不会触发。
+`PortalTrigger.shouldTeleport` 判定实体是否处在完整的传送门之中。
+玩家处于游泳或游泳姿态时不会触发，乘坐苍穹船的生物也不会触发。
+玩家与非玩家生物的稳定效果规则见「稳定效果」一节。
 
 ## 即时传送
 
 传送逻辑实现在 `portal/PortalTeleporter.teleportEntity` 中。
-实体进入方块后的下一个 tick 即被传送，既没有蓄力过程，也没有冷却。
+符合传送条件的生物在 `PortalBlock.entityInside` 中即时传送，没有蓄力或持续冷却。
+传送后写入 1 tick 的防重入标记，防止同一刻内因接触多个传送门方块而重复传送。
 
 当前维度不是晨昏线维度时，目标为晨昏线维度；
 否则目标为主世界。
@@ -168,7 +171,8 @@
 
 `portal_fluid` 与热情的暮光反应生成 `canopy_stone`。
 
-热情的暮光与水反应生成暮色森林的 `aurora_block`，取不到该方块时退化为 `blazing_block`。
+热情的暮光与水反应生成暮色森林的 `aurora_block`。
+暮色森林是必装依赖，`FluidReactions.auroraBlock` 直接引用 `TFBlocks.AURORA_BLOCK`，没有降级分支。
 
 热情的暮光与岩浆反应生成 `blazing_block`。
 
@@ -212,7 +216,7 @@ Minecraft 把声音交给 OpenAL，而 OpenAL 对多声道缓冲区不做空间�
 
 `/ddt tp <param>` 按投影参数在 -1 到 1 之间传送到维度内。
 
-该命令需要权限等级 2。
+上述两条命令均需要权限等级 2。
 
 ## 已知遗留
 
