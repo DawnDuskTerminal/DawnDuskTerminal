@@ -10,7 +10,7 @@ plugins {
 // spotlessCheck 由插件自动挂到 check 上 因此 ./gradlew build 会拒绝未格式化的代码
 spotless {
     java {
-        target 'src/main/java/**/*.java', 'src/test/java/**/*.java'
+        target 'src/main/java/**/*.java', 'src/test/java/**/*.java', 'tools/animcheck/*.java'
         targetExclude 'src/main/java/com/dawnduskterminal/geckolib3/**',
             'src/main/java/com/dawnduskterminal/molang/**'
         palantirJavaFormat('2.50.0')
@@ -80,6 +80,41 @@ neoForge {
             sourceSet sourceSets.main
         }
     }
+}
+
+// 校验工具独立编译，不进入玩家 jar；复用 ModDevGradle 提供的客户端编译依赖。
+sourceSets {
+    animcheck {
+        java.srcDir 'tools/animcheck'
+        compileClasspath += sourceSets.main.output.classesDirs + sourceSets.main.compileClasspath
+        runtimeClasspath += compileClasspath
+    }
+}
+
+def animationFiles = sourceSets.main.resources.matching {
+    include 'assets/dawnduskterminal/animations/**/*.json',
+        'assets/dawnduskterminal/ysm/**/animations/**/*.json'
+}
+
+tasks.register('animationCheck', JavaExec) {
+    group = 'verification'
+    description = '使用客户端运行时绑定检查全部内置动画'
+    classpath = sourceSets.animcheck.runtimeClasspath
+    javaLauncher = javaToolchains.launcherFor(java.toolchain)
+    mainClass = 'Check'
+    inputs.files(animationFiles).withPathSensitivity(PathSensitivity.RELATIVE)
+    argumentProviders.add({
+        animationFiles.files.sort().collect { it.absolutePath }
+    } as CommandLineArgumentProvider)
+}
+
+tasks.register('animationCheckTest', JavaExec) {
+    group = 'verification'
+    description = '检查动画校验器的进程退出码与诊断'
+    classpath = sourceSets.animcheck.runtimeClasspath
+    javaLauncher = javaToolchains.launcherFor(java.toolchain)
+    mainClass = 'CheckTest'
+    args layout.buildDirectory.dir('animcheck-test').get().asFile.absolutePath
 }
 
 // 框架规划的不变量检查。仓库里没有 JUnit（新增依赖要重写 verification-metadata），

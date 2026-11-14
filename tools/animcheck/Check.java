@@ -16,13 +16,17 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 一次性校验：把每个动画文件按运行时那套绑定解析一遍，再逐条 Molang 表达式求解析，不吞异常。
+ * 使用运行时绑定表校验动画片段与 Molang 表达式；存在失败或输入为空时以非零退出码结束。
  *
  * <p>只取真正承载表达式的三个通道（rotation / position / scale）与 timeline 关键帧，避免把片段名、
  * format_version 这类普通字符串当表达式解析。
  */
 public final class Check {
     public static void main(String[] args) throws Exception {
+        if (args.length == 0) {
+            System.err.println("No animation files supplied.");
+            System.exit(1);
+        }
         Map<String, ObjectBinding> extra = new HashMap<>();
         extra.put("ysm", YsmBinding.INSTANCE);
         extra.put("fn", FnBinding.INSTANCE);
@@ -32,6 +36,7 @@ public final class Check {
         long badExprs = 0;
         long totalClips = 0;
         long badClips = 0;
+        long badFiles = 0;
 
         for (String arg : args) {
             String text = Files.readString(Path.of(arg), StandardCharsets.UTF_8);
@@ -73,6 +78,10 @@ public final class Check {
                 }
             }
 
+            if (clips == 0) {
+                badFiles++;
+                System.out.println("  No animation clips in " + arg);
+            }
             totalClips += clips;
             badClips += clipFails;
             totalExprs += exprs.size();
@@ -87,8 +96,12 @@ public final class Check {
         }
 
         System.out.println("----");
+        System.out.println("files=" + args.length + " fileFailures=" + badFiles);
         System.out.println("clips=" + totalClips + " clipFailures=" + badClips);
         System.out.println("exprs=" + totalExprs + " exprFailures=" + badExprs);
+        if (badFiles != 0 || badClips != 0 || badExprs != 0) {
+            System.exit(1);
+        }
     }
 
     private static void collect(JsonObject animations, List<String> out) {

@@ -165,31 +165,21 @@ F3+T 或换资源包时由
 
 ## 校验
 
-新包的动画与几何能不能被解析，可以在不启动客户端的情况下查出来：
+在仓库根目录执行动画校验，无需启动客户端：
 
-```
-./gradlew compileJava
-java -cp "<clientLegacyClasspath.txt 的内容>:build/classes/java/main:\\
-build/moddev/artifacts/neoforge-<版本>-merged.jar:." Check \
-    assets/dawnduskterminal/ysm/<包名>/models/main.json \
-    assets/dawnduskterminal/ysm/<包名>/animations/main.animation.json
+```bash
+./gradlew animationCheck
 ```
 
-`Check` 是个一次性的小程序（见下），它会打印几何的骨骼与立方体数量，以及每条片段解析成功还是失败。
-现在的校验结果是：高塔恶魂 50 条主片段加 22 条手动动作、大恶魂 2 条、弦 2 条加大型 2 条、
-博览轮 1 条、飞刃 1 条、备用模型 6 条，全部通过；5640 条 Molang 表达式逐条解析零失败。
+Windows 使用 `.\gradlew.bat animationCheck`。
+任务自动收集主资源集中的普通动画及全部 YSM 包动画，包含兼容文件。
+它复用 Java 21 toolchain 与客户端编译类路径，使用运行时绑定表解析片段并严格检查表达式。
+存在失败、没有输入文件或任一文件没有动画片段时，进程返回非零退出码。
+输出保留逐文件诊断与总数；校验器不进入玩家 jar，也不在专用服务端 GameTest 中运行。
 
-```java
-// Check.java —— 只依赖运行时本体，不碰客户端
-RawGeoModel raw = Converter.fromInputStream(new FileInputStream(geoFile));
-GeoModel model = GeoBuilder.getGeoBuilder().constructGeoModel(RawGeometryTree.parseHierarchy(raw));
-
-Map<String, ObjectBinding> extra = Map.of("ysm", YsmBinding.INSTANCE, "fn", FnBinding.INSTANCE);
-MolangParser parser = new MolangParser(new HashMap<>(extra));
-for (Map.Entry<String, JsonElement> entry : JsonAnimationUtils.getAnimations(json)) {
-    JsonAnimationUtils.deserializeJsonToAnimation(JsonAnimationUtils.getAnimation(json, entry.getKey()), parser);
-}
-```
+运行 `./gradlew animationCheckTest` 可检查退出码与诊断的回归场景。
+输入规则与诊断说明见 [动画校验工具](../tools/animcheck/README.md)。
+本工具不验证几何、贴图或渲染效果，不能替代资源结构检查与客户端验收。
 
 ### 症状对照表
 
