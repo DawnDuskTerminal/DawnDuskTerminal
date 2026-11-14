@@ -219,16 +219,14 @@ configurations {
     clientDevMods {
         canBeConsumed = false
     }
-    // 只用来取 c2me 原始 jar，打补丁后再 JarJar，不进编译或运行 classpath
+    // 此配置仅解析 c2me 官方 jar，供 JarJar 嵌套使用，不加入编译或运行 classpath。
     c2meCompat {
         canBeConsumed = false
         canBeResolved = true
     }
 }
 
-// 专用服对照证明官方 c2me 的地形高度与不装 c2me 逐字节一致，开发环境那 15 列差是 dev 侧
-// classpath 组合造成的假阳性，所以这里保留全部模块，只把 jar 嵌进产物
-def c2meRemovedModules = []
+// c2me 官方 jar 必须逐字节保留，不得剔除模块或重写其嵌套元数据。
 // JarJar 元数据只写 mod 版本，加载器后缀 +1.21.1 不进 range 和 artifactVersion
 // 官方 c2me 自己的 metadata.json 也是这么写的
 def c2meBundleVersion = c2me_version.split('\\+')[0]
@@ -237,62 +235,19 @@ def c2meBundleArtifact = 'c2me-neoforge'
 def patchC2me = tasks.register('patchC2me') {
     def c2meJar = configurations.c2meCompat
     inputs.files(c2meJar)
-    inputs.property('removed', c2meRemovedModules.join(','))
     def output = layout.buildDirectory.file('c2me/c2me-patched.jar')
     outputs.file(output)
     doLast {
         def source = c2meJar.singleFile
         def target = output.get().asFile
         target.parentFile.mkdirs()
-        if (c2meRemovedModules.isEmpty()) {
-            java.nio.file.Files.copy(source.toPath(), target.toPath(),
-                java.nio.file.StandardCopyOption.REPLACE_EXISTING)
-            logger.lifecycle("c2me bundled unmodified")
-            return
-        }
-        def found = new HashSet<String>()
-        def put = { out, name, bytes ->
-            out.putNextEntry(new java.util.zip.ZipEntry(name))
-            out.write(bytes)
-            out.closeEntry()
-        }
-        new java.util.zip.ZipFile(source).withCloseable { zip ->
-            new java.util.zip.ZipOutputStream(new FileOutputStream(target)).withCloseable { out ->
-                def entries = zip.entries()
-                while (entries.hasMoreElements()) {
-                    def entry = entries.nextElement()
-                    def name = entry.name
-                    if (name == 'META-INF/jarjar/metadata.json') {
-                        def json = new groovy.json.JsonSlurper().parse(zip.getInputStream(entry))
-                        def kept = []
-                        json.jars.each { jar ->
-                            def artifact = jar.identifier.artifact
-                            if (c2meRemovedModules.contains(artifact)) {
-                                found.add(artifact)
-                            } else {
-                                kept.add(jar)
-                            }
-                        }
-                        json.jars = kept
-                        put(out, name, groovy.json.JsonOutput.toJson(json).getBytes('UTF-8'))
-                    } else if (name.startsWith('META-INF/jars/')
-                        && c2meRemovedModules.any { name.contains(it.replace('c2me-', '')) }) {
-                        found.add(c2meRemovedModules.find { name.contains(it.replace('c2me-', '')) })
-                    } else {
-                        put(out, name, zip.getInputStream(entry).bytes)
-                    }
-                }
-            }
-        }
-        def missing = c2meRemovedModules - found
-        if (!missing.isEmpty()) {
-            throw new GradleException("c2me jar did not contain ${missing}, update the patch list")
-        }
-        logger.lifecycle("c2me patched without ${c2meRemovedModules}")
+        java.nio.file.Files.copy(source.toPath(), target.toPath(),
+            java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+        logger.lifecycle("c2me bundled unmodified")
     }
 }
 
-// 手写 JarJar 元数据，避免 ModDevGradle 的 jarJar 配置在配置期就去解析本地补丁 jar
+// 手写 JarJar 元数据，避免 ModDevGradle 的 jarJar 配置在配置期解析尚未生成的本地 jar。
 def c2meJarJarMetadata = tasks.register('generateC2meJarJarMetadata') {
     def output = layout.buildDirectory.file('c2me/META-INF/jarjar/metadata.json')
     inputs.property('version', c2meBundleVersion)
@@ -357,7 +312,7 @@ dependencies {
     clientDevMods "maven.modrinth:bocchud:${bocchud_version}"
 }
 
-// 把打过补丁的 c2me 作为嵌套 jar 打进产物，元数据手写
+// 将未经改写的 c2me 作为嵌套 jar 打包，使用手写的版本协商元数据。
 tasks.named('jar', Jar) {
     dependsOn patchC2me, c2meJarJarMetadata
     from(patchC2me) {
