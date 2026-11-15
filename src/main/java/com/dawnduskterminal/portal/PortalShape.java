@@ -154,16 +154,14 @@ public final class PortalShape {
 
         List<BlockPos> frame = new ArrayList<>(ring);
         List<BlockPos> plants = new ArrayList<>();
+        // 池边每一格上方都必须有植物：任一格缺失即判定失败，与暮色森林 TFPortalBlock 的逐格规则一致
         for (BlockPos side : ring) {
             BlockPos aboveSide = side.above();
             BlockState above = level.getBlockState(aboveSide);
-            if (isPlant(above) && !above.isAir()) {
-                plants.add(aboveSide);
+            if (!isPlant(above) || above.isAir()) {
+                return Optional.empty();
             }
-        }
-
-        if (plants.size() < Math.max(2, ring.size() / 4)) {
-            return Optional.empty();
+            plants.add(aboveSide);
         }
         return Optional.of(new PortalShape(water, frame, plants));
     }
