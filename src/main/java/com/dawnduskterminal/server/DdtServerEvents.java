@@ -1,6 +1,7 @@
 package com.dawnduskterminal.server;
 
 import com.dawnduskterminal.DawnDuskTerminal;
+import com.dawnduskterminal.entity.GhastEliteEntity;
 import com.dawnduskterminal.entity.GhastElitePopulation;
 import com.dawnduskterminal.entity.GhastFruityPopulation;
 import com.dawnduskterminal.item.BeetrootProcess;
@@ -151,6 +152,9 @@ public final class DdtServerEvents {
         }
         if (living.level().isClientSide()) {
             return;
+        }
+        if (living instanceof twilightforest.entity.monster.CarminiteGhastling minion) {
+            GhastEliteEntity.restoreMinion(minion);
         }
         if (!ChronoRain.isRainy(living.level())) {
             return;

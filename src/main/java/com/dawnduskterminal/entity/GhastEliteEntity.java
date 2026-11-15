@@ -15,6 +15,7 @@ import net.minecraft.sounds.SoundEvent;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
@@ -29,6 +30,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.LargeFireball;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.ServerLevelAccessor;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.event.EventHooks;
 import net.neoforged.neoforge.event.entity.ProjectileImpactEvent;
@@ -68,6 +70,8 @@ public class GhastEliteEntity extends Ghast implements YsmPackUser {
      * 自然生成的砷铅铁恶魂守卫不带该标记，行为不受影响。
      */
     public static final String MINION_TAG = "dawnduskterminal:elite_minion";
+
+    private static final String MINION_OWNER = "dawnduskterminal:elite_owner";
 
     /**
      * 嘴部在模型空间中的水平前伸量
@@ -445,25 +449,28 @@ public class GhastEliteEntity extends Ghast implements YsmPackUser {
     }
 
     /**
-     * 在本体下方水平半径 ±{@value #MINION_SPAWN_RADIUS} 格的方形区域内生成一只小鬼
-     *
-     * <p>落点在生成的那一刻按本体的当前位置计算，因此始终位于「当前本体」的下方。
-     * 落点若与方块相交，则逐次向上抬升两格，最多尝试八次；
-     * 随后挂上标记、持久标记与本类提供的跟随 goal。
+     * 在本体下方水平半径 ±{@value #MINION_SPAWN_RADIUS} 格的方形区域内生成一只小鬼。
+     * 每个候选落点至多上抬八次，全部候选均碰撞时放弃生成。
      */
     private void spawnMinion(ServerLevel level) {
         CarminiteGhastling minion = TFEntities.CARMINITE_GHASTLING.get().create(level);
         if (minion == null) {
             return;
         }
-        double x = this.getX() + (this.getRandom().nextDouble() * 2.0D - 1.0D) * MINION_SPAWN_RADIUS;
-        double z = this.getZ() + (this.getRandom().nextDouble() * 2.0D - 1.0D) * MINION_SPAWN_RADIUS;
-        double y = this.getY() - MINION_SPAWN_DROP;
-        minion.moveTo(x, y, z, this.getRandom().nextFloat() * 360.0F, 0.0F);
-        // 避免将小鬼生成在树干或地面之内：被方块卡住的小鬼会在数 tick 内窒息死亡
-        for (int attempt = 0; attempt < 8 && !level.noCollision(minion); attempt++) {
-            y += 2.0D;
-            minion.moveTo(x, y, z, minion.getYRot(), 0.0F);
+        boolean safe = false;
+        for (int location = 0; location < 8 && !safe; location++) {
+            double x = this.getX() + (this.getRandom().nextDouble() * 2.0D - 1.0D) * MINION_SPAWN_RADIUS;
+            double z = this.getZ() + (this.getRandom().nextDouble() * 2.0D - 1.0D) * MINION_SPAWN_RADIUS;
+            double y = this.getY() - MINION_SPAWN_DROP;
+            minion.moveTo(x, y, z, this.getRandom().nextFloat() * 360.0F, 0.0F);
+            for (int attempt = 0; attempt < 8 && !level.noCollision(minion); attempt++) {
+                y += 2.0D;
+                minion.moveTo(x, y, z, minion.getYRot(), 0.0F);
+            }
+            safe = level.noCollision(minion);
+        }
+        if (!safe) {
+            return;
         }
         minion.makeBossMinion();
         EventHooks.finalizeMobSpawn(
@@ -472,15 +479,17 @@ public class GhastEliteEntity extends Ghast implements YsmPackUser {
             return;
         }
         LivingEntity target = this.getTarget();
-        if (target != null && target.isAlive()) {
+        if (target != null && target.isAlive() && minion.canAttack(target)) {
             minion.setTarget(target);
         }
         minion.getPersistentData().putBoolean(MINION_TAG, true);
+        minion.getPersistentData().putUUID(MINION_OWNER, this.getUUID());
         // 本体存活期间小鬼不得自行消失：玩家拉开距离也无法摆脱它们
         minion.setPersistenceRequired();
         minion.goalSelector.addGoal(MINION_FOLLOW_PRIORITY, new MinionFollowGoal(minion, this));
-        level.addFreshEntity(minion);
-        minion.spawnAnim();
+        if (level.addFreshEntity(minion)) {
+            minion.spawnAnim();
+        }
     }
 
     /**
@@ -496,9 +505,65 @@ public class GhastEliteEntity extends Ghast implements YsmPackUser {
         LivingEntity target = this.getTarget();
         for (CarminiteGhastling minion : level.getEntitiesOfClass(
                 CarminiteGhastling.class, this.getBoundingBox().inflate(MINION_TEND_RADIUS))) {
-            if (minion.getTarget() == null && target != null && target.isAlive() && this.canAttack(target)) {
+            if (minion.getPersistentData().getBoolean(MINION_TAG)
+                    && minion.getPersistentData().hasUUID(MINION_OWNER)
+                    && this.getUUID().equals(minion.getPersistentData().getUUID(MINION_OWNER))
+                    && minion.getTarget() == null
+                    && target != null
+                    && target.isAlive()
+                    && minion.canAttack(target)) {
                 minion.setTarget(target);
             }
+        }
+    }
+
+    @Override
+    public void remove(Entity.RemovalReason reason) {
+        if (reason.shouldDestroy() && this.level() instanceof ServerLevel level) {
+            List<CarminiteGhastling> owned = new ArrayList<>();
+            for (Entity entity : level.getAllEntities()) {
+                if (entity instanceof CarminiteGhastling minion
+                        && minion.getPersistentData().getBoolean(MINION_TAG)
+                        && minion.getPersistentData().hasUUID(MINION_OWNER)
+                        && this.getUUID().equals(minion.getPersistentData().getUUID(MINION_OWNER))) {
+                    owned.add(minion);
+                }
+            }
+            owned.forEach(Entity::discard);
+        }
+        super.remove(reason);
+    }
+
+    /** 在服务端实体刻恢复已标记随从的归属与跟随行为。 */
+    public static void restoreMinion(CarminiteGhastling minion) {
+        if (!(minion.level() instanceof ServerLevel level)
+                || !minion.getPersistentData().getBoolean(MINION_TAG)) {
+            return;
+        }
+        CompoundTag data = minion.getPersistentData();
+        if (!data.hasUUID(MINION_OWNER)) {
+            if (minion.tickCount % MINION_TEND_INTERVAL != 0) {
+                return;
+            }
+            List<GhastEliteEntity> candidates = level.getEntitiesOfClass(
+                    GhastEliteEntity.class, minion.getBoundingBox().inflate(MINION_TEND_RADIUS), LivingEntity::isAlive);
+            if (candidates.size() != 1) {
+                return;
+            }
+            data.putUUID(MINION_OWNER, candidates.getFirst().getUUID());
+        }
+        if (!(level.getEntity(data.getUUID(MINION_OWNER)) instanceof GhastEliteEntity elite) || !elite.isAlive()) {
+            return;
+        }
+        boolean installed = minion.goalSelector.getAvailableGoals().stream()
+                .anyMatch(goal -> goal.getGoal() instanceof MinionFollowGoal follow && follow.elite == elite);
+        if (!installed) {
+            minion.goalSelector.getAvailableGoals().stream()
+                    .filter(goal -> goal.getGoal() instanceof MinionFollowGoal)
+                    .map(goal -> goal.getGoal())
+                    .toList()
+                    .forEach(minion.goalSelector::removeGoal);
+            minion.goalSelector.addGoal(MINION_FOLLOW_PRIORITY, new MinionFollowGoal(minion, elite));
         }
     }
 
@@ -508,12 +573,16 @@ public class GhastEliteEntity extends Ghast implements YsmPackUser {
      * <p>优先级 {@value #MINION_FOLLOW_PRIORITY} 必须小于暮色森林自带的两个飞行 goal 的优先级 5，
      * 否则在 {@code MOVE} 标志上永远无法取得控制权，表现为召唤出的小鬼不跟随本体。
      *
-     * <p>本体死亡之后 {@link #canUse()} 返回 {@code false}，控制权交还给小鬼自身的飞行 goal，
-     * 并在 {@link #stop()} 中将其解散：被召唤的小鬼带有持久标记，若不在此处解散，将永久滞留于该区域。
+     * <p>本体暂时卸载时停止跟随，重新加载后恢复。
+     * 本体永久移除时，已加载的所属小鬼由本体统一解散。
      */
     private static final class MinionFollowGoal extends Goal {
         private final Mob minion;
         private final GhastEliteEntity elite;
+        private Vec3 waypoint;
+        private Vec3 lastPosition;
+        private int stuckTicks;
+        private int waypointTicks;
 
         private MinionFollowGoal(Mob minion, GhastEliteEntity elite) {
             this.minion = minion;
@@ -523,7 +592,7 @@ public class GhastEliteEntity extends Ghast implements YsmPackUser {
 
         @Override
         public boolean canUse() {
-            return this.elite.isAlive() && this.elite.level() == this.minion.level();
+            return this.elite.isAlive() && !this.elite.isRemoved() && this.elite.level() == this.minion.level();
         }
 
         @Override
@@ -532,19 +601,84 @@ public class GhastEliteEntity extends Ghast implements YsmPackUser {
         }
 
         @Override
+        public boolean requiresUpdateEveryTick() {
+            return true;
+        }
+
+        @Override
         public void tick() {
+            Vec3 position = this.minion.position();
+            if (this.lastPosition != null && position.distanceToSqr(this.lastPosition) < 0.0025D) {
+                this.stuckTicks++;
+            } else {
+                this.stuckTicks = 0;
+            }
+            this.lastPosition = position;
+            boolean stuck = this.stuckTicks >= 30;
+            if (this.waypoint == null
+                    || position.distanceToSqr(this.waypoint) < 1.0D
+                    || ++this.waypointTicks >= 20
+                    || stuck) {
+                this.waypoint = this.chooseWaypoint(stuck);
+                this.waypointTicks = 0;
+                if (stuck) {
+                    this.stuckTicks = 0;
+                }
+            }
+            if (this.waypoint != null) {
+                this.minion.getMoveControl().setWantedPosition(this.waypoint.x, this.waypoint.y, this.waypoint.z, 1.4D);
+            }
+        }
+
+        private Vec3 chooseWaypoint(boolean stuck) {
             Vec3 center = this.elite.getBoundingBox().getCenter();
             double angle = this.minion.tickCount * 0.06D + this.minion.getId() * 1.7D;
-            double x = center.x + Math.cos(angle) * MINION_HOLD_DISTANCE;
-            double z = center.z + Math.sin(angle) * MINION_HOLD_DISTANCE;
-            double y = center.y + Math.sin(angle * 0.8D) * 2.0D;
-            this.minion.getMoveControl().setWantedPosition(x, y, z, 1.4D);
+            Vec3 orbit = center.add(
+                    Math.cos(angle) * MINION_HOLD_DISTANCE,
+                    Math.sin(angle * 0.8D) * 2.0D,
+                    Math.sin(angle) * MINION_HOLD_DISTANCE);
+            Vec3 position = this.minion.position();
+            Vec3 direction = orbit.subtract(position).normalize();
+            for (int attempt = 0; attempt < 9; attempt++) {
+                Vec3 delta;
+                if (attempt == 0 && !stuck) {
+                    delta = direction.scale(Math.min(6.0D, position.distanceTo(orbit)));
+                } else {
+                    double rotation = (attempt + this.minion.getRandom().nextDouble()) * Math.PI / 4.0D;
+                    delta = new Vec3(Math.cos(rotation) * 4.0D, attempt % 3 - 1.0D, Math.sin(rotation) * 4.0D);
+                }
+                if (delta.lengthSqr() < 0.01D) {
+                    continue;
+                }
+                Vec3 step = delta.normalize();
+                AABB box = this.minion.getBoundingBox();
+                boolean clear = true;
+                for (int i = 1; i < Mth.ceil(delta.length()); i++) {
+                    box = box.move(step);
+                    if (!this.minion.level().noCollision(this.minion, box)) {
+                        clear = false;
+                        break;
+                    }
+                }
+                if (clear
+                        && this.minion
+                                .level()
+                                .noCollision(
+                                        this.minion,
+                                        this.minion.getBoundingBox().move(delta))) {
+                    return position.add(delta);
+                }
+            }
+            return null;
         }
 
         @Override
         public void stop() {
-            // 本体已不存在时，小鬼随之解散；本体仍然存活时只是交出移动控制权，不做处理
-            if (!this.elite.isAlive()) {
+            this.waypoint = null;
+            this.lastPosition = null;
+            this.stuckTicks = 0;
+            // 本体死亡时解散；暂时卸载不得删除随从。
+            if (this.elite.isDeadOrDying()) {
                 this.minion.discard();
             }
         }

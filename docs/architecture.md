@@ -170,11 +170,16 @@ Java 路径均相对于 `src/main/java/com/dawnduskterminal/`。
 首次取得目标时，在本体下方水平半径 3 格的方形区域排入六只 `carminite_ghastling`。
 各条目随机延迟 0 至 59 tick，生成时按本体当前位置计算；碰撞时每次抬高 2 格，最多八次。
 依次调用 `makeBossMinion`、`finalizeMobSpawn`、`checkSpawnRules(MOB_SUMMONED)`。
-随后写入 `MINION_TAG`、持久标记与跟随 goal，再加入世界并播放出生动画。
-本体存活期间小鬼不自然消失，本体死亡后由跟随 goal 的 `stop` 解散。
+随后写入 `MINION_TAG`、本体 UUID、持久标记与跟随 goal，成功加入世界后播放出生动画。
+落点经过碰撞检查；有限次重选后仍无安全落点时，不生成该小鬼。
+本体永久移除时解散已加载的所属小鬼；暂时卸载不解散。
+本体移除时未加载的小鬼不会立即解散，现有存档未记录本体的永久移除状态。
 
-每 20 tick 为 48 格内没有目标的小鬼补发本体目标。
+服务端实体刻按 UUID 恢复跟随目标，不强制加载本体所在区块。
+旧随从仅在照看范围内存在唯一候选本体时补录归属。
+每 20 tick 为 48 格内没有目标的所属小鬼补发本体目标。
 `MinionFollowGoal` 以本体为中心、半径 6 格环绕，优先级 4 须高于暮色森林飞行 goal 的 5。
+移动目标使用碰撞检查，并在停滞后尝试侧方或上方的短程目标。
 暮色森林 `CarminiteGhastling#shouldAttack` 默认拒绝戴雕刻南瓜的玩家。
 3.5 格内只要求视线可达，更远还要求玩家注视小鬼，点积阈值为 `1-0.025/距离`。
 召唤小鬼带 `dawnduskterminal:elite_minion` 持久数据标记。
