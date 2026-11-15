@@ -10,6 +10,7 @@ import com.dawnduskterminal.entity.Experiment057BladeEntity;
 import com.dawnduskterminal.entity.ExpowheelEntity;
 import com.dawnduskterminal.entity.GhastEliteEntity;
 import com.dawnduskterminal.entity.GhastEliteFireball;
+import com.dawnduskterminal.entity.GhastEliteTear;
 import com.dawnduskterminal.entity.GhastFruityEntity;
 import com.dawnduskterminal.entity.GhastPaintingEntity;
 import com.dawnduskterminal.entity.LivingArmorEntity;
@@ -131,6 +132,15 @@ public final class ModEntities {
                     .clientTrackingRange(10)
                     .updateInterval(2)
                     .build("string"));
+
+    /** 泪滴的碰撞箱为 0.8×0.8 格；远距离显示另由视觉消息负责。 */
+    public static final DeferredHolder<EntityType<?>, EntityType<GhastEliteTear>> GHAST_ELITE_TEAR = ENTITIES.register(
+            "ghast_elite_tear", () -> EntityType.Builder.<GhastEliteTear>of(GhastEliteTear::new, MobCategory.MISC)
+                    .sized(0.8F, 0.8F)
+                    .fireImmune()
+                    .clientTrackingRange(4)
+                    .updateInterval(1)
+                    .build("ghast_elite_tear"));
 
     /** 大恶魂的火球：不与其他弹体相撞，见 {@link GhastEliteFireball} */
     public static final DeferredHolder<EntityType<?>, EntityType<GhastEliteFireball>> GHAST_ELITE_FIREBALL =

@@ -74,9 +74,12 @@ public final class DdtClient {
             Experiment055Sounds.clear();
             // 血肉之书的持续音跟着弹体走，断开时弹体已经不在，实例自己也不会再收到 tick
             ExpowheelSounds.clear();
+            GhastEliteTearParticles.clear();
         });
         // 弹体进客户端世界时给它在身上挂一支持续音
         NeoForge.EVENT_BUS.addListener(ExpowheelSounds::onEntityJoin);
+        NeoForge.EVENT_BUS.addListener(GhastEliteTearParticles::onTick);
+        NeoForge.EVENT_BUS.addListener(GhastEliteTearParticles::onUnload);
         modBus.addListener(DdtClient::onClientSetup);
         modBus.addListener(DdtClient::registerFluidExtensions);
         modBus.addListener(DdtClient::registerItemExtensions);
@@ -476,6 +479,7 @@ public final class DdtClient {
         event.registerEntityRenderer(ModEntities.CARMINITE_FIELD.get(), NoopRenderer::new);
         // 试验物品 052 的碎片不画贴图，外观只有每 tick 那几颗红石粒子，见 CarminiteShrapnelEntity
         event.registerEntityRenderer(ModEntities.CARMINITE_SHRAPNEL.get(), NoopRenderer::new);
+        event.registerEntityRenderer(ModEntities.GHAST_ELITE_TEAR.get(), NoopRenderer::new);
         event.registerEntityRenderer(ModEntities.GHAST_PAINTING_1.get(), PaintingRenderer::new);
         event.registerEntityRenderer(ModEntities.GHAST_PAINTING_2.get(), PaintingRenderer::new);
         event.registerEntityRenderer(ModEntities.GHAST_PAINTING_2_SUB.get(), PaintingRenderer::new);

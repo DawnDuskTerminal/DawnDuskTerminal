@@ -11,7 +11,6 @@ import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
@@ -30,14 +29,11 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.LargeFireball;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.ServerLevelAccessor;
-import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.event.EventHooks;
 import net.neoforged.neoforge.event.entity.ProjectileImpactEvent;
 import twilightforest.entity.monster.CarminiteGhastling;
-import twilightforest.init.TFDamageTypes;
 import twilightforest.init.TFEntities;
-import twilightforest.init.TFParticleType;
 
 /**
  * 「大恶魂」：暮色恶魂的精英形态
@@ -46,9 +42,8 @@ import twilightforest.init.TFParticleType;
  * 以漂浮方式移动，按原版恶魂的节奏发射火球。在此之上另有下列两套专属机制。
  *
  * <ul>
- *   <li>常驻：每 tick 生成一颗泪粒子（{@code TFParticleType.BOSS_TEAR}），以 {@code longDistance} 方式
- *       发放给 512 格以内的玩家；每 {@value #TEAR_INTERVAL} tick 结算一次伤害，伤害类型为
- *       {@code twilightforest:ghast_tear}，每次 {@value #TEAR_DAMAGE} 点，与暮色恶魂的泪滴一致。
+ *   <li>常驻：每 tick 生成一颗 {@link GhastEliteTear}，实际命中玩家时造成 3 点泪滴伤害。
+ *       受控粒子向 512 格以内的玩家显示同一射弹，不依赖实体追踪距离。
  *   <li>一次性：第一次取得索敌对象时，于本体正下方水平半径 {@value #MINION_SPAWN_RADIUS} 格的方形区域内
  *       依次召出 {@value #MINION_COUNT} 只 {@code twilightforest:carminite_ghastling}，并将该目标共享给它们。
  * </ul>
@@ -94,20 +89,6 @@ public class GhastEliteEntity extends Ghast implements YsmPackUser {
      * 否则下一 tick 火球将再次撞击本体，形成无限反弹。
      */
     private static final double DEFLECT_ORIGIN = 7.5D;
-
-    /** 伤害结算周期（tick）：粒子每 tick 生成一颗，伤害每 10 tick 结算一次 */
-    private static final int TEAR_INTERVAL = 10;
-
-    /** 每一次泪滴伤害的数值，与暮色恶魂一致 */
-    private static final float TEAR_DAMAGE = 3.0F;
-
-    /**
-     * 泪滴判定范围在竖直方向的扩展量
-     *
-     * <p>以本体碰撞箱为基准向下扩展该距离，并在竖直方向放大同一距离，水平方向不放大，
-     * 与暮色恶魂一致。
-     */
-    private static final double TEAR_DROP = 16.0D;
 
     /** 一次召唤的迷你恶魂数量 */
     private static final int MINION_COUNT = 6;
@@ -257,11 +238,7 @@ public class GhastEliteEntity extends Ghast implements YsmPackUser {
             return;
         }
         this.entityData.set(DATA_FACE, (byte) this.currentFace().ordinal());
-        // 泪粒子每 tick 生成一颗：远距离可见性依赖 sendParticles 的 longDistance（512 格），不依赖射弹实体
-        this.spawnTearParticle(level);
-        if (this.tickCount % TEAR_INTERVAL == 0) {
-            this.doTearDamage(level);
-        }
+        this.spawnTear(level);
         if (this.tickCount % MINION_TEND_INTERVAL == 0) {
             this.tendMinions();
         }
@@ -420,42 +397,12 @@ public class GhastEliteEntity extends Ghast implements YsmPackUser {
         GhastDeflect.handleImpact(event, GhastEliteEntity.class, GhastEliteEntity::deflectFireball);
     }
 
-    /**
-     * 生成一颗泪粒子
-     *
-     * <p>远距离可见性依赖 {@code sendParticles(player, type, longDistance = true, ...)}：
-     * 该重载的分发半径为 <strong>512 格</strong>，而非普通粒子的 32 格。泪雨的远距离表现由此实现，
-     * 既不需要射弹实体，也不额外生成任何对象。
-     *
-     * <p>生成位置与暮色恶魂的 {@code aiStep} 相同：水平方向落在身体宽度之内，竖直方向落在 0 至半高之间，
-     * 粒子自行下落。
-     */
-    private void spawnTearParticle(ServerLevel level) {
+    /** 保留原泪粒子的生成频率及本体下半部的生成区域。 */
+    private void spawnTear(ServerLevel level) {
         double x = this.getX() + (this.getRandom().nextDouble() - 0.5D) * this.getBbWidth() * 0.75D;
         double y = this.getY() + this.getRandom().nextDouble() * this.getBbHeight() * 0.5D;
         double z = this.getZ() + (this.getRandom().nextDouble() - 0.5D) * this.getBbWidth() * 0.75D;
-        for (ServerPlayer player : level.players()) {
-            level.sendParticles(player, TFParticleType.BOSS_TEAR.get(), true, x, y, z, 1, 0.0D, 0.0D, 0.0D, 0.0D);
-        }
-    }
-
-    /**
-     * 泪雨的伤害结算，与暮色恶魂的 {@code doTantrumDamageEffects} 一致
-     *
-     * <p>判定范围为以本体碰撞箱为基准的竖直柱体：向下扩展 {@value #TEAR_DROP} 格，竖直方向再放大
-     * {@value #TEAR_DROP} 格，水平方向不放大。仅当玩家处于可见天光处时结算，每次
-     * {@value #TEAR_DAMAGE} 点，伤害类型为 {@code twilightforest:ghast_tear}。
-     * 该判定只针对玩家：小鬼不受影响，本体亦不会因此恢复生命。
-     */
-    private void doTearDamage(ServerLevel level) {
-        AABB below = this.getBoundingBox().move(0.0D, -TEAR_DROP, 0.0D).inflate(0.0D, TEAR_DROP, 0.0D);
-        DamageSource tear = TFDamageTypes.getEntityDamageSource(
-                this.level(), TFDamageTypes.GHAST_TEAR, this, TFEntities.UR_GHAST.get());
-        for (Player player : level.getEntitiesOfClass(Player.class, below)) {
-            if (level.canSeeSkyFromBelowWater(player.blockPosition())) {
-                player.hurt(tear, TEAR_DAMAGE);
-            }
-        }
+        GhastEliteTear.spawn(level, this, new Vec3(x, y, z));
     }
 
     /**

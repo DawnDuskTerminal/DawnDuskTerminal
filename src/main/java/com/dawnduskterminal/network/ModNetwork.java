@@ -11,6 +11,8 @@ public final class ModNetwork {
     public static void registerPayloads(RegisterPayloadHandlersEvent event) {
         PayloadRegistrar registrar = event.registrar(VERSION);
         registrar.playToClient(ChronoLinePayload.TYPE, ChronoLinePayload.STREAM_CODEC, ChronoLinePayload::handle);
+        registrar.playToClient(
+                GhastEliteTearPayload.TYPE, GhastEliteTearPayload.STREAM_CODEC, GhastEliteTearPayload::handle);
         // 试验物品 095 那支循环曲的起停：服务端只发包，循环音由客户端自己的 SoundInstance 维持
         registrar.playToClient(RequiemStartPayload.TYPE, RequiemStartPayload.STREAM_CODEC, RequiemStartPayload::handle);
         registrar.playToClient(RequiemStopPayload.TYPE, RequiemStopPayload.STREAM_CODEC, RequiemStopPayload::handle);
