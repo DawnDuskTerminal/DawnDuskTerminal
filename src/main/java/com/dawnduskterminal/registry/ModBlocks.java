@@ -15,6 +15,7 @@ import com.dawnduskterminal.block.Experiment065Block;
 import com.dawnduskterminal.block.Experiment069Block;
 import com.dawnduskterminal.block.Experiment076Block;
 import com.dawnduskterminal.block.Experiment114Block;
+import com.dawnduskterminal.block.PortalWaterfallBlock;
 import com.dawnduskterminal.block.SusCakeBlock;
 import com.dawnduskterminal.block.TowerdevBuilderType2Block;
 import com.dawnduskterminal.block.TowerdevBuiltType2Block;
@@ -54,6 +55,16 @@ public final class ModBlocks {
                     .pushReaction(PushReaction.DESTROY)
                     .noLootTable()
                     .liquid()
+                    .sound(SoundType.EMPTY));
+
+    public static final DeferredBlock<PortalWaterfallBlock> PORTAL_WATERFALL = BLOCKS.registerBlock(
+            "portal_waterfall",
+            PortalWaterfallBlock::new,
+            BlockBehaviour.Properties.of()
+                    .replaceable()
+                    .noCollission()
+                    .noLootTable()
+                    .pushReaction(PushReaction.DESTROY)
                     .sound(SoundType.EMPTY));
 
     public static final DeferredBlock<Block> CHRONO_CRUST = BLOCKS.registerSimpleBlock(

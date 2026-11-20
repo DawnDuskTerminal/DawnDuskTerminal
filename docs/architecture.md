@@ -463,20 +463,16 @@ Mixin 直接引用暮色森林类型，升级造成签名变化时应在编译�
 
 ## 群系源
 
-`world/PaletteBiomeSource` 注册为 `dawnduskterminal:palette`。
-编解码必填 `preset`、`palette`，允许可选的 `extra` 气候点。
-当前使用 `minecraft:overworld` 参数预设和 `palette_biomes` 群系标签，追加点位于原参数表末尾。
+`PaletteBiomeSource` 注册为 `dawnduskterminal:palette`。
+维度配置使用原版主世界气候表和模组群系标签。
+群系源对原版温度噪声叠加晨昏线偏移，其余气候维度直接使用采样值。
+深度低于阈值时直接返回天门，其余位置调用原版最近匹配算法。
+原版结果按同名路径映射为模组群系。
 
-`getNoiseBiome` 先通过 `ChronoTemperature` 映射温度，其余气候维度保持原采样。
-深度低于阈值时直接使用 `floatrees`；其余调用扩展表的 `ParameterList.findValue`。
-原版结果按路径映射为本模组群系，其中 `desert` 特别映射为 `white_land`；非原版命名空间直接返回。
-替换表延迟构建，避免在数据包解析时访问尚无 key 的标签 holder。
-
-原版温度范围为 `[-1,1]`，极带延伸至 `±2`。
-维度 `extra` 包含极昼 `polar_dawn`，以及按湿度分选的极夜 `polar_dusk` 与 `blue_desert`。
-占位内容不限制最终地形或生态设计，但替换时优先保留群系 ID。
-删除或重命名 ID 须单独评估存档兼容和引用迁移。
-气候分布、移植特征与内容对照见 [世界生成](worldgen.md#调色板群系源) 及 [群系对照](biomes.md)。
+最终温度超出 [−1, 1] 时使用对应的极温表。
+极温表延伸原版端点的气候条目，并以原版陆地群系的参数配置极温占位。
+换表与映射均在群系源内部完成。
+参见 [世界生成](worldgen.md#调色板群系源) 和 [群系对照](biomes.md)。
 
 ## 世界生成补丁
 

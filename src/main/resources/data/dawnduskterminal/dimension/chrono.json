@@ -5,33 +5,7 @@
     "biome_source": {
       "type": "dawnduskterminal:palette",
       "preset": "minecraft:overworld",
-      "palette": "#dawnduskterminal:palette_biomes",
-      "extra": [
-        {
-          "temperature": [1.0, 2.0],
-          "humidity": [-1.0, 1.0],
-          "continentalness": [-1.0, 1.0],
-          "erosion": [-1.0, 1.0],
-          "weirdness": [-1.0, 1.0],
-          "biome": "dawnduskterminal:polar_dawn"
-        },
-        {
-          "temperature": [-2.0, -1.0],
-          "humidity": [-0.35, 1.0],
-          "continentalness": [-1.0, 1.0],
-          "erosion": [-1.0, 1.0],
-          "weirdness": [-1.0, 1.0],
-          "biome": "dawnduskterminal:polar_dusk"
-        },
-        {
-          "temperature": [-2.0, -1.0],
-          "humidity": [-1.0, -0.35],
-          "continentalness": [-1.0, 1.0],
-          "erosion": [-1.0, 1.0],
-          "weirdness": [-1.0, 1.0],
-          "biome": "dawnduskterminal:blue_desert"
-        }
-      ]
+      "palette": "#dawnduskterminal:palette_biomes"
     },
     "settings": "dawnduskterminal:chrono"
   }

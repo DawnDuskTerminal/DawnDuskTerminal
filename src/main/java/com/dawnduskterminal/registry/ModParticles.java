@@ -130,6 +130,9 @@ public final class ModParticles {
     public static final DeferredHolder<ParticleType<?>, SimpleParticleType> PORTAL_RAIN =
             register("particle_portal_rain");
 
+    public static final DeferredHolder<ParticleType<?>, SimpleParticleType> PORTAL_WATERFALL_DUST =
+            register("portal_waterfall_dust");
+
     private ModParticles() {}
 
     private static DeferredHolder<ParticleType<?>, SimpleParticleType> register(String name) {

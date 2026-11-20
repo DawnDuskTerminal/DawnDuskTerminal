@@ -80,6 +80,7 @@ public final class DdtClient {
         NeoForge.EVENT_BUS.addListener(ExpowheelSounds::onEntityJoin);
         NeoForge.EVENT_BUS.addListener(GhastEliteTearParticles::onTick);
         NeoForge.EVENT_BUS.addListener(GhastEliteTearParticles::onUnload);
+        NeoForge.EVENT_BUS.addListener(PortalWaterfallMesh::addSectionGeometry);
         modBus.addListener(DdtClient::onClientSetup);
         modBus.addListener(DdtClient::registerFluidExtensions);
         modBus.addListener(DdtClient::registerItemExtensions);
@@ -445,6 +446,8 @@ public final class DdtClient {
     private static void onClientSetup(FMLClientSetupEvent event) {
         ItemBlockRenderTypes.setRenderLayer(ModFluids.PORTAL_FLUID.get(), RenderType.translucent());
         ItemBlockRenderTypes.setRenderLayer(ModFluids.PORTAL_FLOWING.get(), RenderType.translucent());
+        ItemBlockRenderTypes.setRenderLayer(ModScorchingTwilight.SOURCE.get(), RenderType.translucent());
+        ItemBlockRenderTypes.setRenderLayer(ModScorchingTwilight.FLOWING.get(), RenderType.translucent());
         // 红篝火：原版把 minecraft:campfire / soul_campfire 以 cutout 写进 ItemBlockRenderTypes 的
         // TYPE_BY_BLOCK 里，火舌那两张贴图正是靠这一条才有透明度。本方块的模型只是继承了原版模板，
         // 渲染层却不在那张表里，不补这一行火舌就会落到 solid 上、透明像素变成不透明的黑块
@@ -492,6 +495,7 @@ public final class DdtClient {
         event.registerEntityRenderer(ModEntities.GHAST_PAINTING_9.get(), PaintingRenderer::new);
         // 试验物品 076 的外观整个在这一边：每个面每 tick 抽一张贴图，见 Experiment076Renderer
         event.registerBlockEntityRenderer(ModBlockEntities.EXPERIMENT_076.get(), Experiment076Renderer::new);
+        event.registerBlockEntityRenderer(ModBlockEntities.PORTAL_WATERFALL.get(), PortalWaterfallRenderer::new);
         // 红篝火火堆上那四格食材：自带的渲染器，照原版 CampfireRenderer 的摆法画
         event.registerBlockEntityRenderer(ModBlockEntities.CAMP_CARMINITE_FIRE.get(), CampCarminiteFireRenderer::new);
     }
@@ -515,6 +519,7 @@ public final class DdtClient {
         event.registerSpriteSet(ModParticles.PRISM_TRACE.get(), PrismTraceParticle.Provider::new);
         // 雨天的水花：贴图借原版 rain，颜色固定成传送门流体的色相，见 PortalRainParticle
         event.registerSpriteSet(ModParticles.PORTAL_RAIN.get(), PortalRainParticle.Provider::new);
+        event.registerSpriteSet(ModParticles.PORTAL_WATERFALL_DUST.get(), PortalWaterfallDustParticle.Provider::new);
     }
 
     /**

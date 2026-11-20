@@ -257,10 +257,10 @@
     "ridges": "dawnduskterminal:overworld/ridges",
     "temperature": {
       "type": "minecraft:shifted_noise",
-      "noise": "dawnduskterminal:temperature",
-      "shift_x": "dawnduskterminal:shift_x",
+      "noise": "minecraft:temperature",
+      "shift_x": "minecraft:shift_x",
       "shift_y": 0.0,
-      "shift_z": "dawnduskterminal:shift_z",
+      "shift_z": "minecraft:shift_z",
       "xz_scale": 0.25,
       "y_scale": 0.0
     },
@@ -1463,6 +1463,42 @@
                               "if_true": {
                                 "type": "minecraft:biome",
                                 "biome_is": [
+                                  "dawnduskterminal:desert"
+                                ]
+                              },
+                              "then_run": {
+                                "type": "minecraft:sequence",
+                                "sequence": [
+                                  {
+                                    "type": "minecraft:condition",
+                                    "if_true": {
+                                      "type": "minecraft:stone_depth",
+                                      "add_surface_depth": false,
+                                      "offset": 0,
+                                      "secondary_depth_range": 0,
+                                      "surface_type": "ceiling"
+                                    },
+                                    "then_run": {
+                                      "type": "minecraft:block",
+                                      "result_state": {
+                                        "Name": "dawnduskterminal:siltstone"
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "minecraft:block",
+                                    "result_state": {
+                                      "Name": "dawnduskterminal:unconscious_sand"
+                                    }
+                                  }
+                                ]
+                              }
+                            },
+                            {
+                              "type": "minecraft:condition",
+                              "if_true": {
+                                "type": "minecraft:biome",
+                                "biome_is": [
                                   "dawnduskterminal:white_land",
                                   "dawnduskterminal:polar_dawn",
                                   "dawnduskterminal:polar_dusk"
@@ -2256,6 +2292,42 @@
                               "if_true": {
                                 "type": "minecraft:biome",
                                 "biome_is": [
+                                  "dawnduskterminal:desert"
+                                ]
+                              },
+                              "then_run": {
+                                "type": "minecraft:sequence",
+                                "sequence": [
+                                  {
+                                    "type": "minecraft:condition",
+                                    "if_true": {
+                                      "type": "minecraft:stone_depth",
+                                      "add_surface_depth": false,
+                                      "offset": 0,
+                                      "secondary_depth_range": 0,
+                                      "surface_type": "ceiling"
+                                    },
+                                    "then_run": {
+                                      "type": "minecraft:block",
+                                      "result_state": {
+                                        "Name": "dawnduskterminal:siltstone"
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "minecraft:block",
+                                    "result_state": {
+                                      "Name": "dawnduskterminal:unconscious_sand"
+                                    }
+                                  }
+                                ]
+                              }
+                            },
+                            {
+                              "type": "minecraft:condition",
+                              "if_true": {
+                                "type": "minecraft:biome",
+                                "biome_is": [
                                   "dawnduskterminal:white_land",
                                   "dawnduskterminal:polar_dawn",
                                   "dawnduskterminal:polar_dusk"
@@ -2473,6 +2545,31 @@
                       "type": "minecraft:biome",
                       "biome_is": [
                         "dawnduskterminal:blue_desert"
+                      ]
+                    },
+                    "then_run": {
+                      "type": "minecraft:condition",
+                      "if_true": {
+                        "type": "minecraft:stone_depth",
+                        "add_surface_depth": true,
+                        "offset": 0,
+                        "secondary_depth_range": 30,
+                        "surface_type": "floor"
+                      },
+                      "then_run": {
+                        "type": "minecraft:block",
+                        "result_state": {
+                          "Name": "dawnduskterminal:siltstone"
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "type": "minecraft:condition",
+                    "if_true": {
+                      "type": "minecraft:biome",
+                      "biome_is": [
+                        "dawnduskterminal:desert"
                       ]
                     },
                     "then_run": {

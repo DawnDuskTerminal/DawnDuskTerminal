@@ -5,6 +5,7 @@
     "dawnduskterminal:bamboo_jungle",
     "dawnduskterminal:beach",
     "dawnduskterminal:birch_forest",
+    "dawnduskterminal:blue_desert",
     "dawnduskterminal:cherry_grove",
     "dawnduskterminal:cold_ocean",
     "dawnduskterminal:dark_forest",
@@ -13,7 +14,7 @@
     "dawnduskterminal:deep_frozen_ocean",
     "dawnduskterminal:deep_lukewarm_ocean",
     "dawnduskterminal:deep_ocean",
-    "dawnduskterminal:blue_desert",
+    "dawnduskterminal:desert",
     "dawnduskterminal:dripstone_caves",
     "dawnduskterminal:eroded_badlands",
     "dawnduskterminal:flower_forest",
@@ -51,11 +52,11 @@
     "dawnduskterminal:swamp",
     "dawnduskterminal:taiga",
     "dawnduskterminal:warm_ocean",
+    "dawnduskterminal:white_land",
     "dawnduskterminal:windswept_forest",
     "dawnduskterminal:windswept_gravelly_hills",
     "dawnduskterminal:windswept_hills",
     "dawnduskterminal:windswept_savanna",
-    "dawnduskterminal:white_land",
     "dawnduskterminal:wooded_badlands"
   ]
 }

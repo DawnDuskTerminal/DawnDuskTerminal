@@ -21,6 +21,7 @@
     "BlockStateUpdateSuppressMixin",
     "LevelShapeUpdateSuppressMixin",
     "FluidStateUpdateSuppressMixin",
+    "PortalWaterfallUpdateMixin",
     "GhastlingShouldAttackMixin",
     "HazardousFluidPathingMixin",
     "CanopyBoatRiderMixin",
@@ -36,7 +37,11 @@
     "ClientLevelTimeOfDayMixin",
     "ExperimentArmorGlowMixin",
     "LevelRendererSkyAlignMixin",
-    "LevelRendererRainTextureMixin"
+    "LevelRendererRainTextureMixin",
+    "PortalWaterfallSurfaceMixin",
+    "PortalWaterfallSectionMixin",
+    "PortalWaterfallLiquidViewMixin",
+    "PortalWaterfallClientUpdateMixin"
   ],
   "injectors": {
     "defaultRequire": 1

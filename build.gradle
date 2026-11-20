@@ -41,9 +41,9 @@ neoForge {
             // 堆一路涨满之后 JVM 自己的原生分配（JIT arena、线程栈、mixin）就 malloc 失败，
             // hs_err 里是 "Native memory allocation (malloc) failed ... Chunk::new"，
             // 表现为存盘或跑图时整局直接消失。钉住堆，给原生内存留出余量。
-            // 内存更大的机器可用 -Pddt_client_heap=4G 覆盖。
+            // 可用 -Pddt_client_heap=4G 覆盖默认堆上限。
             jvmArguments.addAll(
-                "-Xmx${project.findProperty('ddt_client_heap') ?: '3G'}".toString(),
+                "-Xmx${project.findProperty('ddt_client_heap') ?: '6G'}".toString(),
                 '-XX:MaxMetaspaceSize=1G',
                 '-XX:ReservedCodeCacheSize=256m',
                 // 直接缓冲（native 网格内核与区块序列化都靠它）也给个上限：

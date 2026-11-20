@@ -38,8 +38,10 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.dimension.DimensionType;
 import net.minecraft.world.level.levelgen.DensityFunction;
 import net.minecraft.world.level.levelgen.DensityFunctions;
+import net.minecraft.world.level.levelgen.NoiseBasedChunkGenerator;
 import net.minecraft.world.level.levelgen.NoiseGeneratorSettings;
 import net.minecraft.world.level.levelgen.NoiseRouter;
+import net.minecraft.world.level.levelgen.RandomState;
 import net.minecraft.world.level.levelgen.feature.ConfiguredFeature;
 import net.minecraft.world.level.levelgen.placement.PlacedFeature;
 import net.minecraft.world.level.levelgen.synth.NormalNoise;
@@ -124,6 +126,7 @@ public final class WorldgenTests {
 
     private static final String[] COPIED_BIOMES = {
         "plains",
+        "desert",
         "sunflower_plains",
         "ocean",
         "deep_ocean",
@@ -204,30 +207,36 @@ public final class WorldgenTests {
         helper.succeed();
     }
 
-    /**
-     * 温度噪声的频率是手调的，不是原版那一个
-     *
-     * <p>原版主世界用的是 {@code firstOctave -10}，波长 `4096 / 1024` 格，比七带里任何一带都宽，所以它只会
-     * 让边界在几公里上慢慢漂，带内部看不出结构。把首八度抬到 {@code -7} 后，波长 `512 / 128` 格：宽的那个
-     * 让边界在带内凹凹凸凸，窄的那个把「跟晨昏线平行」的群系边界打散。幅度一个字没改，所以温度抖动幅度与
-     * {@code ChronoTemperature} 的泄漏上界都不变
-     *
-     * <p>重跑 {@code tools/port_overworld_worldgen.py} 会把原版的 {@code -10} 写回来（脚本是忠实拷贝），这个
-     * 断言就是那时候的报警
-     */
     @GameTest(template = "ddt_empty")
-    public static void temperatureNoiseRunsAtTheBandScale(GameTestHelper helper) {
-        Registry<NormalNoise.NoiseParameters> registry =
-                helper.getLevel().getServer().registryAccess().registryOrThrow(Registries.NOISE);
-        NormalNoise.NoiseParameters params = registry.getOrThrow(
-                ResourceKey.create(Registries.NOISE, ResourceLocation.fromNamespaceAndPath(MOD_ID, "temperature")));
-        helper.assertTrue(
-                params.firstOctave() == -7,
-                "the chrono temperature noise must stay at firstOctave -7 (512 / 128 block wavelengths); "
-                        + "the vanilla -10 only wanders over kilometres, got " + params.firstOctave());
-        helper.assertTrue(
-                params.amplitudes().size() == 6 && params.amplitudes().getDouble(0) == 1.5D,
-                "the amplitude fingerprint is still vanilla's, only the frequency was retuned");
+    public static void temperatureUsesVanillaNoiseAndLinearOffset(GameTestHelper helper) {
+        var access = helper.getLevel().getServer().registryAccess();
+        var noises = access.lookupOrThrow(Registries.NOISE);
+        var overworld = access.registryOrThrow(Registries.NOISE_SETTINGS).getOrThrow(NoiseGeneratorSettings.OVERWORLD);
+        var vanilla = RandomState.create(overworld, noises, 42L).sampler();
+        var chrono = RandomState.create(chronoSettings(helper), noises, 42L).sampler();
+        ChronoLine previous = ChronoLineState.hasServerLine() ? ChronoLineState.serverLine() : null;
+        ChronoLineState.setServerLine(new ChronoLine(0, 100, 0, 1));
+        try {
+            int[] distances = {-20000, -8000, -5000, 0, 5000, 8000, 20000};
+            double[] offsets = {-4.0D, -1.6D, -1.0D, 0.0D, 1.0D, 1.6D, 4.0D};
+            for (int i = 0; i < distances.length; i++) {
+                int z = 100 + distances[i];
+                var context = new DensityFunction.SinglePointContext(300, 64, z);
+                double raw = chrono.temperature().compute(context);
+                helper.assertTrue(
+                        raw == vanilla.temperature().compute(context),
+                        "chrono must use the unmodified vanilla temperature field at z=" + z);
+                helper.assertTrue(
+                        ChronoTemperature.shift(raw, 300, z) == Math.clamp(raw + offsets[i], -2.0D, 2.0D),
+                        "the signed distance must add the expected offset at z=" + z);
+            }
+        } finally {
+            if (previous != null) {
+                ChronoLineState.setServerLine(previous);
+            } else {
+                ChronoLineState.resetServerLine();
+            }
+        }
         helper.succeed();
     }
 
@@ -246,7 +255,6 @@ public final class WorldgenTests {
                 router.fluidLevelFloodednessNoise(),
                 router.fluidLevelSpreadNoise(),
                 router.lavaNoise(),
-                router.temperature(),
                 router.vegetation(),
                 router.continents(),
                 router.erosion(),
@@ -394,13 +402,8 @@ public final class WorldgenTests {
         helper.succeed();
     }
 
-    /**
-     * 读维度 JSON 本身：{@code GameTestServer} 的 {@code level_stem} 注册表只有三条原版维度，模组维度
-     * 起不来，所以这里直接把 {@code dimension/chrono.json} 里那段 {@code biome_source} 用 codec 解一遍。
-     * {@code extra} 是唯一只能从 JSON 验的字段，其它测试都是手工 new 的
-     */
-    @GameTest(template = "ddt_empty")
-    public static void chronoDimensionDeclaresThePaletteSource(GameTestHelper helper) {
+    /** 游戏测试服使用平坦预设，因此从资源管理器解码晨昏线维度的实际群系源。 */
+    private static PaletteBiomeSource readChronoBiomeSource(GameTestHelper helper) {
         var access = helper.getLevel().getServer().registryAccess();
         ResourceLocation id = ResourceLocation.fromNamespaceAndPath(MOD_ID, "dimension/chrono.json");
         JsonObject dimension;
@@ -421,25 +424,31 @@ public final class WorldgenTests {
                 .getOrThrow();
         helper.assertTrue(
                 source instanceof PaletteBiomeSource, "chrono must use the palette biome source, got " + source);
-        PaletteBiomeSource chrono = (PaletteBiomeSource) source;
+        return (PaletteBiomeSource) source;
+    }
+
+    @GameTest(template = "ddt_empty")
+    public static void chronoDimensionDeclaresThePaletteSource(GameTestHelper helper) {
+        PaletteBiomeSource chrono = readChronoBiomeSource(helper);
         helper.assertTrue(
                 chrono.preset()
                         .is(ResourceKey.create(
                                 Registries.MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST,
                                 ResourceLocation.withDefaultNamespace("overworld"))),
                 "the palette source must read the vanilla overworld parameter list");
-        helper.assertTrue(
-                chrono.extra().size() == 3,
-                "the dimension JSON must declare the two polar cells, got "
-                        + chrono.extra().size());
         List<ResourceKey<Biome>> possible = chrono.possibleBiomes().stream()
                 .map(holder -> holder.unwrapKey().orElseThrow())
                 .toList();
-        for (String path : new String[] {"polar_dawn", "polar_dusk"}) {
+        for (String path : new String[] {"polar_dawn", "polar_dusk", "blue_desert", "white_land", "desert"}) {
             ResourceKey<Biome> key =
                     ResourceKey.create(Registries.BIOME, ResourceLocation.fromNamespaceAndPath(MOD_ID, path));
-            helper.assertTrue(possible.contains(key), "the extra biome must be reported as possible, missing " + path);
+            helper.assertTrue(
+                    possible.contains(key), "the palette biome must be reported as possible, missing " + path);
         }
+        var settings = helper.getLevel().getServer().registryAccess().registryOrThrow(Registries.NOISE_SETTINGS);
+        new NoiseBasedChunkGenerator(
+                        chrono, settings.getHolderOrThrow(ResourceKey.create(Registries.NOISE_SETTINGS, CHRONO)))
+                .validate();
         helper.succeed();
     }
 
@@ -511,8 +520,7 @@ public final class WorldgenTests {
         try {
             Set<ResourceLocation> leaked = new LinkedHashSet<>();
             int sampled = 0;
-            // 温度现在由坐标上的晨昏线 param 决定，采样器里的 temperature 不再参与选格。
-            // 几个 x 覆盖夜区 寒带 温带 热带 昼区，确保每一档都真的取样到
+            // 沿晨昏线法向选取多个位置，覆盖不同的气候温度。
             for (double param : new double[] {-0.7D, -0.5D, -0.2D, 0.0D, 0.45D, 0.7D}) {
                 int quartX = QuartPos.fromBlock((int) Math.round(param * 5000.0D));
                 for (double humidity : new double[] {-1.0D, 0.0D, 1.0D}) {
@@ -537,12 +545,11 @@ public final class WorldgenTests {
             helper.assertTrue(
                     leaked.isEmpty(), "these biomes were not substituted out of " + sampled + " samples: " + leaked);
 
-            // 昼区：温度被钉在热档，气候表报出的原版沙漠换成白地
+            // 核对原版沙漠温区的选格仍对应同名副本。
             ResourceKey<Biome> vanillaDesert =
                     ResourceKey.create(Registries.BIOME, ResourceLocation.withDefaultNamespace("desert"));
-            ResourceKey<Biome> whiteLand =
-                    ResourceKey.create(Registries.BIOME, ResourceLocation.fromNamespaceAndPath(MOD_ID, "white_land"));
-            // param 0.7 映射到 0.775，正好在原版热档 0.55 ~ 1.00 中间
+            ResourceKey<Biome> desert =
+                    ResourceKey.create(Registries.BIOME, ResourceLocation.fromNamespaceAndPath(MOD_ID, "desert"));
             int hotQuartX = QuartPos.fromBlock(3500);
             int desertSamples = 0;
             for (double humidity : new double[] {-1.0D, -0.5D}) {
@@ -550,15 +557,19 @@ public final class WorldgenTests {
                     for (double erosion : new double[] {-1.0D, 0.0D, 1.0D}) {
                         for (double weirdness : new double[] {-1.0D, -0.5D, 0.5D, 1.0D}) {
                             Climate.Sampler sampler =
-                                    constantSampler(0.775D, humidity, continentalness, erosion, weirdness);
+                                    constantSampler(0.875D, humidity, continentalness, erosion, weirdness);
                             if (!delegate.getNoiseBiome(0, 16, 0, sampler).is(vanillaDesert)) {
                                 continue;
                             }
                             desertSamples++;
-                            Holder<Biome> got = source.getNoiseBiome(hotQuartX, 16, 0, sampler);
+                            Holder<Biome> got = source.getNoiseBiome(
+                                    hotQuartX,
+                                    16,
+                                    0,
+                                    constantSampler(0.0D, humidity, continentalness, erosion, weirdness));
                             helper.assertTrue(
-                                    got.is(whiteLand),
-                                    "vanilla desert must become the white land copy, got "
+                                    got.is(desert),
+                                    "vanilla desert must become the desert copy, got "
                                             + got.unwrapKey()
                                                     .map(ResourceKey::location)
                                                     .orElse(null));
@@ -575,98 +586,6 @@ public final class WorldgenTests {
             }
         }
 
-        // 分带映射：六个断点把 param 切七段，每段端点必须落在原版温度档的边界上，
-        // 否则某一带会跨档，带里就冒出别的带的群系（比如热带刷出针叶林）
-        helper.assertTrue(
-                ChronoTemperature.bandTemperature(ChronoTemperature.POLAR_NIGHT) == -1.0D,
-                "-0.8 must map to the frozen band floor");
-        helper.assertTrue(
-                ChronoTemperature.bandTemperature(ChronoTemperature.NIGHT_ZONE) == -0.45D,
-                "-0.6 must map to the frozen band ceiling, which is where the night zone starts");
-        helper.assertTrue(
-                ChronoTemperature.bandTemperature(ChronoTemperature.COLD_ZONE) == -0.15D,
-                "-0.3 must map to the cold band ceiling, which is where the temperate band starts");
-        helper.assertTrue(
-                ChronoTemperature.bandTemperature(ChronoTemperature.TROPIC_ZONE) == 0.20D,
-                "0.3 must map to the temperate band ceiling, which is where the tropic band starts");
-        helper.assertTrue(
-                ChronoTemperature.bandTemperature(ChronoTemperature.DAY_ZONE) == 0.55D,
-                "0.6 must map to the tropic band ceiling, which is where the day zone starts");
-        helper.assertTrue(
-                ChronoTemperature.bandTemperature(ChronoTemperature.POLAR_DAY) == 1.0D,
-                "0.8 must map to the hot band ceiling");
-        // 极带继续往外推：线端是 POLAR_TEMPERATURE，extra 那几条的跨度就从 ±1 起
-        helper.assertTrue(
-                ChronoTemperature.bandTemperature(1.0D) == ChronoTemperature.POLAR_TEMPERATURE,
-                "param 1.0 must reach the polar day ceiling");
-        helper.assertTrue(
-                ChronoTemperature.bandTemperature(-1.0D) == -ChronoTemperature.POLAR_TEMPERATURE,
-                "param -1.0 must reach the polar night floor");
-        // 带内单调：沿着线走，温度不能反向
-        for (double param = -0.79D; param < 0.79D; param += 0.01D) {
-            helper.assertTrue(
-                    ChronoTemperature.bandTemperature(param) <= ChronoTemperature.bandTemperature(param + 0.01D),
-                    "the band mapping must be monotonic at param " + param);
-        }
-        // 温带带内即使算上噪声也到不了沙漠与雪原的门槛（0.55 / -0.45）。交界抖动与 SPREAD 同时满幅，
-        // 所以泄漏的上界是两者之和
-        double seamReach = ChronoTemperature.SPREAD + ChronoTemperature.SEAM_DITHER;
-        double temperateCeiling = ChronoTemperature.bandTemperature(ChronoTemperature.TROPIC_ZONE);
-        double temperateFloor = ChronoTemperature.bandTemperature(ChronoTemperature.COLD_ZONE);
-        helper.assertTrue(
-                temperateCeiling + seamReach < 0.55D,
-                "the temperate band must not reach the desert threshold even with noise, got "
-                        + (temperateCeiling + seamReach));
-        helper.assertTrue(
-                temperateFloor - seamReach > -0.45D,
-                "the temperate band must not reach the snowy threshold even with noise, got "
-                        + (temperateFloor - seamReach));
-
-        // 交界抖动：断点上满幅，离开 SEAM_WIDTH 归零，带心一点不动
-        helper.assertTrue(
-                ChronoTemperature.seamWeight(ChronoTemperature.TROPIC_ZONE) == 1.0D,
-                "a breakpoint must get the full seam weight");
-        helper.assertTrue(
-                ChronoTemperature.seamWeight(ChronoTemperature.TROPIC_ZONE + ChronoTemperature.SEAM_WIDTH) == 0.0D,
-                "the seam weight must be gone one SEAM_WIDTH away from the breakpoint");
-        helper.assertTrue(
-                ChronoTemperature.seamWeight(0.0D) == 0.0D,
-                "the middle of the temperate band must stay free of seam jitter");
-        helper.assertTrue(
-                ChronoTemperature.seamDither(0.0D, 1234.0D, -5678.0D) == 0.0D, "band cores must not be jittered");
-        // 极带边界（±0.8）也吃抖动，但极带内部即使满幅抖动也必须留在 extra 的 [1, 2]
-        helper.assertTrue(
-                ChronoTemperature.seamWeight(ChronoTemperature.POLAR_DAY) == 1.0D,
-                "the polar seams must be jittered too, otherwise those two lines stay razor sharp");
-        helper.assertTrue(
-                ChronoTemperature.bandTemperature(0.9D) - ChronoTemperature.SEAM_DITHER > 1.0D,
-                "the polar bands must stay inside the extra spans even at full seam jitter");
-
-        // 断点两侧都得被推过温标：两侧都有正有负，交界才会两侧群系都出现，而不是一条线
-        double min = Double.MAX_VALUE;
-        double max = -Double.MAX_VALUE;
-        for (double x = -2000.0D; x <= 2000.0D; x += 37.0D) {
-            for (double z = -2000.0D; z <= 2000.0D; z += 37.0D) {
-                double dither = ChronoTemperature.seamDither(ChronoTemperature.TROPIC_ZONE, x, z);
-                helper.assertTrue(
-                        Math.abs(dither) <= ChronoTemperature.SEAM_DITHER,
-                        "the seam jitter must stay within SEAM_DITHER, got " + dither);
-                min = Math.min(min, dither);
-                max = Math.max(max, dither);
-            }
-        }
-        helper.assertTrue(
-                max > 0.02D && min < -0.02D,
-                "the seam jitter must push both ways at a breakpoint, got " + min + " ~ " + max);
-
-        // 连续：逐格跳 0.01 以上就会把交界切成格子状断层
-        for (double z = -1500.0D; z < 1500.0D; z += 1.0D) {
-            double a = ChronoTemperature.seamDither(ChronoTemperature.COLD_ZONE, 300.0D, z);
-            double b = ChronoTemperature.seamDither(ChronoTemperature.COLD_ZONE, 300.0D, z + 1.0D);
-            helper.assertTrue(
-                    Math.abs(a - b) < 0.01D,
-                    "the seam jitter must stay smooth at z " + z + ", got a step of " + Math.abs(a - b));
-        }
         helper.succeed();
     }
 
@@ -726,76 +645,26 @@ public final class WorldgenTests {
         helper.succeed();
     }
 
-    /**
-     * 极带靠 {@code extra} 那几条自建点选群系：{@link ChronoTemperature} 把 {@code param} 推到 {@code ±1}
-     * 时温度到 {@link ChronoTemperature#POLAR_TEMPERATURE}，正好落进温度跨度 {@code ±1 ~ ±2} 的那几条；
-     * 极夜那条按湿度切成两半，干的一半是蓝沙沙漠。线中同一套采样器必须还是原版那一侧，否则说明加点的
-     * 范围写宽了
-     */
     @GameTest(template = "ddt_empty")
-    public static void polarBandsUseTheExtraBiomes(GameTestHelper helper) {
-        var access = helper.getLevel().getServer().registryAccess();
-        Registry<Biome> biomes = access.registryOrThrow(Registries.BIOME);
-        Registry<MultiNoiseBiomeSourceParameterList> presets =
-                access.registryOrThrow(Registries.MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST);
-        Holder<MultiNoiseBiomeSourceParameterList> overworld = presets.getHolderOrThrow(ResourceKey.create(
-                Registries.MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST,
-                ResourceLocation.withDefaultNamespace("overworld")));
-        HolderSet<Biome> palette = biomes.getTag(TagKey.create(
-                        Registries.BIOME, ResourceLocation.fromNamespaceAndPath(MOD_ID, "palette_biomes")))
-                .orElseThrow();
-
-        // 与维度 JSON 里的 extra 同形：极昼一条，极夜按湿度切两条
-        Climate.Parameter full = Climate.Parameter.span(-1.0F, 1.0F);
-        Climate.Parameter dry = Climate.Parameter.span(-1.0F, -0.35F);
-        Climate.Parameter wet = Climate.Parameter.span(-0.35F, 1.0F);
-        ResourceKey<Biome> dawn =
-                ResourceKey.create(Registries.BIOME, ResourceLocation.fromNamespaceAndPath(MOD_ID, "polar_dawn"));
-        ResourceKey<Biome> dusk =
-                ResourceKey.create(Registries.BIOME, ResourceLocation.fromNamespaceAndPath(MOD_ID, "polar_dusk"));
-        ResourceKey<Biome> blueDesert =
-                ResourceKey.create(Registries.BIOME, ResourceLocation.fromNamespaceAndPath(MOD_ID, "blue_desert"));
-        // 湿度可调，用来验极夜那两条是按干湿分开的
-        java.util.function.Function<Double, Climate.Sampler> sampler = humidity -> new Climate.Sampler(
-                DensityFunctions.constant(0.0D),
-                DensityFunctions.constant(humidity),
-                DensityFunctions.constant(0.0D),
-                DensityFunctions.constant(0.0D),
-                DensityFunctions.constant(0.0D),
-                DensityFunctions.constant(0.0D),
-                List.of());
-        List<PaletteBiomeSource.ExtraBiome> extra = List.of(
-                new PaletteBiomeSource.ExtraBiome(
-                        Climate.Parameter.span(1.0F, 2.0F), full, full, full, full, biomes.getHolderOrThrow(dawn)),
-                new PaletteBiomeSource.ExtraBiome(
-                        Climate.Parameter.span(-2.0F, -1.0F), wet, full, full, full, biomes.getHolderOrThrow(dusk)),
-                new PaletteBiomeSource.ExtraBiome(
-                        Climate.Parameter.span(-2.0F, -1.0F),
-                        dry,
-                        full,
-                        full,
-                        full,
-                        biomes.getHolderOrThrow(blueDesert)));
-        PaletteBiomeSource source = new PaletteBiomeSource(overworld, palette, extra);
+    public static void polarClimatePreservesRiversOceansAndLand(GameTestHelper helper) {
+        PaletteBiomeSource source = readChronoBiomeSource(helper);
         ChronoLine previous = ChronoLineState.hasServerLine() ? ChronoLineState.serverLine() : null;
         ChronoLineState.setServerLine(ChronoLine.fallback());
         try {
-            // 温度包成和区块里一样的分段映射，极带的 ±2 就是这个包装算出来的
-            // 25000 quart = 100000 格，param（blockX / maxDistance 5000）在这里被钳到 ±1
+            for (double temperature : new double[] {1.2D, 2.0D, 3.0D}) {
+                assertBiome(helper, source, temperature, 0.0D, -0.35D, 0.0D, 0.0D, "warm_ocean");
+                assertBiome(helper, source, temperature, 0.0D, -0.65D, 0.0D, 0.0D, "warm_ocean");
+                assertBiome(helper, source, temperature, 0.0D, -0.15D, -0.6D, 0.0D, "river");
+                assertBiome(helper, source, -temperature, 0.0D, -0.35D, 0.0D, 0.0D, "frozen_ocean");
+                assertBiome(helper, source, -temperature, 0.0D, -0.65D, 0.0D, 0.0D, "deep_frozen_ocean");
+                assertBiome(helper, source, -temperature, 0.0D, -0.15D, -0.6D, 0.0D, "frozen_river");
+            }
+            Set<String> hotLand = samplePolarLand(source, 1.5D);
+            Set<String> coldLand = samplePolarLand(source, -1.5D);
             helper.assertTrue(
-                    source.getNoiseBiome(25000, 16, 0, sampler.apply(0.0D)).is(dawn),
-                    "param 1.0 must land in the polar day biome");
+                    hotLand.containsAll(Set.of("white_land", "polar_dawn")), "missing hot land biomes: " + hotLand);
             helper.assertTrue(
-                    source.getNoiseBiome(-25000, 16, 0, sampler.apply(0.5D)).is(dusk),
-                    "the wet half of the polar night must be the polar dusk plains");
-            helper.assertTrue(
-                    source.getNoiseBiome(-25000, 16, 0, sampler.apply(-0.7D)).is(blueDesert),
-                    "the dry half of the polar night must be the blue sand desert");
-            Holder<Biome> middle = source.getNoiseBiome(0, 16, 0, sampler.apply(0.0D));
-            helper.assertTrue(
-                    !middle.is(dawn) && !middle.is(dusk) && !middle.is(blueDesert),
-                    "param 0 must stay on the vanilla climate table, got "
-                            + middle.unwrapKey().map(ResourceKey::location).orElse(null));
+                    coldLand.containsAll(Set.of("polar_dusk", "blue_desert")), "missing cold land biomes: " + coldLand);
         } finally {
             if (previous != null) {
                 ChronoLineState.setServerLine(previous);
@@ -804,6 +673,39 @@ public final class WorldgenTests {
             }
         }
         helper.succeed();
+    }
+
+    private static void assertBiome(
+            GameTestHelper helper,
+            PaletteBiomeSource source,
+            double temperature,
+            double humidity,
+            double continentalness,
+            double erosion,
+            double weirdness,
+            String expected) {
+        var sampler = constantSampler(temperature, humidity, continentalness, erosion, weirdness);
+        var biome = source.getNoiseBiome(0, 16, 0, sampler);
+        helper.assertTrue(
+                biome.is(ResourceLocation.fromNamespaceAndPath(MOD_ID, expected)),
+                "expected " + expected + " at temperature " + temperature + ", got " + biome.unwrapKey());
+    }
+
+    private static Set<String> samplePolarLand(PaletteBiomeSource source, double temperature) {
+        Set<String> paths = new LinkedHashSet<>();
+        for (double humidity : new double[] {-0.7D, -0.2D, 0.0D, 0.2D, 0.6D}) {
+            for (double continentalness : new double[] {-0.05D, 0.12D, 0.5D}) {
+                for (double erosion : new double[] {-0.9D, -0.6D, -0.3D, 0.0D, 0.3D, 0.5D, 0.7D}) {
+                    for (double weirdness : new double[] {-0.97D, -0.7D, -0.4D, 0.4D, 0.7D, 0.97D}) {
+                        var sampler = constantSampler(temperature, humidity, continentalness, erosion, weirdness);
+                        source.getNoiseBiome(0, 16, 0, sampler)
+                                .unwrapKey()
+                                .ifPresent(key -> paths.add(key.location().getPath()));
+                    }
+                }
+            }
+        }
+        return paths;
     }
 
     private static Climate.Sampler constantSampler(

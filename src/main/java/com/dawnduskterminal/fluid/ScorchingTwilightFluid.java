@@ -1,5 +1,6 @@
 package com.dawnduskterminal.fluid;
 
+import com.dawnduskterminal.block.PortalWaterfallBlock;
 import com.dawnduskterminal.registry.ModScorchingTwilight;
 import java.util.Optional;
 import javax.annotation.Nullable;
@@ -194,6 +195,21 @@ public abstract class ScorchingTwilightFluid extends FlowingFluid {
     }
 
     public static class Flowing extends ScorchingTwilightFluid {
+        @Override
+        protected void spread(Level level, BlockPos pos, FluidState state) {
+            if (!WaterfallFluid.SCORCHING.stopsDetachedFlow(level, pos, state)) {
+                super.spread(level, pos, state);
+            }
+        }
+
+        @Override
+        protected void spreadTo(
+                LevelAccessor level, BlockPos pos, BlockState replaced, Direction direction, FluidState fluid) {
+            if (!PortalWaterfallBlock.trySpread(level, pos, replaced, direction, WaterfallFluid.SCORCHING)) {
+                super.spreadTo(level, pos, replaced, direction, fluid);
+            }
+        }
+
         @Override
         protected void createFluidStateDefinition(StateDefinition.Builder<Fluid, FluidState> builder) {
             super.createFluidStateDefinition(builder);

@@ -144,7 +144,7 @@ Native memory allocation (malloc) failed to allocate ... Error detail: Chunk::ne
 ```
 
 Windows 提交上限受物理内存与页面文件共同限制，Java 堆之外还需要 JIT、线程栈和直接缓冲空间。
-开发客户端默认限制为 `-Xmx3G`、`-XX:MaxMetaspaceSize=1G`。
+开发客户端默认限制为 `-Xmx6G`、`-XX:MaxMetaspaceSize=1G`。
 其余限制为 `-XX:ReservedCodeCacheSize=256m` 与 `-XX:MaxDirectMemorySize=1G`。
 堆上限可用 `-Pddt_client_heap=4G` 调整，不能只扩大堆而耗尽系统提交余量。
 页面文件宜交给系统管理，或按工作负载提供充足空间，例如 8 至 16 GB。

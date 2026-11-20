@@ -9,6 +9,7 @@ import com.dawnduskterminal.block.entity.Experiment051BlockEntity;
 import com.dawnduskterminal.block.entity.Experiment065BlockEntity;
 import com.dawnduskterminal.block.entity.Experiment069BlockEntity;
 import com.dawnduskterminal.block.entity.Experiment076BlockEntity;
+import com.dawnduskterminal.block.entity.PortalWaterfallBlockEntity;
 import com.dawnduskterminal.block.entity.TowerdevBuilderType2BlockEntity;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.level.block.entity.BlockEntityType;
@@ -24,6 +25,11 @@ import net.neoforged.neoforge.registries.DeferredRegister;
 public final class ModBlockEntities {
     public static final DeferredRegister<BlockEntityType<?>> BLOCK_ENTITIES =
             DeferredRegister.create(Registries.BLOCK_ENTITY_TYPE, DawnDuskTerminal.MOD_ID);
+
+    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<PortalWaterfallBlockEntity>>
+            PORTAL_WATERFALL = BLOCK_ENTITIES.register("portal_waterfall", () -> BlockEntityType.Builder.of(
+                    PortalWaterfallBlockEntity::new, ModBlocks.PORTAL_WATERFALL.get())
+            .build(null));
 
     public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<Experiment004BlockEntity>> EXPERIMENT_004 =
             BLOCK_ENTITIES.register("experiment_004", () -> BlockEntityType.Builder.of(

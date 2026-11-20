@@ -1,6 +1,7 @@
 package com.dawnduskterminal.registry;
 
 import com.dawnduskterminal.DawnDuskTerminal;
+import com.dawnduskterminal.fluid.FallingPortalFluid;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.item.Rarity;
 import net.minecraft.world.level.material.Fluid;
@@ -20,7 +21,7 @@ import net.neoforged.neoforge.registries.NeoForgeRegistries;
  *       （{@code tickRate 5}、{@code slopeFindDistance 4}、{@code levelDecreasePerBlock 1}、
  *       {@code explosionResistance 100.0F}，见 {@code WaterFluid} / {@code Fluids.waterProperties}），
  *       而且两个流体都不再覆写 {@code tick}。真正负责扩散的 {@code FlowingFluid.tick} 因此用的是继承
- *       实现，流体铺开 下落 重新找平都和水一模一样。这一点很关键，因为本流体就是晨昏线维度的
+ *       实现，一般扩散与原版水一致，晨昏线维度的长距离下落交给装饰瀑布。这一点很关键，因为本流体就是晨昏线维度的
  *       {@code default_fluid}（海洋 含水层 泉 湖全部按传送门流体生成）</li>
  *   <li><b>渲染</b>：静止与流动贴图带真实 alpha 通道
  *       （{@code portal_fluid_still.png} / {@code portal_fluid_flow.png} 统一是 230/255），所以流体
@@ -56,7 +57,7 @@ public final class ModFluids {
             FLUIDS.register("portal_fluid", () -> new BaseFlowingFluid.Source(properties()));
 
     public static final DeferredHolder<Fluid, BaseFlowingFluid.Flowing> PORTAL_FLOWING =
-            FLUIDS.register("flowing_portal_fluid", () -> new BaseFlowingFluid.Flowing(properties()));
+            FLUIDS.register("flowing_portal_fluid", () -> new FallingPortalFluid(properties()));
 
     private ModFluids() {}
 
