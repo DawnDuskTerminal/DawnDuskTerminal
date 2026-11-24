@@ -82,5 +82,8 @@ public final class ModDamageTypes {
     public static final ResourceKey<DamageType> CARMINITE_FIRE =
             ResourceKey.create(Registries.DAMAGE_TYPE, DawnDuskTerminal.id("carminite_fire"));
 
+    public static final ResourceKey<DamageType> HUI_DEATH =
+            ResourceKey.create(Registries.DAMAGE_TYPE, DawnDuskTerminal.id("hui_death"));
+
     private ModDamageTypes() {}
 }

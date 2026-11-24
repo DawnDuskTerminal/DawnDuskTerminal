@@ -37,6 +37,21 @@
 游戏测试 `ChronoRainTests#chronoRainIgnoresSkyLightCap` 真的进这个维度断言「露天处 `canSeeSky` 是假、
 但淋雨判定成立」。
 
+## 这个维度不积雪
+
+雪层由原版 `ServerLevel#tickPrecipitation` 写下：先问 `Biome#shouldSnow`，判据只有群系温度，与维度无关。
+于是雨天过后，雪原、冰刺、积雪山坡会凭空长出一层 `minecraft:snow`，与「本维度的天气只有传送门流体的雨」冲突。
+
+`mixin/ChronoSnowAccumulationMixin` 在那一处用 `@WrapOperation` 拦下 `Biome#shouldSnow`，
+判据是 `ChronoRain#snowAccumulates`：晨昏线一律为假，别的维度原样放行。
+
+只掐积雪这一件事。同一个方法里的「冷水冻成冰」「炼药锅接水」「扑灭火焰」都保留，
+它们与雪层不是同一件事。
+地形生成时由 `SnowAndFreezeFeature` 铺下的雪也不受影响：它跑在 `WorldGenRegion` 上，不经过这条判据。
+已生成的雪原保持原样，只是不再继续积雪。
+
+用 `@WrapOperation` 而不是 `@Redirect`：同一个 `Biome` 实例被别的模组也拦下时，前者可以叠加，后者直接冲突。
+
 ## 谁挨这一下
 
 玩家一律挨。滑翔、飞行、坐船都不豁免：玩家自己会看天气，豁免玩家等于给玩家开挂。
@@ -83,9 +98,27 @@
 
 `world/ChronoRainSpawns` 挂在 `MobSpawnEvent.PositionCheck` 上：雨天里露天的格子直接判 `FAIL`。
 
-只拦 `NATURAL` 与 `CHUNK_GENERATION` 两条自然的路，刷怪蛋、`/summon`、刷怪笼不受影响。
+只拦 `NATURAL` 一条路，刷怪蛋、`/summon`、刷怪笼不受影响。
+`CHUNK_GENERATION` 也不拦：那是世界生成那一步，生成那一刻的天气与落地之后世界的状态无关，
+拿当时的雨把生物压掉纯属偶然。
 
 洞穴、树冠下与屋里照常刷：判据与淋雨伤害是同一个「露天」。
+判定前先问一句 `hasChunk`：没加载就不归天气管，绝不为了判定去加载区块。
+
+### 这一路上绝不能碰活服的高度图
+
+世界生成时 `NaturalSpawner#spawnMobsForChunkGeneration` 传进来的是 `WorldGenRegion`，
+它经 `WorldGenLevel` 也是 `ServerLevelAccessor`。
+曾经这里写的是 `event.getLevel().getLevel()`：把生成期的安全视图丢掉、换成活的 `ServerLevel` 再问高度图。
+生成线程因此调进 `ServerChunkCache#getChunk(..., load = true)` 反向加载区块，与同样在等区块的主线程互等，
+整条区块生成管线卡死——表现为游戏失去响应、方块更新停摆、存档卡在「保存并退出」。
+
+现在几何判据只拿调用方给的 accessor 去查（`WorldGenRegion` 的区块缓存不加载任何东西），
+天气与维度另从 `accessor.getLevel()` 读（那只是取维度，不碰区块）。
+`ChronoRain#isOpenSky` 与 `#rainsAt` 的参数因此是 `LevelReader` 而不是 `Level`，就是为了让这条约束在类型上看得见。
+
+`ThreadWatchdogTests` 之外，死锁回归由 `ChronoRainTests#worldgenSpawnsIgnoreWeather` 钉住：
+`CHUNK_GENERATION` 一律不压制。
 
 ## 飞行型在雨里刷出
 
@@ -106,6 +139,22 @@
 只看天气而不要求它自己淋着雨：一只飞进屋檐的飞行型不该立刻掉头回湖里。
 
 滑行型与游动型不受影响，它们的活动范围本来就是流体本身。
+
+## 雨停之后：雨天刷出的飞行型自行收场
+
+雨天那一趟刷出来的飞行型出生时脚下没有液体，全靠上一条撑着。
+雨一停，回家行为与巡航又只认液面，附近找不到液体的那一只就永远吊在空中，所以它得自己收场。
+
+`StringEntity#tickRainClear` 给它们 100 tick（5 秒）归位：回到液面上空就摘掉雨天标记、
+转成普通飞行型；回不去就带着一圈传送粒子消散——不掉战利品、不算击杀、不播倒地动画。
+
+**判据放在每只自己身上，不在雨停那一刻统一扫一遍。** 实体只在已加载的区块里 tick，
+所以区块没加载的那些，等加载进来时天气已经是晴天，同一段代码照样收得掉；
+反过来，雨停那一刻去遍历所有维度反而要为判定加载区块，正是先前踩过的坑（见「露天的自然生成被压掉」）。
+雨又下起来时计时清零，雨势的渐入渐出不会把它提前判死。
+
+只有雨天那一趟刷出的那一批带标记（`RainSpawned`，进存档）：
+分裂出来的飞行型（`StringEntity#spawnKind`）不带，它们本来就贴着流体。
 
 ## 视觉：贴图转色相，不是乘法着色
 
@@ -140,11 +189,12 @@
 | `world/ChronoRainSpawns` | 雨天压制露天的自然刷怪 |
 | `world/StringSpawner` | 雨天在露天刷飞行型 |
 | `entity/SeekRainShelterGoal` | 躲雨的行为 |
-| `entity/StringEntity` | 雨天的自由飞行 |
+| `entity/StringEntity` | 雨天的自由飞行、雨停之后的自行收场 |
 | `client/ChronoDimensionEffects` | 雨天的落地水花 |
 | `client/PortalRainParticle` | 雨点粒子的物理 |
 | `client/ChronoRainTextures` | 雨丝贴图的替换 |
 | `mixin/LevelRendererRainTextureMixin` | 在换贴图处换成转好色相的那张 |
+| `mixin/ChronoSnowAccumulationMixin` | 本维度的雨天不堆雪层 |
 | `tools/recolor_rain.py` | 从原版贴图生成转色相的雨丝与水花 |
 
 ## 测试
@@ -152,5 +202,9 @@
 `gametest/ChronoRainTests` 覆盖：雨丝与水花贴图的色相等于传送门流体的色相、谁挨这一下
 （含稳定效果免疫与玩家不豁免）、非本维度下雨时一切都不生效、雨滴伤害是一点 `stability` 且没有击退、
 免疫者挡得住、避雨点的搜索找得到屋顶下的落脚点。
+`gametest/StringEntityTests` 另外钉住雨天飞行型的收场：宽限期内不动、期满消散、
+停在液面上空则转正、雨天标记随存档保留。
+积雪那一条钉的是判据本身（`ChronoRain#snowAccumulates` 对晨昏线为假、对主世界为真），
+因为测试服不创建晨昏线维度。
 
 游戏测试跑在 `minecraft:overworld` 这个测试维度里，所以「这个维度下雨」只能反向断言。

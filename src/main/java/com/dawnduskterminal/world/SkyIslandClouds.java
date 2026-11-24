@@ -59,6 +59,7 @@ public final class SkyIslandClouds {
     private static final int SIZE = 16;
     private static final int COLUMNS = SIZE * SIZE;
     private static final int MAX_THICKNESS = 32;
+    private static final List<VeilOffset> VEIL_OFFSETS = veilOffsets();
 
     private static volatile BlockState cloud;
     private static volatile boolean cloudMissing;
@@ -148,7 +149,6 @@ public final class SkyIslandClouds {
         }
 
         ImprovedNoise field = noise(seed);
-        int[] tops = new int[COLUMNS];
         int[] bottoms = new int[COLUMNS];
         int[] thickness = new int[COLUMNS];
         boolean[] island = new boolean[COLUMNS];
@@ -180,7 +180,6 @@ public final class SkyIslandClouds {
                 continue;
             }
             island[index] = true;
-            tops[index] = top;
             bottoms[index] = y + 1;
             thickness[index] = count;
         }
@@ -259,30 +258,21 @@ public final class SkyIslandClouds {
             int columnX = originX + index % SIZE;
             int columnZ = originZ + index / SIZE;
             int bottom = bottoms[index];
-            for (int dy = 1; dy <= VEIL_DEPTH; dy++) {
-                int targetY = bottom - dy;
+            for (VeilOffset offset : VEIL_OFFSETS) {
+                int targetY = bottom - offset.depth();
                 if (targetY < minBuildY || targetY > maxBuildY) {
                     continue;
                 }
-                for (int dx = -VEIL_SPREAD; dx <= VEIL_SPREAD; dx++) {
-                    for (int dz = -VEIL_SPREAD; dz <= VEIL_SPREAD; dz++) {
-                        int targetX = columnX + dx;
-                        int targetZ = columnZ + dz;
-                        double distance = Math.sqrt(dx * dx + dz * dz + (dy * 0.9D) * (dy * 0.9D));
-                        double falloff = 1.0D - distance / VEIL_RADIUS;
-                        if (falloff <= 0.0D) {
-                            continue;
-                        }
-                        cursor.set(targetX, targetY, targetZ);
-                        if (!reader.getBlockState(cursor).isAir()) {
-                            continue;
-                        }
-                        double clump = field.noise(targetX / 6.0D, targetY / 5.0D, targetZ / 6.0D);
-                        if (falloff * 0.9D + 0.55D * clump > VEIL_THRESHOLD) {
-                            setter.set(targetX, targetY, targetZ, cloudState);
-                            placed++;
-                        }
-                    }
+                int targetX = columnX + offset.x();
+                int targetZ = columnZ + offset.z();
+                cursor.set(targetX, targetY, targetZ);
+                if (!reader.getBlockState(cursor).isAir()) {
+                    continue;
+                }
+                double clump = field.noise(targetX / 6.0D, targetY / 5.0D, targetZ / 6.0D);
+                if (offset.falloff() * 0.9D + 0.55D * clump > VEIL_THRESHOLD) {
+                    setter.set(targetX, targetY, targetZ, cloudState);
+                    placed++;
                 }
             }
             // 最底一层按噪声概率换成云：厚度不够就一格都不动，保证岛体至少留两格
@@ -296,6 +286,25 @@ public final class SkyIslandClouds {
         }
         return placed;
     }
+
+    private static List<VeilOffset> veilOffsets() {
+        List<VeilOffset> offsets = new ArrayList<>();
+        for (int depth = 1; depth <= VEIL_DEPTH; depth++) {
+            double vertical = depth * 0.9D;
+            for (int x = -VEIL_SPREAD; x <= VEIL_SPREAD; x++) {
+                for (int z = -VEIL_SPREAD; z <= VEIL_SPREAD; z++) {
+                    double distance = Math.sqrt(x * x + z * z + vertical * vertical);
+                    double falloff = 1.0D - distance / VEIL_RADIUS;
+                    if (falloff > 0.0D) {
+                        offsets.add(new VeilOffset(x, depth, z, falloff));
+                    }
+                }
+            }
+        }
+        return List.copyOf(offsets);
+    }
+
+    private record VeilOffset(int x, int depth, int z, double falloff) {}
 
     private static void union(int[] parent, int left, int right) {
         int a = find(parent, left);

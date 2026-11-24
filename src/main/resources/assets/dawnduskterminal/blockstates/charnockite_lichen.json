@@ -1,0 +1,10 @@
+{
+  "variants": {
+    "": [
+      { "model": "dawnduskterminal:block/charnockite_lichen" },
+      { "model": "dawnduskterminal:block/charnockite_lichen", "y": 90 },
+      { "model": "dawnduskterminal:block/charnockite_lichen", "y": 180 },
+      { "model": "dawnduskterminal:block/charnockite_lichen", "y": 270 }
+    ]
+  }
+}

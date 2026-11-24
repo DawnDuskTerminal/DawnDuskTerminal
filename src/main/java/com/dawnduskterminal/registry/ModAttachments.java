@@ -3,6 +3,7 @@ package com.dawnduskterminal.registry;
 import com.dawnduskterminal.DawnDuskTerminal;
 import com.dawnduskterminal.portal.PortalState;
 import com.dawnduskterminal.progression.BossProgress;
+import com.dawnduskterminal.world.HuiVitals;
 import java.util.function.Supplier;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.attachment.AttachmentType;
@@ -23,6 +24,12 @@ public final class ModAttachments {
             ATTACHMENTS.register("portal_state", () -> AttachmentType.builder(PortalState::empty)
                     .serialize(PortalState.CODEC)
                     .copyOnDeath()
+                    .build());
+
+    public static final Supplier<AttachmentType<HuiVitals>> HUI_VITALS =
+            ATTACHMENTS.register("hui_vitals", () -> AttachmentType.builder(HuiVitals::new)
+                    .serialize(HuiVitals.CODEC)
+                    .sync(HuiVitals.STREAM_CODEC)
                     .build());
 
     /** 动画由实体持有；不参与存档、同步或死亡复制，也不引用客户端类。 */

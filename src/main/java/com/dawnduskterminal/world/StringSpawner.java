@@ -39,7 +39,11 @@ import net.minecraft.world.phys.AABB;
  * 于是这一轮再加一趟：在附近任意一列的地表之上六到十六格、必须连着 {@link ChronoRain#isExposed}
  * 判定（露天、所在群系会下雨、此刻正在下雨）的位置刷低空飞行型。它不要求脚边有传送门流体——
  * 雨天的飞行型本来就不受流体区域约束（见 {@code StringEntity#isRainFreeFlight}），
- * 所以从露天地面飘出来的那一只不必先找一片湖
+ * 所以从露天地面飘出来的那一只不必先找一片湖。
+ *
+ * <p>这一批带雨天出生标记（{@code StringEntity#setRainSpawned}），雨停之后自己收场：
+ * 归位期间回到液面上空就转成普通飞行型，回不去就消散（见 {@code StringEntity#tickRainClear}）。
+ * 收场由每只自己判，不在雨停那一刻统一扫——那样要为判定加载区块。
  */
 public final class StringSpawner {
     /** 每 100 tick 扫一轮 */
@@ -181,6 +185,8 @@ public final class StringSpawner {
                     level, level.getCurrentDifficultyAt(entity.blockPosition()), MobSpawnType.NATURAL, null);
             // 先 finalizeSpawn（它会掷体型）再改变种：setKind 会重装整套运动系统与行为表
             entity.setKind(StringEntity.Kind.FLYER);
+            // 打上雨天出生标记：脚下没有液体，雨停之后由它自己收场，见 StringEntity#tickRainClear
+            entity.setRainSpawned(true);
             if (!level.noCollision(entity)) {
                 continue;
             }

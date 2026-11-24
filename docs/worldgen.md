@@ -1103,39 +1103,57 @@ data/dawnduskterminal/structure/
 `./gradlew frameCheck -PframeShow` 会把前几个种子的平面图打出来。
 
 ### 温度缓存
-`PaletteBiomeSource` 中有一份每线程八槽的缓存，键为 `(quartX, quartZ)`。
+`PaletteBiomeSource` 按线程缓存十六个已偏移的温度值，键为 `(quartX, quartZ)`。
 原因是晨昏线维度的温度与 y 无关，`noise_settings/chrono.json` 的 `y_scale` 与 `shift_y` 都是 0。
 
 原版 `LevelChunkSection#fillBiomesFromNoise` 的循环顺序是 x 在外层、y 在中层、z 在内层。
-同一个 `(x, z)` 在区块填充过程中会被查询 96 次，命中率超过 95%。
+十六个槽位可以同时容纳一个区块的全部水平群系采样位置。
 当采样器或晨昏线变化时，整个缓存表失效。
 因此不会跨区块混用数值，也不会持有旧 `NoiseChunk` 的函数图。
+
+同一处查询按持有者身份直映射到调色板副本，不再逐次展开 `Holder#unwrapKey` 并拼出资源位置。
+
+### 二维噪声的缓存
+`y_scale` 为 0 的噪声与 y 无关，包一层 `minecraft:flat_cache` 后由 `NoiseChunk` 按区块列缓存，
+每个区块只算 5×5 个角点。
+`overworld/jagged`（十六个振幅）与群系源的 `vegetation` 各自属于这一类。
+前者在 `sloped_cheese` 的 `interpolated` 子树内按角点求值，未缓存时每个区块约一千次，
+折算下来是密度图里最贵的一项二维噪声。
+后者由 `Climate.Sampler` 每次群系查询都会取用，未缓存时每个区块一千五百余次。
+
+温度不在此列：群系源已按列缓存偏移后的温度，再套 `flat_cache` 只会多算一遍。
 
 ## 高度
 
 地形高度范围为 -64 到 320。
 
-原版主世界的密度函数被整份移植，因此地形形态与原版一致。
+地表使用移植的原版密度函数，普通大洞穴包含原版石柱。
+地下岛采用独立的基础密度，插值之后再用三维噪声切分岩层。
+高度偏移同时作用于岛体和切层密度，使岩体接近基岩时增加，接近底部时减少。
+最低一层初始填充为空气，加载后流体也不会向该层蔓延。
+地下湿度使用水平噪声决定含水带的位置与厚度。
+湿度降低时，含水带向中部逐渐收窄，使水体倾向于沿水平方向展开。
+含水带内仍由原版含水层判定是否填充及填充何种流体。
+区块生成时按列缓存含水带的高度范围。
 
-空岛与地下浮岛仍然保留：`sloped_cheese` 中叠加的 `sky_island_density` 与 `subterranean` 分别负责 y 的高处与 y<0 的部分。
+地表规则将零高度附近的原始岩块替换为基岩。
+洞穴雕刻器避开隔层与维度底层。
+野生空置域以圆形为基础，通过连续噪声移动边界，生成方块时逐格判定净空。
+洞壁附近的岩肩与凹槽使用地表共享的 `base_3d_noise`。
+候选位置的数量和位置由种子决定，洞体相交时保留所有候选并合并其净空。
+洞壁仅在局部形成沿水平方向延伸、垂直较薄的岩肩。
 
-早期的四带设计（大陆、空置域、空岛与地下岛）在接管地形噪声的那一次改动中被整份替换，`VoidRegionFeature` 一并被删除。
+候选体按必要上界筛选：洞壁位移把水平位移分别平移 0.12h 与 0.20h，`h` 为超出四格的高度，
+越过该上界的位置必然落在洞壁外圈之外，此时壁面函数只会返回外圈值，跳过与否结果相同。
+这条上界恒小于原基准半径，因此不会放进原本被排除的候选体。
 
 ### 空岛判据与云层
 
-`sky_island_density` 的两段 `y_clamped_gradient` 在 140~240 与 260~310 之外不再发生变化；
-当噪声整体偏高或偏低时，岛体只剩噪声零点附近的一薄片。
+`sky_island_density` 使用原有三维噪声和高度渐变形成岛体。
 
-判据只有一条：格点的 `sky_island_density` 大于 0 且大于 `overworld/base_3d_noise`，就认为这一点的实心来自空岛。
-`sloped_cheese` 是两者的 `max`。
-所以山体在 140~196 与空岛带重叠的那一段靠 `base_3d_noise` 胜出被排除，不需要额外的高度、厚度或邻接扫描。
-实现见 `world/SkyIslandDensity`。
-
-这两个函数实例从 `RandomState` 已经换过种子的函数树里抓。
-`RandomState` 会把 `HolderHolder` 换成直接持有者，引用键随之消失，所以按名字在生成期找不到它们；
-两个 JSON 各套一层值直通的 `dawnduskterminal:sky_island_marker`，按类型认。
-`SkyIslandDensityMixin` 为每个 `RandomState` 保存一份不可变的函数对。
-首次使用时同步解析，构造完成后整体发布，不使用进程级函数缓存。
+格点的空岛密度为正且大于 `overworld/base_3d_noise` 时，将其识别为空岛。
+两个 JSON 使用 `dawnduskterminal:sky_island_marker`，以便从种子化后的函数树中识别。
+晨昏线在 `RandomState` 构造时保存函数对，后续云层装饰复用这两个函数。
 云层装饰从当前服务端世界的 `RandomState` 获取判据，不会沿用其他种子的函数。
 抓不到任一标记时，该实例的判据一律返回 false，不影响其他生成状态。
 

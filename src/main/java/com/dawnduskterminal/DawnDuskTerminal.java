@@ -39,6 +39,7 @@ import com.dawnduskterminal.world.ChronoRainSpawns;
 import com.dawnduskterminal.world.DarkForestSpawns;
 import com.dawnduskterminal.world.Experiment065Field;
 import com.dawnduskterminal.world.FluidReactions;
+import com.dawnduskterminal.world.HuiArmor;
 import com.dawnduskterminal.world.MachinebowFireworks;
 import net.minecraft.resources.ResourceLocation;
 import net.neoforged.api.distmarker.Dist;
@@ -108,6 +109,8 @@ public final class DawnDuskTerminal {
         NeoForge.EVENT_BUS.addListener(DdtServerEvents::onEntityTick);
         NeoForge.EVENT_BUS.addListener(DdtServerEvents::onPlayerLoggedIn);
         NeoForge.EVENT_BUS.addListener(DdtServerEvents::onPlayerTick);
+        NeoForge.EVENT_BUS.addListener(HuiArmor::onLogout);
+        NeoForge.EVENT_BUS.addListener(HuiArmor::onDamage);
         NeoForge.EVENT_BUS.addListener(DdtServerEvents::onLivingDeath);
         NeoForge.EVENT_BUS.addListener(DdtServerEvents::onRightClickItem);
         // 试验物品 065 的场：范围里打出的伤害一律无效，判定与场心登记都在 Experiment065Field

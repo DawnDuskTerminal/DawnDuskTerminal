@@ -1,0 +1,36 @@
+{
+  "parent": "minecraft:block/block",
+  "ambientocclusion": false,
+  "render_type": "cutout_mipped",
+  "textures": {
+    "particle": "dawnduskterminal:block/charnockite",
+    "stone": "dawnduskterminal:block/charnockite",
+    "top": "dawnduskterminal:block/charnockite_lichen_top",
+    "overlay": "dawnduskterminal:block/charnockite_lichen_side_overlay"
+  },
+  "elements": [
+    {
+      "from": [0, 0, 0],
+      "to": [16, 16, 16],
+      "faces": {
+        "down": { "texture": "#stone", "cullface": "down" },
+        "north": { "texture": "#stone", "cullface": "north" },
+        "south": { "texture": "#stone", "cullface": "south" },
+        "west": { "texture": "#stone", "cullface": "west" },
+        "east": { "texture": "#stone", "cullface": "east" }
+      }
+    },
+    {
+      "from": [0, 0, 0],
+      "to": [16, 16, 16],
+      "neoforge_data": { "block_light": 8 },
+      "faces": {
+        "up": { "texture": "#top", "cullface": "up", "tintindex": 0 },
+        "north": { "texture": "#overlay", "tintindex": 0, "cullface": "north" },
+        "south": { "texture": "#overlay", "tintindex": 0, "cullface": "south" },
+        "west": { "texture": "#overlay", "tintindex": 0, "cullface": "west" },
+        "east": { "texture": "#overlay", "tintindex": 0, "cullface": "east" }
+      }
+    }
+  ]
+}

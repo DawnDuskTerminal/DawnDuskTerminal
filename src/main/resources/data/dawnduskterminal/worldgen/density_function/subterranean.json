@@ -1,36 +1,22 @@
 {
-        "type": "minecraft:add",
-        "argument1": {
-          "type": "minecraft:add",
-          "argument1": -0.1,
-          "argument2": {
-            "type": "minecraft:add",
-            "argument1": {
-              "type": "minecraft:y_clamped_gradient",
-              "from_y": -64,
-              "to_y": -54,
-              "from_value": -1,
-              "to_value": 0
-            },
-                "argument2": {
-                  "type": "minecraft:add",
-                  "argument1": {
-                    "type": "minecraft:y_clamped_gradient",
-                    "from_y": -10,
-                    "to_y": 0,
-                    "from_value": 0,
-                    "to_value": -1
-                  },
-                  "argument2": {
-                        "type": "minecraft:old_blended_noise",
-                        "xz_scale": 0.25,
-                        "y_scale": 0.5,
-                        "xz_factor": 80.0,
-                        "y_factor": 20.0,
-                        "smear_scale_multiplier": 8.0
-                      }
-            }
-          }
-        },
-        "argument2": -0.05
+  "type": "minecraft:interpolated",
+  "argument": {
+    "type": "minecraft:range_choice",
+    "input": "dawnduskterminal:y",
+    "min_inclusive": -64,
+    "max_exclusive": 1,
+    "when_in_range": {
+      "type": "minecraft:add",
+      "argument1": 0.02,
+      "argument2": {
+        "type": "minecraft:old_blended_noise",
+        "xz_scale": 0.25,
+        "y_scale": 1.15,
+        "xz_factor": 80,
+        "y_factor": 20,
+        "smear_scale_multiplier": 8
       }
+    },
+    "when_out_of_range": -1
+  }
+}

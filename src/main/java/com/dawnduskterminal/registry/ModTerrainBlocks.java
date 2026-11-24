@@ -1,6 +1,7 @@
 package com.dawnduskterminal.registry;
 
 import com.dawnduskterminal.DawnDuskTerminal;
+import com.dawnduskterminal.block.CharnockiteLichenBlock;
 import com.dawnduskterminal.block.ClimbableHollowLogBlock;
 import com.dawnduskterminal.block.CountertopBlock;
 import com.dawnduskterminal.block.FairyDianthusBlock;
@@ -70,6 +71,11 @@ public final class ModTerrainBlocks {
 
     public static final DeferredBlock<Block> CHARNOCKITE =
             BLOCKS.registerSimpleBlock("charnockite", stone(MapColor.DEEPSLATE, 5.0F, SoundType.DEEPSLATE));
+
+    public static final DeferredBlock<CharnockiteLichenBlock> CHARNOCKITE_LICHEN = BLOCKS.registerBlock(
+            "charnockite_lichen",
+            CharnockiteLichenBlock::new,
+            stone(MapColor.DEEPSLATE, 5.0F, SoundType.DEEPSLATE).lightLevel(state -> 4));
 
     public static final DeferredBlock<Block> TWILIGHT_STONE =
             BLOCKS.registerSimpleBlock("twilight_stone", stone(MapColor.TERRACOTTA_GRAY, 2.5F));
@@ -143,6 +149,8 @@ public final class ModTerrainBlocks {
     public static final DeferredItem<BlockItem> GREENSCHIST_ITEM = ITEMS.registerSimpleBlockItem(GREENSCHIST);
     public static final DeferredItem<BlockItem> ECLOGITE_ITEM = ITEMS.registerSimpleBlockItem(ECLOGITE);
     public static final DeferredItem<BlockItem> CHARNOCKITE_ITEM = ITEMS.registerSimpleBlockItem(CHARNOCKITE);
+    public static final DeferredItem<BlockItem> CHARNOCKITE_LICHEN_ITEM =
+            ITEMS.registerSimpleBlockItem(CHARNOCKITE_LICHEN);
     public static final DeferredItem<BlockItem> TWILIGHT_STONE_ITEM = ITEMS.registerSimpleBlockItem(TWILIGHT_STONE);
     public static final DeferredItem<BlockItem> ROAD_SAND_ITEM = ITEMS.registerSimpleBlockItem(ROAD_SAND);
     public static final DeferredItem<BlockItem> UNCONSCIOUS_SAND_ITEM = ITEMS.registerSimpleBlockItem(UNCONSCIOUS_SAND);

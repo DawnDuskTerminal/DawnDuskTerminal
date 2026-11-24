@@ -8,6 +8,7 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.NoiseChunk;
+import net.minecraft.world.level.levelgen.material.MaterialRuleList;
 
 /**
  * {@code OreVeinifier} 写死的矿脉填充物，重映射到晨昏线调色板
@@ -92,6 +93,19 @@ public final class ChronoVeinPalette {
      * 这段放在这个可测的方法里，而不是内联进 mixin
      */
     public static NoiseChunk.BlockStateFiller wrap(NoiseChunk.BlockStateFiller original) {
+        if (original instanceof MaterialRuleList list) {
+            // 每个区块复制一次规则引用，逐方块填充时按原顺序检查。
+            NoiseChunk.BlockStateFiller[] rules = list.materialRuleList().toArray(NoiseChunk.BlockStateFiller[]::new);
+            return context -> {
+                for (NoiseChunk.BlockStateFiller rule : rules) {
+                    BlockState state = rule.calculate(context);
+                    if (state != null) {
+                        return remap(state);
+                    }
+                }
+                return null;
+            };
+        }
         return context -> {
             BlockState state = original.calculate(context);
             return state == null ? null : remap(state);

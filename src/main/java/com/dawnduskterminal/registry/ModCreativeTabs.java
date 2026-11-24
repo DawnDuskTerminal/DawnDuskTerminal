@@ -55,6 +55,7 @@ public final class ModCreativeTabs {
                         accept(output, ModTerrainBlocks.GREENSCHIST_ITEM.get());
                         accept(output, ModTerrainBlocks.ECLOGITE_ITEM.get());
                         accept(output, ModTerrainBlocks.CHARNOCKITE_ITEM.get());
+                        accept(output, ModTerrainBlocks.CHARNOCKITE_LICHEN_ITEM.get());
                         accept(output, ModTerrainBlocks.TWILIGHT_STONE_ITEM.get());
                         accept(output, ModTerrainBlocks.ROAD_SAND_ITEM.get());
                         accept(output, ModTerrainBlocks.UNCONSCIOUS_SAND_ITEM.get());

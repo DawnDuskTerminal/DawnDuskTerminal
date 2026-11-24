@@ -1,8 +1,16 @@
+import com.dawnduskterminal.geckolib3.core.builder.Animation;
+import com.dawnduskterminal.geckolib3.core.keyframe.bone.BoneKeyFrame;
+import com.dawnduskterminal.geckolib3.core.molang.MolangParser;
+import com.dawnduskterminal.geckolib3.util.json.JsonAnimationUtils;
+import com.google.gson.JsonParser;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import net.minecraft.server.ChainedJsonException;
+import org.joml.Vector3f;
 
 /** 使用真实子进程检查退出码；样例与日志只写入构建目录。 */
 public final class CheckTest {
@@ -15,6 +23,7 @@ public final class CheckTest {
             """;
 
     public static void main(String[] args) throws Exception {
+        checkScaleKeyframes();
         Path dir = Files.createDirectories(Path.of(args[0]));
         // 参数文件避免 Windows 命令行长度限制，也覆盖包含空格的路径。
         Path launcher = dir.resolve("launcher args.txt");
@@ -43,6 +52,27 @@ public final class CheckTest {
         if (!failures.isEmpty()) {
             throw new AssertionError(String.join("\n", failures));
         }
+    }
+
+    private static void checkScaleKeyframes() throws ChainedJsonException {
+        var root = JsonParser.parseString(
+                        """
+                {"animations":{"scale_test":{"loop":true,"bones":{"root":{"scale":{
+                  "0.0":[1,2,3],"0.5":[2,4,6],"1.0":[4,8,12]
+                }}}}}}
+                """)
+                .getAsJsonObject();
+        Animation animation = JsonAnimationUtils.deserializeJsonToAnimation(
+                JsonAnimationUtils.getAnimation(root, "scale_test"), new MolangParser(Map.of()));
+        if (animation.animationLength != 20.0) {
+            throw new AssertionError("Expected 20 ticks, got " + animation.animationLength);
+        }
+        BoneKeyFrame last = animation.boneAnimations.getFirst().scaleKeyFrames.getLast();
+        Vector3f midpoint = last.getLerpPoint(null, 0.5);
+        if (!midpoint.equals(new Vector3f(3, 6, 9))) {
+            throw new AssertionError("Incorrect XYZ scale at tick 15: " + midpoint);
+        }
+        System.out.println("PASS scale keyframe duration and XYZ interpolation");
     }
 
     private static Path sample(Path dir, String name, String rotation, String timeline) throws Exception {

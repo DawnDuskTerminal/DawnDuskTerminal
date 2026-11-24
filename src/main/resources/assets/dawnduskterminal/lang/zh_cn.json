@@ -1,4 +1,6 @@
 {
+  "death.attack.hui_death": "%1$s 变成了肉饼",
+  "death.attack.hui_death.player": "%1$s 变成了肉饼",
   "block.dawnduskterminal.portal_fluid": "不稳定液体",
   "block.dawnduskterminal.chrono_crust": "晨昏地壳",
   "block.dawnduskterminal.enthu_fluid": "热情的暮光",
@@ -9,6 +11,7 @@
   "block.dawnduskterminal.greenschist": "绿片岩",
   "block.dawnduskterminal.eclogite": "榴辉岩",
   "block.dawnduskterminal.charnockite": "紫苏岩",
+  "block.dawnduskterminal.charnockite_lichen": "紫苏岩地衣",
   "block.dawnduskterminal.twilight_stone": "暮光石",
   "block.dawnduskterminal.canopy_stone_copper_ore": "苍穹石铜矿石",
   "block.dawnduskterminal.canopy_stone_iron_ore": "苍穹石铁矿石",
@@ -174,6 +177,7 @@
   "block.dawnduskterminal.fairy_dianthus_small": "小仙灵石竹",
   "item.dawnduskterminal.stellaria_veges": "繁缕菜",
   "item.dawnduskterminal.fairy_haniwa": "仙灵埴轮",
+  "biome.dawnduskterminal.wild_void": "野生空置域",
   "biome.dawnduskterminal.floatrees": "天门",
   "block.dawnduskterminal.carid_ore": "卡里德矿",
   "item.dawnduskterminal.carid": "卡里德",

@@ -39,7 +39,10 @@ Java 直接引用 `TFEntities`、`TFBlocks`、`TFSounds`、`TFConfig` 等类型�
 直接修改 run 的 `classpath` 会被执行时的 provider 覆盖。
 
 Chunky 的 `chunky_version` 使用 NeoForge 文件 ID，不能仅按多个加载器共用的版本号解析。
-Xaero 的 `xaero.lib` 由 POM 传递提供，JEI 的 `mezz_config` 是内嵌模组，不是同名库坐标。
+两种 Xaero 地图的 POM 都通过版本范围引入 XaeroLib。
+`clientDevMods` 使用 `xaero_lib_version` 固定兼容版本，避免查询 Maven 版本列表。
+升级地图时需同时核对两个 POM 的 XaeroLib 版本范围。
+JEI 的 `mezz_config` 是内嵌模组。
 Modrinth POM 不携带依赖，Tweakerge 与 BoccHUD 的 MaFgLib 前置须在 `clientDevMods` 显式声明。
 Voxy、MiniHUD 与 Tweakeroo 没有适用的 1.21.1 NeoForge 构建，不由项目自动挂载。
 
@@ -261,11 +264,13 @@ native 仅重试几何输出，不能重复实体事件、动画推进、牵引�
 | `dawnduskterminal057` | 057 飞刃 | 默认启用，也可单独指定 |
 | `dawnduskterminalexpo` | 血肉之书 | 独立进程，避免不限距离索敌受其他场地影响 |
 | `dawnduskterminalnative` | native 故障注入 | 独立进程，避免熔断影响其他测试 |
+| `dawnduskterminalworldgensurvey` | 地下含水层抽样 | 独立进程，避免抽样阻塞其他场地准备 |
 
 ```bash
 ./gradlew runGameTestServer -Pgametest_namespaces=dawnduskterminal057
 ./gradlew runGameTestServer -Pgametest_namespaces=dawnduskterminalexpo
 ./gradlew runGameTestServer -Pgametest_namespaces=dawnduskterminalnative
+./gradlew runGameTestServer -Pgametest_namespaces=dawnduskterminalworldgensurvey
 ```
 
 指定批次通过后仍须运行默认套件，但默认套件不代表已覆盖 expo、native 或客户端验收。
@@ -289,6 +294,26 @@ native 仅重试几何输出，不能重复实体事件、动画推进、牵引�
 
 整轮应全部通过，以汇总与退出码判断结果，成功时退出码为 0，失败时为失败数。
 故障注入产生的预期错误日志不能单独作为整轮失败或通过依据。
+
+#### 主线程卡死取证
+
+原版只在单刻超过两秒时打一行 `Can't keep up! Is the server overloaded?`，不带栈。
+卡在存盘、卡在区块加载等待或卡在别的模组的死锁上时，日志里只剩 `Saving and pausing game...`，事后无法定位。
+
+`debug/ThreadWatchdog` 补的就是那一份栈：服务端每 tick 末尾打心跳，看门狗每秒检查一次，
+超过阈值没有推进就把全部线程栈写进游戏目录的 `ddt-thread-dump-<时间>.txt`，并在日志里单独贴出服务端线程那一段。
+存盘同样跑在服务端线程上，所以卡存盘一样会触发。每段卡死只写一份文件。
+
+阈值由系统属性 `ddt.watchdogMs` 给出，`0`（缺省）表示关闭，下限 1000 毫秒。
+
+```bash
+./gradlew runClient -Pddt_watchdog=3000
+```
+
+`server` 运行配置不注入该属性，专用服需要自己加到 JVM 参数里。
+
+这个工具第一次启用就抓到了真问题：雨天刷怪压制在区块生成线程上反向加载区块，
+生成线程与主线程互等（栈与结论见 [雨天](weather.md#这一路上绝不能碰活服的高度图)）。
 
 区块等待超时必须失败，不得绕过实体刻资格。
 `GameTestInfo.tick` 仅在结构覆盖区块均能执行实体刻后推进，普通测试超时也从此时开始。
@@ -314,9 +339,12 @@ native 仅重试几何输出，不能重复实体事件、动画推进、牵引�
 | 试验物品 | `Experiment*Tests`、`ExpowheelTests`、`E115RegeneratorTests` | [试验物品与衍生机器](experiments.md) |
 | 模板与屋群 | `StructureTemplateTests` | [模板与结构检查](#模板与结构检查) |
 | 大恶魂泪滴 | `GhastEliteTearTests` | [泪雨、召唤与小鬼](architecture.md#泪雨召唤与小鬼) |
+| 主线程看门狗 | `ThreadWatchdogTests` | [主线程卡死取证](#主线程卡死取证) |
 
 泪滴测试覆盖实际命中、伤害归属、受击冷却、碰撞取消、遮挡与高速体积碰撞。
-其他断言包括非目标实体过滤、原粒子运动算术、保存重载、寿命上限、虚空清理及视觉协议边界。
+其他断言包括受击对象过滤、原粒子运动算术、保存重载、寿命上限、虚空清理及视觉协议边界。
+受击对象由 `otherMobsTakeTearDamage` 与 `minionsAndOwnerAreImmuneToTears` 固定：小鬼与本体免疫，其余生物受伤。
+横向判定的放宽幅度由 `sidewaysMarginWidensPlayerHitVolume` 固定：外扩范围内必须命中，范围外必须落空。
 正常世界刻测试验证持续泪雨的存活数量，不能用仅修改移动目标的断言代替真实推进。
 
 泪滴客户端验收须另行比较近处、64 格、160 格与接近 512 格处的画面。

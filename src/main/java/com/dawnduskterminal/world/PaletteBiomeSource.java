@@ -7,7 +7,9 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -43,6 +45,17 @@ public final class PaletteBiomeSource extends BiomeSource {
     private final Holder<MultiNoiseBiomeSourceParameterList> preset;
     private final HolderSet<Biome> palette;
     private volatile Map<ResourceLocation, Holder<Biome>> replacements;
+    private volatile Map<Holder<Biome>, Holder<Biome>> holderReplacements;
+    public static final ResourceKey<Biome> WILD_VOID =
+            ResourceKey.create(Registries.BIOME, DawnDuskTerminal.id("wild_void"));
+    private volatile WildVoidDensity voidShape;
+    private Holder<Biome> wildVoid;
+
+    public void bindWildVoid(ChronoTerrain terrain) {
+        this.wildVoid = copyOf("wild_void");
+        this.voidShape = terrain.wildVoidShape();
+    }
+
     private volatile PolarTables polarTables;
     private volatile Holder<Biome> floatrees;
 
@@ -54,7 +67,7 @@ public final class PaletteBiomeSource extends BiomeSource {
      * <p>{@code LevelChunkSection#fillBiomesFromNoise} 的循环是 x 外层 y 中层 z 内层，同一个
      * {@code (x, z)} 在一节里被问四次、跨二十四节被问九十六次。晨昏线维度的温度只由 x/z 决定
      * （{@code noise_settings/chrono.json} 里 {@code y_scale} 与 {@code shift_y} 都是 0），所以直接缓存
-     * 换好的温度，命中率在区块填充里超过 95%
+     * 换好的温度，一个区块的十六个水平采样位置各占一个槽位。
      *
      * <p>缓存按采样器身份分代：换区块时采样器跟着换，整张表清空。这样既不会把上一个区块的值带过来，
      * 也不会长期持有 {@code NoiseChunk} 的函数图（采样器用弱引用比较）
@@ -110,6 +123,36 @@ public final class PaletteBiomeSource extends BiomeSource {
 
     public Holder<MultiNoiseBiomeSourceParameterList> preset() {
         return this.preset;
+    }
+
+    /**
+     * 原版群系持有者到调色板副本的直映射
+     *
+     * <p>{@link #getNoiseBiome} 每区块要查一千五百多次，原来每次都要 {@code unwrapKey()} 包一层
+     * {@code Optional}、拼一个 {@code ResourceLocation} 再走哈希表。持有者在注册表里是稳定的，所以按
+     * 身份建一张表，逐次查询只剩一次身份查找
+     */
+    private Map<Holder<Biome>, Holder<Biome>> holderReplacements() {
+        Map<Holder<Biome>, Holder<Biome>> map = this.holderReplacements;
+        if (map == null) {
+            Map<ResourceLocation, Holder<Biome>> byPath = replacements();
+            Map<Holder<Biome>, Holder<Biome>> built = new IdentityHashMap<>();
+            for (Pair<Climate.ParameterPoint, Holder<Biome>> entry :
+                    this.preset.value().parameters().values()) {
+                Holder<Biome> base = entry.getSecond();
+                ResourceKey<Biome> key = base.unwrapKey().orElse(null);
+                if (key == null || !"minecraft".equals(key.location().getNamespace())) {
+                    continue;
+                }
+                Holder<Biome> replacement = byPath.get(
+                        ResourceLocation.withDefaultNamespace(key.location().getPath()));
+                if (replacement != null) {
+                    built.put(base, replacement);
+                }
+            }
+            this.holderReplacements = map = Collections.unmodifiableMap(built);
+        }
+        return map;
     }
 
     private PolarTables polarTables() {
@@ -195,20 +238,23 @@ public final class PaletteBiomeSource extends BiomeSource {
     public Holder<Biome> getNoiseBiome(int quartX, int quartY, int quartZ, Climate.Sampler sampler) {
         DensityFunction.SinglePointContext context = new DensityFunction.SinglePointContext(
                 QuartPos.toBlock(quartX), QuartPos.toBlock(quartY), QuartPos.toBlock(quartZ));
-        // 原版 Climate.Sampler#sample 的六项照抄，只把温度换成晨昏线分段映射。这样结构判定 区块落盘
-        // locate biome 刷怪读的是同一个群系函数，两边不可能再分叉
+        WildVoidDensity shape = this.voidShape;
+        if (shape != null && this.wildVoid != null && shape.coversBiome(context)) {
+            return this.wildVoid;
+        }
+        float depth = (float) sampler.depth().compute(context);
+        Holder<Biome> floatreesHolder = floatrees();
+        if (floatreesHolder != null && Climate.unquantizeCoord(Climate.quantizeCoord(depth)) < FLOATREES_DEPTH) {
+            return floatreesHolder;
+        }
         double temperature = SHIFTED_TEMPERATURES.get().shifted(sampler, quartX, quartZ, context);
         Climate.TargetPoint target = Climate.target(
                 (float) temperature,
                 (float) sampler.humidity().compute(context),
                 (float) sampler.continentalness().compute(context),
                 (float) sampler.erosion().compute(context),
-                (float) sampler.depth().compute(context),
+                depth,
                 (float) sampler.weirdness().compute(context));
-        Holder<Biome> floatreesHolder = floatrees();
-        if (floatreesHolder != null && Climate.unquantizeCoord(target.depth()) < FLOATREES_DEPTH) {
-            return floatreesHolder;
-        }
         Climate.ParameterList<Holder<Biome>> parameters = this.preset.value().parameters();
         if (target.temperature() > VANILLA_TEMPERATURE_EDGE) {
             parameters = polarTables().hot();
@@ -216,22 +262,17 @@ public final class PaletteBiomeSource extends BiomeSource {
             parameters = polarTables().cold();
         }
         Holder<Biome> base = parameters.findValue(target);
-        ResourceLocation key = base.unwrapKey().map(ResourceKey::location).orElse(null);
-        if (key == null || !"minecraft".equals(key.getNamespace())) {
-            return base;
-        }
-        Holder<Biome> replacement = replacements().get(key);
+        Holder<Biome> replacement = holderReplacements().get(base);
         return replacement != null ? replacement : base;
     }
 
     /**
-     * {@code (x, z)} 到「已换好的温度」的直映射缓存，八个槽位
+     * {@code (x, z)} 到已偏移温度的直映射缓存，共十六个槽位。
      *
-     * <p>八个槽位对应原版填充循环里同一 x 的四个 z（跨 y 与跨节都会命中）。换采样器时整表失效，
-     * 所以不会跨区块串值；晨昏线变化时也会失效
+     * <p>水平坐标的低两位各索引一个维度。采样器或晨昏线变化时，整个缓存失效。
      */
     private static final class ShiftedTemperatureCache {
-        private static final int SLOTS = 8;
+        private static final int SLOTS = 16;
 
         private final boolean[] valid = new boolean[SLOTS];
         private final int[] xs = new int[SLOTS];
@@ -247,7 +288,7 @@ public final class PaletteBiomeSource extends BiomeSource {
                 this.line = currentLine;
                 Arrays.fill(this.valid, false);
             }
-            int slot = (quartX * 31 + quartZ) & (SLOTS - 1);
+            int slot = (quartX & 3) * 4 + (quartZ & 3);
             if (this.valid[slot] && this.xs[slot] == quartX && this.zs[slot] == quartZ) {
                 return this.values[slot];
             }

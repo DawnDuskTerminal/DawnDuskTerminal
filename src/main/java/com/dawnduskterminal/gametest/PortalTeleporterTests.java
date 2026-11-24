@@ -68,7 +68,7 @@ public final class PortalTeleporterTests {
         withWorlds(helper, (overworld, chrono) -> {
             TestPlayer player = returningPlayer(chrono);
             LevelChunk discarded = overworld.getChunk(CURRENT.getX() >> 4, CURRENT.getZ() >> 4);
-            // 平坦测试世界的自然地表低于搜索下限，因此舍弃区域的搜索必然进入平台回退路径。
+            // 平坦测试世界的自然地表低于搜索下限，舍弃区域一旦被搜索就只会落进回退分支
             helper.assertTrue(
                     overworld.getChunkSource().getGenerator() instanceof FlatLevelSource,
                     "The discarded region must use the flat test generator");
@@ -83,6 +83,32 @@ public final class PortalTeleporterTests {
                     discarded.getBlockState(CURRENT.below()).equals(before),
                     "The discarded region must not receive a fallback platform");
             assertLanding(helper, player, overworld, RETURN);
+        });
+        helper.succeed();
+    }
+
+    @GameTest(template = "ddt_empty", batch = "portal_teleporter")
+    public static void leavingDimensionUsesRecordedOriginWithoutBuildingPlatform(GameTestHelper helper) {
+        withWorlds(helper, (overworld, chrono) -> {
+            TestPlayer player = returningPlayer(chrono);
+            Vec3 origin = new Vec3(CURRENT.getX() + 0.25D, CURRENT.getY(), CURRENT.getZ() + 0.75D);
+            player.setData(
+                    ModAttachments.PORTAL_STATE,
+                    new PortalState(Level.OVERWORLD.location().toString(), origin.x, origin.y, origin.z));
+            // 平坦测试世界处处低于落地下限，回程搜索必然失败并落进不铺平台的分支
+            helper.assertTrue(
+                    overworld.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, CURRENT.getX(), CURRENT.getZ())
+                            < PortalTeleporter.LANDING_MIN_Y,
+                    "The return column must not provide a natural landing");
+            PortalTeleporter.teleportEntity(player);
+            helper.assertTrue(
+                    player.landing != null && player.landing.distanceToSqr(origin) < 1.0E-9D,
+                    "A failed return search must land on the recorded origin");
+            helper.assertTrue(
+                    overworld.blockWrites == 0, "Leaving the chrono dimension must not modify the target terrain");
+            helper.assertTrue(
+                    player.teleports == 1 && player.destination == overworld,
+                    "Leaving must teleport once to the overworld");
         });
         helper.succeed();
     }

@@ -5,6 +5,7 @@ import com.dawnduskterminal.registry.ModDimensions;
 import com.dawnduskterminal.registry.ModEffects;
 import com.dawnduskterminal.registry.ModSounds;
 import net.minecraft.core.BlockPos;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.tags.EntityTypeTags;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.FlyingMob;
@@ -13,6 +14,7 @@ import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.navigation.GroundPathNavigation;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.LevelReader;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.Vec3;
@@ -79,19 +81,52 @@ public final class ChronoRain {
      * 「天光亮度 ≥ 15」，而这个维度的天光被 {@code LightEngineSkyLightMixin} 按晨昏线压到 12~15
      * （默认中心 14、夜侧 12）。于是<b>露天处 {@code canSeeSky} 也是假</b>，拿它当判据等于让雨天永远不生效。
      * 高度图问的是「这一列最高的挡住移动的方块在哪」，与天光无关
+     *
+     * <p><b>参数必须是手上那个 {@link LevelReader}，不能先换成 {@code ServerLevel}。</b>
+     * 世界生成时传进来的是 {@code WorldGenRegion}，它自带的区块缓存不会加载任何东西；
+     * 换成活服的 {@code ServerLevel} 再问高度图，就会在生成线程上走
+     * {@code ServerChunkCache#getChunk(..., load = true)} 反向加载区块，与主线程互等，整条生成管线卡死
+     * （排查记录见 {@code docs/weather.md} 的「露天的自然生成被压掉」一节）
      */
-    public static boolean isOpenSky(Level level, BlockPos pos) {
+    public static boolean isOpenSky(LevelReader level, BlockPos pos) {
         return level.getHeightmapPos(Heightmap.Types.MOTION_BLOCKING, pos).getY() <= pos.getY();
     }
 
-    /** 这一格所在群系落的是雨：不是雪，也不是没有降水 */
-    public static boolean rainsAt(Level level, BlockPos pos) {
+    /** 这一格所在群系落的是雨：不是雪，也不是没有降水。同样只读传入的 {@link LevelReader} */
+    public static boolean rainsAt(LevelReader level, BlockPos pos) {
         return level.getBiome(pos).value().getPrecipitationAt(pos) == Biome.Precipitation.RAIN;
+    }
+
+    /**
+     * 已经确认在下雨时，「这一格露天、并且所在群系落雨」这一条几何判据
+     *
+     * <p>与 {@link #isExposed(Level, BlockPos)} 分开，是因为天气只能从 {@code ServerLevel} 读，
+     * 而几何必须从调用方给的 {@link LevelReader} 读：生成线程上的 {@code WorldGenRegion} 不能换成活服，
+     * 原因见 {@link #isOpenSky(LevelReader, BlockPos)}
+     */
+    public static boolean isExposedGeometry(LevelReader level, BlockPos pos) {
+        return isOpenSky(level, pos) && rainsAt(level, pos);
+    }
+
+    /**
+     * 这个维度的天气还会不会把雪层堆起来
+     *
+     * <p>雪层是原版 {@code ServerLevel#tickPrecipitation} 在冷群系写下的：先问 {@code Biome#shouldSnow}，
+     * 判据只有群系温度，与维度无关。本维度的天气只有传送门流体的雨，于是这一层雪成了原版漏进来的东西：
+     * 一场雨过后雪原、冰刺、积雪山坡都会凭空长出一层 {@code minecraft:snow}。
+     *
+     * <p>地形生成时铺下的雪不受影响：那是 {@code SnowAndFreezeFeature} 在 {@code WorldGenRegion} 上做的，
+     * 不经过本判据。也就是说已经生成的雪原保持原样，只是不再继续积雪。
+     *
+     * <p>接入处在 {@code mixin/ChronoSnowAccumulationMixin}
+     */
+    public static boolean snowAccumulates(ResourceKey<Level> dimension) {
+        return !dimension.equals(ModDimensions.CHRONO);
     }
 
     /** 这一格是露天的、所在群系会下雨、并且此刻正在下雨 */
     public static boolean isExposed(Level level, BlockPos pos) {
-        return isRainy(level) && isOpenSky(level, pos) && rainsAt(level, pos);
+        return isRainy(level) && isExposedGeometry(level, pos);
     }
 
     /** 这只生物整个人露在雨里 */

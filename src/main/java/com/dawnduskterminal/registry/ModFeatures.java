@@ -1,6 +1,7 @@
 package com.dawnduskterminal.registry;
 
 import com.dawnduskterminal.DawnDuskTerminal;
+import com.dawnduskterminal.world.CharnockiteLichenPatchFeature;
 import com.dawnduskterminal.world.ChronoFreezeFeature;
 import com.dawnduskterminal.world.FairyDianthusFeature;
 import net.minecraft.core.registries.Registries;
@@ -20,6 +21,9 @@ public final class ModFeatures {
     /** 仙灵石竹的一簇：矮的那片先撒，高的几根在同一片里长，见 {@link FairyDianthusFeature} */
     public static final DeferredHolder<Feature<?>, FairyDianthusFeature> FAIRY_DIANTHUS =
             FEATURES.register("fairy_dianthus", FairyDianthusFeature::new);
+
+    public static final DeferredHolder<Feature<?>, CharnockiteLichenPatchFeature> CHARNOCKITE_LICHEN_PATCH =
+            FEATURES.register("charnockite_lichen_patch", CharnockiteLichenPatchFeature::new);
 
     private ModFeatures() {}
 

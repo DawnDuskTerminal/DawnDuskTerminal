@@ -72,6 +72,11 @@ import org.jetbrains.annotations.Nullable;
  * 回家行为整个不触发，于是它可以一直飘在露天的雨里（见 {@link #isRainFreeFlight}）。
  * 滑行型与游动型不受影响——它们的活动范围本来就是流体本身。
  *
+ * <p>雨停之后，这一趟刷出来的飞行型由 {@link #tickRainClear()} 自行收场：它出生时脚下没有液体，
+ * 全靠雨天那一条撑着，雨一停就没有立足点了。归位期间回到液面上空就转成普通飞行型，
+ * 归位不成则带着一圈传送粒子消散——不是死亡，不掉战利品，也不算击杀。
+ * 只有雨天刷出的那一批带这个标记，分裂出来的飞行型不受影响。
+ *
  * <h2>待机音</h2>
  * 原版的待机音有随机静音期，这只生物要一直有声：当前这条还剩 8 tick 时起下一条，
  * 两条重叠着听不出断点，见 {@link #tickAmbientSound}。
@@ -144,6 +149,14 @@ public class StringEntity extends PathfinderMob implements Enemy {
     /** 分裂出来的低空飞行型比原体高这么多，直接离开流体悬空 */
     private static final double SPLIT_FLYER_LIFT = 1.5D;
 
+    /**
+     * 雨停之后给雨天刷出的飞行型多少 tick 归位
+     *
+     * <p>5 秒：以飞行型的巡航速度足够飞六十格上下，够它回到近处的液体上空，又不至于让玩家对着
+     * 一只显然没有依托的飞行型发呆。期间雨要是又下起来，计时直接清零
+     */
+    public static final int RAIN_CLEAR_GRACE_TICKS = 100;
+
     private static final Kind[] KINDS = Kind.values();
 
     /**
@@ -190,6 +203,12 @@ public class StringEntity extends PathfinderMob implements Enemy {
     private int attackCooldown;
     /** 距离下一条待机音还有多少 tick */
     private int ambientTimer = AMBIENT_PERIOD_TICKS / 2;
+
+    /** 是不是雨天那一趟刷出来的：雨停后脚下没有液体，见 {@link #tickRainClear()} */
+    private boolean rainSpawned;
+
+    /** 晴天已经持续了多少 tick（雨天刷出的飞行型用） */
+    private int clearTicks;
 
     /** 上一个确认站在液面上的位置，离开流体时弹回这里 */
     private double anchorX;
@@ -304,6 +323,22 @@ public class StringEntity extends PathfinderMob implements Enemy {
         return this.sizeScale;
     }
 
+    // ---------------------------------------------------------------- 雨天出生
+
+    public boolean isRainSpawned() {
+        return this.rainSpawned;
+    }
+
+    /**
+     * 由雨天那一趟生成时打上
+     *
+     * <p>只有 {@code StringSpawner#trySpawnFlyerAround} 会调它：那一只脚下没有液体，
+     * 雨一停就失去依托，收场规则见 {@link #tickRainClear()}
+     */
+    public void setRainSpawned(boolean rainSpawned) {
+        this.rainSpawned = rainSpawned;
+    }
+
     // ---------------------------------------------------------------- 行为变种
 
     public Kind getKind() {
@@ -405,6 +440,7 @@ public class StringEntity extends PathfinderMob implements Enemy {
         tag.putBoolean("Large", this.largeVariant);
         tag.putFloat("SizeScale", this.sizeScale);
         tag.putByte("Kind", (byte) this.kind.ordinal());
+        tag.putBoolean("RainSpawned", this.rainSpawned);
     }
 
     @Override
@@ -413,6 +449,7 @@ public class StringEntity extends PathfinderMob implements Enemy {
         this.largeVariant = tag.getBoolean("Large");
         this.sizeScale = Mth.clamp(tag.contains("SizeScale") ? tag.getFloat("SizeScale") : 1.0F, MIN_SIZE, MAX_SIZE);
         this.kind = kindById(tag.getByte("Kind"));
+        this.rainSpawned = tag.getBoolean("RainSpawned");
         if (!this.level().isClientSide) {
             this.entityData.set(DATA_LARGE, this.largeVariant);
             this.entityData.set(DATA_SIZE, this.sizeScale);
@@ -442,7 +479,60 @@ public class StringEntity extends PathfinderMob implements Enemy {
                 // 低空飞行型不夹位置：高度交给 FlyingMoveControl 与行为层给的目标点
             case FLYER -> {}
         }
+        tickRainClear();
         tickAmbientSound();
+    }
+
+    /**
+     * 雨停之后：雨天刷出来的飞行型自行收场
+     *
+     * <p>它出生时脚下没有液体（见 {@code StringSpawner#trySpawnFlyerAround}），全靠 {@link #isRainFreeFlight}
+     * 那一条撑着；雨一停，{@link ReturnToFluidGoal} 与 {@link FlyerWanderGoal} 又只认液面，
+     * 附近找不到液体的那一只就永远吊在空中。这里给它 {@value #RAIN_CLEAR_GRACE_TICKS} tick 归位：
+     * 回到液面上空就转成普通飞行型，回不去就消散——不掉战利品、不算击杀、不播倒地动画。
+     *
+     * <p><b>判据放在自己身上，不在天气变化时统一扫一遍。</b>实体只在已加载的区块里 tick，
+     * 所以区块没加载的那些，等加载进来时天气已经是晴天，同一段代码照样收得掉；
+     * 反过来，雨停那一刻去遍历所有维度反而要为判定加载区块，那是先前踩过的坑
+     * （见 {@code docs/weather.md}）。雨又下起来时计时清零，取雨的渐入渐出不会把它提前判死。
+     *
+     * <p>只认 {@link Kind#FLYER}，且必须带雨天出生标记：滑行型与游动型本来就钉在流体上，
+     * 分裂出来的飞行型（{@link #spawnKind}）也不带这个标记。
+     */
+    private void tickRainClear() {
+        if (!this.rainSpawned || this.kind != Kind.FLYER) {
+            return;
+        }
+        if (ChronoRain.isRainy(this.level())) {
+            this.clearTicks = 0;
+            return;
+        }
+        if (this.isHoveringOverFluid()) {
+            this.rainSpawned = false;
+            this.clearTicks = 0;
+            return;
+        }
+        if (++this.clearTicks < RAIN_CLEAR_GRACE_TICKS) {
+            return;
+        }
+        this.vanish();
+    }
+
+    /** 消散：与分裂同一套传送粒子，不走死亡流程 */
+    private void vanish() {
+        if (this.level() instanceof ServerLevel serverLevel) {
+            serverLevel.sendParticles(
+                    ParticleTypes.PORTAL,
+                    this.getX(),
+                    this.getY() + this.getBbHeight() * 0.5D,
+                    this.getZ(),
+                    60,
+                    0.7D,
+                    0.7D,
+                    0.7D,
+                    0.1D);
+        }
+        this.discard();
     }
 
     private void keepOnFluidSurface() {
@@ -638,7 +728,8 @@ public class StringEntity extends PathfinderMob implements Enemy {
      *
      * @return 液面上表面的 Y，找不到时返回 {@link Double#NaN}
      */
-    private static double findSurfaceByHeightmap(Level level, int x, int z) {
+    @Nullable
+    public static double findSurfaceByHeightmap(Level level, int x, int z) {
         int surfaceY = level.getHeight(Heightmap.Types.WORLD_SURFACE, x, z);
         if (surfaceY <= level.getMinBuildHeight() || surfaceY >= level.getMaxBuildHeight()) {
             return Double.NaN;
@@ -842,9 +933,10 @@ public class StringEntity extends PathfinderMob implements Enemy {
     /**
      * 已经停在某列液面上方 {@link #LOW_FLIGHT_HEIGHT} 格附近？
      *
-     * <p>低空飞行型的回家行为用它判断「是不是已经到家了」；用高度图找液面，所以飞多高都成立
+     * <p>低空飞行型的回家行为用它判断「是不是已经到家了」；雨天出生标记的收场也用它判断能不能转正
+     * （见 {@link #tickRainClear()}）。用高度图找液面，所以飞多高都成立
      */
-    private boolean isHoveringOverFluid() {
+    public boolean isHoveringOverFluid() {
         double surface = findSurfaceByHeightmap(this.level(), Mth.floor(this.getX()), Mth.floor(this.getZ()));
         return !Double.isNaN(surface) && Math.abs(this.getY() - (surface + LOW_FLIGHT_HEIGHT)) < 1.5D;
     }

@@ -9,6 +9,8 @@ import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
@@ -20,6 +22,7 @@ import net.minecraft.world.entity.monster.Zombie;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.gametest.GameTestHolder;
@@ -472,5 +475,101 @@ public final class StringEntityTests {
 
     private static boolean close(float value, float expected) {
         return Math.abs(value - expected) < 1.0E-3F;
+    }
+
+    /**
+     * 雨停之后，雨天刷出来的飞行型自行消散
+     *
+     * <p>测试维度不是晨昏线，{@code ChronoRain#isRainy} 在这里恒为假，等价于「此刻是晴天」，
+     * 正好用来钉住收场规则：宽限期内不动，够时间就消散。脚下一格液体都没有，
+     * 所以它归不了位，只能走消散那一条
+     */
+    @GameTest(template = "ddt_empty")
+    public static void rainSpawnedFlyerVanishesWhenWeatherClears(GameTestHelper helper) {
+        StringEntity flyer = hoveringString(helper, new BlockPos(8, 6, 8));
+        flyer.setKind(StringEntity.Kind.FLYER);
+        flyer.setRainSpawned(true);
+        helper.getLevel().addFreshEntity(flyer);
+
+        for (int tick = 0; tick < StringEntity.RAIN_CLEAR_GRACE_TICKS - 1; tick++) {
+            flyer.tick();
+        }
+        helper.assertFalse(flyer.isRemoved(), "宽限期没走完之前不得消散");
+
+        flyer.tick();
+        helper.assertTrue(flyer.isRemoved(), "宽限期一过，头顶没有液体的雨天飞行型必须自行消散");
+        helper.succeed();
+    }
+
+    /** 不是雨天刷出来的飞行型不受影响：晴天照旧悬在液面上空 */
+    @GameTest(template = "ddt_empty")
+    public static void ordinaryFlyerSurvivesClearWeather(GameTestHelper helper) {
+        StringEntity flyer = hoveringString(helper, new BlockPos(8, 6, 8));
+        flyer.setKind(StringEntity.Kind.FLYER);
+        helper.getLevel().addFreshEntity(flyer);
+
+        for (int tick = 0; tick < StringEntity.RAIN_CLEAR_GRACE_TICKS * 2; tick++) {
+            flyer.tick();
+        }
+        helper.assertFalse(flyer.isRemoved(), "没有雨天出生标记的飞行型不得凭空消失");
+        helper.assertFalse(flyer.isRainSpawned(), "普通飞行型不该带上雨天标记");
+        helper.succeed();
+    }
+
+    /**
+     * 归位成功就转成普通飞行型
+     *
+     * <p>脚下铺一格传送门流体，身体按高度图算出的液面高度精确摆在盘旋高度上：
+     * 第一个 tick 就应当摘掉雨天标记，之后再走多少 tick 都不消散。
+     *
+     * <p>必须声明 {@code skyAccess = true}：不声明时框架会在结构顶上盖一层屏障，
+     * {@code WORLD_SURFACE} 量到的是那层屏障，高度图就找不到液面了
+     */
+    @GameTest(template = "ddt_empty", skyAccess = true)
+    public static void rainFlyerTurnsOrdinaryOnceHome(GameTestHelper helper) {
+        helper.setBlock(new BlockPos(8, 1, 8), ModBlocks.PORTAL_FLUID.get());
+        ServerLevel level = helper.getLevel();
+        BlockPos fluid = helper.absolutePos(new BlockPos(8, 1, 8));
+        double surface = StringEntity.findSurfaceByHeightmap(level, fluid.getX(), fluid.getZ());
+        helper.assertFalse(
+                Double.isNaN(surface),
+                "传送门流体的液面必须能被高度图找到：fluid=" + fluid
+                        + " state=" + level.getBlockState(fluid)
+                        + " fluidState=" + level.getFluidState(fluid)
+                        + " WORLD_SURFACE="
+                        + level.getHeight(Heightmap.Types.WORLD_SURFACE, fluid.getX(), fluid.getZ()));
+
+        StringEntity flyer = new StringEntity(ModEntities.STRING.get(), level);
+        flyer.setVariant(false, 1.0F);
+        flyer.setKind(StringEntity.Kind.FLYER);
+        // 盘旋高度是液面之上两格，见 StringEntity 的 LOW_FLIGHT_HEIGHT
+        flyer.moveTo(fluid.getX() + 0.5D, surface + 2.0D, fluid.getZ() + 0.5D, 0.0F, 0.0F);
+        flyer.setRainSpawned(true);
+        level.addFreshEntity(flyer);
+        helper.assertTrue(flyer.isHoveringOverFluid(), "起点必须算作停在液面上空");
+
+        flyer.tick();
+        helper.assertFalse(flyer.isRainSpawned(), "回到液面上空后必须转成普通飞行型");
+
+        for (int tick = 0; tick < StringEntity.RAIN_CLEAR_GRACE_TICKS * 2; tick++) {
+            flyer.tick();
+        }
+        helper.assertFalse(flyer.isRemoved(), "转正之后晴天里不得再消散");
+        helper.succeed();
+    }
+
+    /** 雨天出生标记随存档保留：读档之后照样会收场 */
+    @GameTest(template = "ddt_empty")
+    public static void rainSpawnedFlagSurvivesReload(GameTestHelper helper) {
+        StringEntity flyer = hoveringString(helper, new BlockPos(8, 6, 8));
+        flyer.setKind(StringEntity.Kind.FLYER);
+        flyer.setRainSpawned(true);
+        CompoundTag saved = flyer.saveWithoutId(new CompoundTag());
+
+        StringEntity restored = new StringEntity(ModEntities.STRING.get(), helper.getLevel());
+        restored.load(saved);
+        helper.assertTrue(restored.isRainSpawned(), "雨天出生标记必须写进存档并读回来");
+        helper.assertTrue(restored.getKind() == StringEntity.Kind.FLYER, "变种也必须跟着读回来");
+        helper.succeed();
     }
 }

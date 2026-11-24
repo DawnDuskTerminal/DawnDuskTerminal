@@ -1,4 +1,6 @@
 {
+  "death.attack.hui_death": "%1$s turned into a meat patty",
+  "death.attack.hui_death.player": "%1$s turned into a meat patty",
   "block.dawnduskterminal.portal_fluid": "Portal Fluid",
   "block.dawnduskterminal.chrono_crust": "Chrono Crust",
   "block.dawnduskterminal.enthu_fluid": "Passionate Twilight",
@@ -9,6 +11,7 @@
   "block.dawnduskterminal.greenschist": "Greenschist",
   "block.dawnduskterminal.eclogite": "Eclogite",
   "block.dawnduskterminal.charnockite": "Charnockite",
+  "block.dawnduskterminal.charnockite_lichen": "Charnockite Lichen",
   "block.dawnduskterminal.twilight_stone": "Twilight Stone",
   "block.dawnduskterminal.canopy_stone_copper_ore": "Canopy Stone Copper Ore",
   "block.dawnduskterminal.canopy_stone_iron_ore": "Canopy Stone Iron Ore",
@@ -168,6 +171,7 @@
   "block.dawnduskterminal.fairy_dianthus_small": "Lesser Fairy Dianthus",
   "item.dawnduskterminal.stellaria_veges": "Stellaria Veges",
   "item.dawnduskterminal.fairy_haniwa": "Fairy Haniwa",
+  "biome.dawnduskterminal.wild_void": "Wild Void",
   "biome.dawnduskterminal.floatrees": "Floating Trees",
   "block.dawnduskterminal.carid_ore": "Carid Ore",
   "item.dawnduskterminal.carid": "Carid",

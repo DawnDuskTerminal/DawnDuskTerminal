@@ -13,6 +13,7 @@ import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.level.Level;
@@ -25,6 +26,7 @@ import net.minecraft.world.phys.shapes.CollisionContext;
 import net.neoforged.neoforge.event.EventHooks;
 import net.neoforged.neoforge.fluids.FluidType;
 import net.neoforged.neoforge.network.PacketDistributor;
+import twilightforest.entity.monster.CarminiteGhastling;
 import twilightforest.init.TFDamageTypes;
 import twilightforest.init.TFEntities;
 
@@ -34,6 +36,18 @@ public final class GhastEliteTear extends Projectile {
     public static final int MAX_LIFETIME = 99;
     public static final float DAMAGE = 3.0F;
     public static final double VISUAL_RANGE = 512.0D;
+
+    /**
+     * 受击目标在物理体积之外的额外横向外扩量
+     *
+     * <p>物理体积仅 0.8 格见方，与视觉粒子的大小无关；只按该体积判定时，站位偏离不足一格即可免受伤害，
+     * 泪雨因此失去威胁。此处仅放宽水平方向：竖直方向仍取物理体积的一半，
+     * 保持「自上方落到身上才算命中」的语义，方块遮挡判定亦不受影响。
+     *
+     * <p>以宽 0.6 格的玩家为例，判定柱体宽度为 {@code 0.6 + 0.8 + 1.2 = 2.6} 格，是原判定 {@code 1.4} 格的近 3.4 倍面积。
+     */
+    public static final double ENTITY_HIT_MARGIN = 0.6D;
+
     private static final double HITBOX_DROP = 0.8D;
     private int age;
     private int lifetime;
@@ -117,7 +131,7 @@ public final class GhastEliteTear extends Projectile {
         this.setDeltaMovement(dampedVelocity(velocity));
     }
 
-    /** 以物理体积扩张障碍，再用原版 AABB.clip 扫掠；按最先接触点选择方块或玩家。 */
+    /** 以物理体积扩张障碍、并额外放宽受击目标判定，再用原版 AABB.clip 扫掠；按最先接触点选择方块或目标。 */
     private HitResult sweep(Vec3 velocity, AABB swept, AABB blocks) {
         Vec3 start = this.position().add(0.0D, this.getBbHeight() * 0.5D - HITBOX_DROP, 0.0D);
         Vec3 end = start.add(velocity);
@@ -131,7 +145,7 @@ public final class GhastEliteTear extends Projectile {
                     .getBlockState(pos)
                     .getCollisionShape(this.level(), pos, context)
                     .toAabbs()) {
-                AABB expanded = this.expandTarget(box.move(pos));
+                AABB expanded = this.expandBlockShape(box.move(pos));
                 Optional<Vec3> contact = contact(expanded, start, end);
                 if (contact.isPresent() && start.distanceToSqr(contact.get()) < distance) {
                     Vec3 point = contact.get();
@@ -141,8 +155,9 @@ public final class GhastEliteTear extends Projectile {
                 }
             }
         }
-        for (Entity target : this.level().getEntities(this, swept, this::canHitEntity)) {
-            Optional<Vec3> contact = contact(this.expandTarget(target.getBoundingBox()), start, end);
+        AABB targets = swept.inflate(ENTITY_HIT_MARGIN, 0.0D, ENTITY_HIT_MARGIN);
+        for (Entity target : this.level().getEntities(this, targets, this::canHitEntity)) {
+            Optional<Vec3> contact = contact(this.expandEntityBox(target.getBoundingBox()), start, end);
             if (contact.isPresent() && start.distanceToSqr(contact.get()) < distance) {
                 distance = start.distanceToSqr(contact.get());
                 nearest = new EntityHitResult(target, contact.get());
@@ -151,8 +166,15 @@ public final class GhastEliteTear extends Projectile {
         return nearest;
     }
 
-    private AABB expandTarget(AABB box) {
+    /** 方块的判定体积：物理碰撞箱的一半，与外观以外的行为无关。 */
+    private AABB expandBlockShape(AABB box) {
         return box.inflate(this.getBbWidth() * 0.5D, this.getBbHeight() * 0.5D, this.getBbWidth() * 0.5D);
+    }
+
+    /** 受击目标的判定体积：水平方向在物理体积之外再放宽 {@link #ENTITY_HIT_MARGIN} 格，竖直方向不放宽。 */
+    private AABB expandEntityBox(AABB box) {
+        double horizontal = this.getBbWidth() * 0.5D + ENTITY_HIT_MARGIN;
+        return box.inflate(horizontal, this.getBbHeight() * 0.5D, horizontal);
     }
 
     private static Optional<Vec3> contact(AABB box, Vec3 start, Vec3 end) {
@@ -196,12 +218,30 @@ public final class GhastEliteTear extends Projectile {
     @Override
     protected void doWaterSplashEffect() {}
 
+    /**
+     * 泪滴可命中的对象：所有者自身与其小鬼以外的全部生物
+     *
+     * <p>小鬼指暮色森林的 {@code carminite_ghastling}，以及任何带有
+     * {@link GhastEliteEntity#MINION_TAG} 标记的实体；二者与本体一样不受泪滴伤害。
+     * 创造与旁观玩家不产生伤害，因此也不拦下泪滴。
+     *
+     * <p>原版 {@code Projectile#canHitEntity} 只排除与所有者同乘载具的目标，不排除所有者本体，
+     * 故此处必须显式排除。
+     */
     @Override
     protected boolean canHitEntity(Entity entity) {
-        return entity instanceof Player player
-                && !player.isCreative()
-                && !player.isSpectator()
-                && super.canHitEntity(entity);
+        if (!super.canHitEntity(entity)) {
+            return false;
+        }
+        if (entity == this.getOwner()
+                || entity instanceof CarminiteGhastling
+                || entity.getPersistentData().getBoolean(GhastEliteEntity.MINION_TAG)) {
+            return false;
+        }
+        if (entity instanceof Player player) {
+            return !player.isCreative() && !player.isSpectator();
+        }
+        return entity instanceof LivingEntity;
     }
 
     @Override

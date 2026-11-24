@@ -4,12 +4,14 @@ import com.dawnduskterminal.entity.LivingArmorEntity;
 import com.dawnduskterminal.entity.SeekRainShelterGoal;
 import com.dawnduskterminal.entity.StringEntity;
 import com.dawnduskterminal.registry.ModDamageTypes;
+import com.dawnduskterminal.registry.ModDimensions;
 import com.dawnduskterminal.registry.ModEffects;
 import com.dawnduskterminal.registry.ModEntities;
 import com.dawnduskterminal.registry.ModSounds;
 import com.dawnduskterminal.world.ChronoLine;
 import com.dawnduskterminal.world.ChronoPlantTints;
 import com.dawnduskterminal.world.ChronoRain;
+import com.dawnduskterminal.world.ChronoRainSpawns;
 import com.dawnduskterminal.world.ChronoSkyLight;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
@@ -21,6 +23,7 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.entity.animal.Cow;
 import net.minecraft.world.entity.animal.Squid;
 import net.minecraft.world.entity.decoration.ArmorStand;
@@ -28,6 +31,7 @@ import net.minecraft.world.entity.monster.Ghast;
 import net.minecraft.world.entity.monster.Zombie;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.GameType;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.gametest.GameTestHolder;
@@ -145,6 +149,54 @@ public final class ChronoRainTests {
         } finally {
             level.setRainLevel(previous);
         }
+        helper.succeed();
+    }
+
+    /**
+     * 本维度的天气不堆雪层，别的维度照旧
+     *
+     * <p>测试服不创建晨昏线维度（见类注释），所以正向那一条只能钉判据本身：
+     * {@link ChronoRain#snowAccumulates} 对晨昏线为假、对主世界为真。
+     * 真实那条路过一遍是为了确认注入没有改掉主世界的行为：直接调
+     * {@code ServerLevel#tickPrecipitation}，热群系照例不积雪
+     */
+    @GameTest(template = "ddt_empty", batch = "chrono_rain")
+    public static void snowAccumulationIsOffInChronoDimension(GameTestHelper helper) {
+        helper.assertFalse(ChronoRain.snowAccumulates(ModDimensions.CHRONO), "晨昏线的天气不得堆雪层");
+        helper.assertTrue(ChronoRain.snowAccumulates(Level.OVERWORLD), "别的维度仍按原版积雪");
+        ServerLevel level = helper.getLevel();
+        helper.assertTrue(ChronoRain.snowAccumulates(level.dimension()), "测试维度是主世界，必须按原版积雪");
+        BlockPos ground = helper.absolutePos(new BlockPos(8, 1, 8));
+        helper.setBlock(new BlockPos(8, 1, 8), Blocks.STONE);
+        float previous = level.getRainLevel(1.0F);
+        level.setRainLevel(1.0F);
+        try {
+            helper.assertTrue(level.isRaining(), "这条用例自己得先把雨打开");
+            level.tickPrecipitation(ground);
+        } finally {
+            level.setRainLevel(previous);
+        }
+        helper.assertTrue(level.getBlockState(ground.above()).isAir(), "测试维度不是冷群系，本来就不该积雪");
+        helper.succeed();
+    }
+
+    /**
+     * 世界生成那一路永不因天气被压制
+     *
+     * <p>这是死锁回归：`CHUNK_GENERATION` 跑在区块生成线程上，若在这里查活服的高度图，
+     * 生成线程会反向调 {@code ServerChunkCache#getChunk(..., load = true)}，与主线程互等，
+     * 整条生成管线卡死（记录见 {@code docs/weather.md}）。
+     * 测试维度不是晨昏线，所以 `NATURAL` 在这里也不该压制——那一条顺手确认判据没有乱放行
+     */
+    @GameTest(template = "ddt_empty", batch = "chrono_rain")
+    public static void worldgenSpawnsIgnoreWeather(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos at = helper.absolutePos(new BlockPos(8, 1, 8));
+        helper.assertFalse(
+                ChronoRainSpawns.suppresses(level, MobSpawnType.CHUNK_GENERATION, at),
+                "世界生成那一路不得由天气压制：在生成线程上查活服高度图会反向加载区块");
+        helper.assertFalse(ChronoRainSpawns.suppresses(level, MobSpawnType.SPAWNER, at), "刷怪笼不受天气压制");
+        helper.assertFalse(ChronoRainSpawns.suppresses(level, MobSpawnType.NATURAL, at), "测试维度不是晨昏线，自然生成不受压制");
         helper.succeed();
     }
 

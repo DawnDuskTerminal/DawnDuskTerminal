@@ -79,6 +79,26 @@ public final class GhastEliteTearTests {
     }
 
     @GameTest(template = "ddt_empty", batch = "ghast_tears")
+    public static void sidewaysMarginWidensPlayerHitVolume(GameTestHelper helper) {
+        helper.assertTrue(
+                GhastEliteTear.ENTITY_HIT_MARGIN == 0.6D, "the sideways player margin must stay at 0.6 blocks");
+        Player beside = player(helper, GameType.SURVIVAL, 8.5D, 2.0D, 8.5D);
+        GhastEliteTear wide = tear(helper, new Vec3(9.7D, 5.0D, 8.5D), new Vec3(0.0D, -0.5D, 0.0D));
+        wide.tick();
+        helper.assertTrue(wide.isRemoved(), "a tear 0.9 blocks beside the player must hit under the widened margin");
+        helper.assertTrue(beside.getHealth() == 17.0F, "the widened margin must deal normal tear damage");
+        beside.discard();
+        Player clear = player(helper, GameType.SURVIVAL, 8.5D, 2.0D, 8.5D);
+        GhastEliteTear outside = tear(helper, new Vec3(9.85D, 5.0D, 8.5D), new Vec3(0.0D, -0.5D, 0.0D));
+        outside.tick();
+        helper.assertFalse(outside.isRemoved(), "a tear beyond the widened margin must still miss the player");
+        helper.assertTrue(clear.getHealth() == 20.0F, "a miss outside the widened margin must not damage the player");
+        outside.discard();
+        clear.discard();
+        helper.succeed();
+    }
+
+    @GameTest(template = "ddt_empty", batch = "ghast_tears")
     public static void roofBlocksDamageButNearbyRainDoesNot(GameTestHelper helper) {
         Player player = player(helper, GameType.SURVIVAL, 8.5D, 2.0D, 8.5D);
         helper.setBlock(new BlockPos(8, 5, 8), Blocks.STONE);
@@ -133,7 +153,7 @@ public final class GhastEliteTearTests {
     }
 
     @GameTest(template = "ddt_empty", batch = "ghast_tears")
-    public static void creativeSpectatorsAndNonPlayersDoNotIntercept(GameTestHelper helper) {
+    public static void creativeSpectatorsDoNotIntercept(GameTestHelper helper) {
         for (GameType mode : List.of(GameType.CREATIVE, GameType.SPECTATOR)) {
             Player player = player(helper, mode, 8.5D, 2.0D, 8.5D);
             GhastEliteTear tear = tear(helper, new Vec3(8.5D, 8.0D, 8.5D), new Vec3(0.0D, -5.0D, 0.0D));
@@ -143,24 +163,49 @@ public final class GhastEliteTearTests {
             tear.discard();
             player.discard();
         }
+        helper.succeed();
+    }
+
+    @GameTest(template = "ddt_empty", batch = "ghast_tears")
+    public static void otherMobsTakeTearDamage(GameTestHelper helper) {
+        var owner = new GhastEliteEntity(ModEntities.GHAST_ELITE.get(), helper.getLevel());
         var pig = helper.spawnWithNoFreeWill(EntityType.PIG, 8, 3, 8);
-        var minion = helper.spawnWithNoFreeWill(TFEntities.CARMINITE_GHASTLING.get(), 8, 3, 8);
-        var owner = helper.spawnWithNoFreeWill(ModEntities.GHAST_ELITE.get(), 8, 3, 8);
-        owner.setHealth(100.0F);
-        float health = owner.getHealth();
         GhastEliteTear tear = tear(helper, new Vec3(8.5D, 8.0D, 8.5D), new Vec3(0.0D, -4.0D, 0.0D));
         tear.setOwner(owner);
         tear.tick();
-        helper.assertFalse(tear.isRemoved(), "the owner, minions and other mobs must not intercept tears");
+        helper.assertTrue(tear.isRemoved(), "a mob other than the elite's own minions must consume the tear");
+        helper.assertTrue(pig.getHealth() == pig.getMaxHealth() - 3.0F, "a mob hit must take exactly three damage");
+        DamageSource source = pig.getLastDamageSource();
         helper.assertTrue(
-                pig.getHealth() == pig.getMaxHealth() && minion.getHealth() == minion.getMaxHealth(),
-                "non-target mobs must not be hurt");
-        helper.assertTrue(owner.getHealth() == health, "tears must neither hurt nor heal the owner");
+                source != null && source.is(TFDamageTypes.GHAST_TEAR), "mob damage must use the GHAST_TEAR type");
+        helper.assertTrue(
+                source.getDirectEntity() == tear && source.getEntity() == owner,
+                "mob damage must retain both damage entities");
         helper.assertFalse(
                 tear.getType().is(EntityTypeTags.REDIRECTABLE_PROJECTILE), "tears must not be redirectable fireballs");
         tear.discard();
         pig.discard();
+        helper.succeed();
+    }
+
+    @GameTest(template = "ddt_empty", batch = "ghast_tears")
+    public static void minionsAndOwnerAreImmuneToTears(GameTestHelper helper) {
+        var owner = helper.spawnWithNoFreeWill(ModEntities.GHAST_ELITE.get(), 8, 3, 8);
+        owner.setHealth(100.0F);
+        var minion = helper.spawnWithNoFreeWill(TFEntities.CARMINITE_GHASTLING.get(), 8, 3, 8);
+        var marked = helper.spawnWithNoFreeWill(EntityType.PIG, 8, 3, 8);
+        marked.getPersistentData().putBoolean(GhastEliteEntity.MINION_TAG, true);
+        GhastEliteTear tear = tear(helper, new Vec3(8.5D, 8.0D, 8.5D), new Vec3(0.0D, -4.0D, 0.0D));
+        tear.setOwner(owner);
+        tear.tick();
+        helper.assertFalse(tear.isRemoved(), "the owner and its minions must neither intercept nor consume a tear");
+        helper.assertTrue(
+                minion.getHealth() == minion.getMaxHealth() && marked.getHealth() == marked.getMaxHealth(),
+                "ghastlings and minion-tagged entities must not be hurt");
+        helper.assertTrue(owner.getHealth() == 100.0F, "tears must neither hurt nor heal the owner");
+        tear.discard();
         minion.discard();
+        marked.discard();
         owner.discard();
         helper.succeed();
     }

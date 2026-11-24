@@ -1,0 +1,86 @@
+{
+  "carvers": {
+    "air": [
+      "dawnduskterminal:cave",
+      "dawnduskterminal:cave_extra_underground",
+      "dawnduskterminal:canyon"
+    ]
+  },
+  "downfall": 0.0,
+  "effects": {
+    "fog_color": 0,
+    "sky_color": 0,
+    "water_color": 4159204,
+    "water_fog_color": 329011,
+    "particle": {
+      "probability": 0.012,
+      "options": {
+        "type": "minecraft:ash"
+      }
+    }
+  },
+  "features": [
+    [],
+    [
+      "dawnduskterminal:lake_lava_underground",
+      "dawnduskterminal:lake_lava_surface"
+    ],
+    [
+      "dawnduskterminal:amethyst_geode"
+    ],
+    [
+      "dawnduskterminal:monster_room",
+      "dawnduskterminal:monster_room_deep"
+    ],
+    [],
+    [],
+    [
+      "dawnduskterminal:ore_dirt",
+      "dawnduskterminal:ore_gravel",
+      "dawnduskterminal:ore_granite_upper",
+      "dawnduskterminal:ore_granite_lower",
+      "dawnduskterminal:ore_diorite_upper",
+      "dawnduskterminal:ore_diorite_lower",
+      "dawnduskterminal:ore_andesite_upper",
+      "dawnduskterminal:ore_andesite_lower",
+      "dawnduskterminal:ore_tuff",
+      "dawnduskterminal:ore_scarlet_molybdenum",
+      "dawnduskterminal:ore_carid",
+      "dawnduskterminal:ore_dirac",
+      "dawnduskterminal:ore_transfore",
+      "dawnduskterminal:ore_copper",
+      "dawnduskterminal:ore_iron",
+      "dawnduskterminal:ore_gold",
+      "dawnduskterminal:ore_redstone",
+      "dawnduskterminal:ore_diamond",
+      "dawnduskterminal:ore_lapis",
+      "dawnduskterminal:underwater_magma",
+      "dawnduskterminal:ore_clay",
+      "dawnduskterminal:disk_sand",
+      "dawnduskterminal:disk_clay",
+      "dawnduskterminal:disk_gravel"
+    ],
+    [],
+    [
+      "dawnduskterminal:spring_water",
+      "dawnduskterminal:spring_lava"
+    ],
+    [
+      "dawnduskterminal:patch_tall_grass_2",
+      "dawnduskterminal:lush_caves_ceiling_vegetation",
+      "dawnduskterminal:cave_vines",
+      "dawnduskterminal:lush_caves_clay",
+      "dawnduskterminal:lush_caves_vegetation",
+      "dawnduskterminal:rooted_azalea_tree",
+      "dawnduskterminal:spore_blossom",
+      "dawnduskterminal:classic_vines_cave_feature"
+    ],
+    [
+      "dawnduskterminal:freeze_top_layer"
+    ]
+  ],
+  "has_precipitation": false,
+  "spawn_costs": {},
+  "spawners": {},
+  "temperature": 0.5
+}

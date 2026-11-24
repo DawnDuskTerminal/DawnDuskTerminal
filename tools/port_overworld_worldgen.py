@@ -483,6 +483,12 @@ def build_palette_layer(vanilla_root: Path, vanilla_tag_root: Path, out_root: Pa
     cf_all = load_json_dir(vanilla_root / "configured_feature")
     pf_all = load_json_dir(vanilla_root / "placed_feature")
     biome_all = load_json_dir(vanilla_root / "biome")
+    for biome in biome_all.values():
+        if "features" in biome:
+            biome["features"] = [
+                [feature for feature in step if feature != "minecraft:glow_lichen"]
+                for step in biome["features"]
+            ]
     carver_all = load_json_dir(vanilla_root / "configured_carver")
     overworld = overworld_biome_names(vanilla_tag_root)
 
@@ -534,10 +540,17 @@ def build_palette_layer(vanilla_root: Path, vanilla_tag_root: Path, out_root: Pa
     # 所以维度把特征表指向自己那个铺调色板雪与冰的特征
     write_json(out_root / "configured_feature" / "freeze_top_layer.json",
                {"type": f"{MOD_ID}:freeze_top_layer", "config": {}})
+    write_json(out_root / "configured_feature" / "charnockite_lichen_patch.json",
+               {"type": f"{MOD_ID}:charnockite_lichen_patch", "config": {}})
     for k in sorted(pf_keep):
         doc = retarget_block_tags(retarget(swap_block_ids(pf_all[k]), id_map(cf_keep)))
         if k == "freeze_top_layer":
             doc["feature"] = f"{MOD_ID}:freeze_top_layer"
+        elif k == "sculk_patch_deep_dark":
+            doc["feature"] = f"{MOD_ID}:charnockite_lichen_patch"
+            for modifier in doc["placement"]:
+                if modifier["type"] == "minecraft:height_range":
+                    modifier["height"]["max_inclusive"] = {"absolute": 8}
         write_json(out_root / "placed_feature" / f"{k}.json", doc)
     for k in sorted(biome_docs):
         write_json(out_root / "biome" / f"{k}.json", biome_docs[k])

@@ -63,7 +63,9 @@ public final class PortalTeleporter {
                 originY = Mth.floor(state.y());
             }
         }
-        Vec3 landing = findSafeLanding(target, originX, originZ, originY);
+        // 回退平台铺的是霞草、霞土与苍穹石，属于晨昏线的落脚建筑
+        // 离开晨昏线维度时不得在目标维度写方块，搜索失败直接落在回程记录的原坐标
+        Vec3 landing = findSafeLanding(target, originX, originZ, originY, entering);
         if (entering) {
             if (entity instanceof Player player) {
                 // 记下从哪来，回程按这个坐标找落点，而不是按晨昏线里当前站的位置重新搜表面
@@ -79,7 +81,18 @@ public final class PortalTeleporter {
                 null, landing.x, landing.y, landing.z, SoundEvents.PORTAL_TRAVEL, SoundSource.PLAYERS, 1.0F, 1.0F);
     }
 
+    /**
+     * 等价于 {@code findSafeLanding(level, originX, originZ, originY, true)}，用于进入晨昏线维度的管理命令
+     */
     public static Vec3 findSafeLanding(ServerLevel level, double originX, double originZ, int originY) {
+        return findSafeLanding(level, originX, originZ, originY, true);
+    }
+
+    /**
+     * {@code allowFallbackPlatform} 为假时，搜索失败不回退成铺设平台，而是直接使用搜索原点，且不写任何方块
+     */
+    public static Vec3 findSafeLanding(
+            ServerLevel level, double originX, double originZ, int originY, boolean allowFallbackPlatform) {
         int baseX = Mth.floor(originX);
         int baseZ = Mth.floor(originZ);
         long deadline = System.nanoTime() + LANDING_SEARCH_BUDGET_NANOS;
@@ -117,6 +130,11 @@ public final class PortalTeleporter {
                     }
                 }
             }
+        }
+        if (!allowFallbackPlatform) {
+            DawnDuskTerminal.LOGGER.warn(
+                    "DawnDuskTerminal landing search found nothing, using the origin without building a platform");
+            return new Vec3(originX, originY, originZ);
         }
         DawnDuskTerminal.LOGGER.warn("DawnDuskTerminal landing search found nothing, building a platform");
         return buildFallbackPlatform(level, baseX, originY, baseZ);

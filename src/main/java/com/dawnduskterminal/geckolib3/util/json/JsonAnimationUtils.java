@@ -133,7 +133,8 @@ public class JsonAnimationUtils {
         if (boneKeyFrames.isEmpty()) {
             return 0;
         }
-        return boneKeyFrames.get(boneKeyFrames.size() - 1).getStartTick();
+        BoneKeyFrame last = boneKeyFrames.get(boneKeyFrames.size() - 1);
+        return last.getStartTick() + last.getTotalTick();
     }
 
     public static double maxAll(double... values) {

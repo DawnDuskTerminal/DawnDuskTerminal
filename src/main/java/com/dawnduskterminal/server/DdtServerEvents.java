@@ -23,6 +23,7 @@ import com.dawnduskterminal.world.ChronoRain;
 import com.dawnduskterminal.world.Experiment065Field;
 import com.dawnduskterminal.world.Experiment069Field;
 import com.dawnduskterminal.world.Experiment076Reaction;
+import com.dawnduskterminal.world.HuiArmor;
 import com.dawnduskterminal.world.StringSpawner;
 import java.util.List;
 import net.minecraft.core.BlockPos;
@@ -119,6 +120,7 @@ public final class DdtServerEvents {
         StructureExclusions.validate(structures);
 
         com.dawnduskterminal.debug.ChronoParityProbe.runIfRequested(event.getServer());
+        com.dawnduskterminal.debug.ThreadWatchdog.start(event.getServer());
     }
 
     /**
@@ -129,6 +131,7 @@ public final class DdtServerEvents {
      * 方块被挖掉都不打断，只有服务器停下才整批清掉，见 {@link #onServerStopped}
      */
     public static void onServerTick(ServerTickEvent.Post event) {
+        com.dawnduskterminal.debug.ThreadWatchdog.heartbeat();
         FireJetProcess.tickAll();
         GhastTrapProcess.tickAll();
         RequiemProcess.tickAll();
@@ -169,6 +172,7 @@ public final class DdtServerEvents {
 
     /** 清理服务器会话；晨昏线与实体容量快照仅在区块任务全部结束后释放。 */
     public static void onServerStopped(ServerStoppedEvent event) {
+        com.dawnduskterminal.debug.ThreadWatchdog.stop();
         finishServerSession(event.getServer());
         FireJetProcess.clear();
         GhastTrapProcess.clear();
@@ -234,6 +238,7 @@ public final class DdtServerEvents {
         // 红篝火 16 格内的消耗度：小增量取反由 CampCarminiteFireExhaustionMixin 当场做掉，
         // 这里补「走过来的时候消耗度本来就是 0」那一种，见 CampCarminiteFireAura
         CampCarminiteFireAura.tick(player);
+        HuiArmor.tick(player);
         // 所有玩家的 tickCount 同相位，直接取模会让全服在同一刻一起扫 12 格
         // 用实体 id 错开相位，平均开销不变，但不再形成每 10 tick 一次的尖峰
         if ((player.tickCount + player.getId()) % 10 == 0) {

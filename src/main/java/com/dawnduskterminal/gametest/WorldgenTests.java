@@ -43,6 +43,7 @@ import net.minecraft.world.level.levelgen.NoiseGeneratorSettings;
 import net.minecraft.world.level.levelgen.NoiseRouter;
 import net.minecraft.world.level.levelgen.RandomState;
 import net.minecraft.world.level.levelgen.feature.ConfiguredFeature;
+import net.minecraft.world.level.levelgen.material.MaterialRuleList;
 import net.minecraft.world.level.levelgen.placement.PlacedFeature;
 import net.minecraft.world.level.levelgen.synth.NormalNoise;
 import net.neoforged.neoforge.gametest.GameTestHolder;
@@ -491,6 +492,13 @@ public final class WorldgenTests {
                         .calculate(null)
                         .is(ModTerrainBlocks.OCHRE.get()),
                 "the wrapped rule must still remap a real vein filler");
+        var ordered = new MaterialRuleList(
+                List.of(context -> null, context -> Blocks.GRANITE.defaultBlockState(), context -> {
+                    throw new AssertionError("the first non-null material must stop rule evaluation");
+                }));
+        helper.assertTrue(
+                ChronoVeinPalette.wrap(ordered).calculate(null).is(ModTerrainBlocks.OCHRE.get()),
+                "the rule list must preserve order and remap the first non-null result");
         helper.succeed();
     }
 

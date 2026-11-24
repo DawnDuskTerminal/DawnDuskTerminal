@@ -44,6 +44,9 @@ neoForge {
             // 可用 -Pddt_client_heap=4G 覆盖默认堆上限。
             jvmArguments.addAll(
                 "-Xmx${project.findProperty('ddt_client_heap') ?: '6G'}".toString(),
+                // 主线程卡死取证：服务端线程超过该毫秒数没有推进 tick 就把全部线程栈写进游戏目录。
+                // 0 表示关闭。用法见 docs/development.md 的「主线程卡死」一节。
+                "-Dddt.watchdogMs=${project.findProperty('ddt_watchdog') ?: '0'}".toString(),
                 '-XX:MaxMetaspaceSize=1G',
                 '-XX:ReservedCodeCacheSize=256m',
                 // 直接缓冲（native 网格内核与区块序列化都靠它）也给个上限：
@@ -219,6 +222,8 @@ repositories {
 configurations {
     clientDevMods {
         canBeConsumed = false
+        // 两种地图的 POM 都声明了 XaeroLib 版本范围。固定兼容版本可避免每次缓存过期后查询版本列表。
+        resolutionStrategy.force "xaero.lib:xaerolib-neoforge-${minecraft_version}:${xaero_lib_version}"
     }
     // 此配置仅解析 c2me 官方 jar，供 JarJar 嵌套使用，不加入编译或运行 classpath。
     c2meCompat {
