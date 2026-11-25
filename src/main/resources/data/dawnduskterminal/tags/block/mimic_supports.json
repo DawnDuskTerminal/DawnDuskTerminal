@@ -1,0 +1,8 @@
+{
+  "replace": false,
+  "values": [
+    "dawnduskterminal:canopy_stone",
+    "dawnduskterminal:charnockite",
+    "#dawnduskterminal:mimic_ores"
+  ]
+}

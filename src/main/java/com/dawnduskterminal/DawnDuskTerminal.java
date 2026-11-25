@@ -7,6 +7,7 @@ import com.dawnduskterminal.config.DdtConfig;
 import com.dawnduskterminal.entity.GhastEliteEntity;
 import com.dawnduskterminal.entity.GhastFruityEntity;
 import com.dawnduskterminal.network.ModNetwork;
+import com.dawnduskterminal.portal.NetherGateBlock;
 import com.dawnduskterminal.registry.ModArmorMaterials;
 import com.dawnduskterminal.registry.ModAttachments;
 import com.dawnduskterminal.registry.ModBiomeSources;
@@ -25,6 +26,7 @@ import com.dawnduskterminal.registry.ModIngredients;
 import com.dawnduskterminal.registry.ModItems;
 import com.dawnduskterminal.registry.ModMenus;
 import com.dawnduskterminal.registry.ModParticles;
+import com.dawnduskterminal.registry.ModPortalPois;
 import com.dawnduskterminal.registry.ModPotions;
 import com.dawnduskterminal.registry.ModProcessors;
 import com.dawnduskterminal.registry.ModRecipeSerializers;
@@ -63,6 +65,7 @@ public final class DawnDuskTerminal {
         ModFluids.register(modBus);
         ModScorchingTwilight.register(modBus);
         ModBlocks.register(modBus);
+        ModPortalPois.register(modBus);
         ModBlockEntities.register(modBus);
         ModMenus.register(modBus);
         ModTerrainBlocks.register(modBus);
@@ -113,6 +116,7 @@ public final class DawnDuskTerminal {
         NeoForge.EVENT_BUS.addListener(HuiArmor::onDamage);
         NeoForge.EVENT_BUS.addListener(DdtServerEvents::onLivingDeath);
         NeoForge.EVENT_BUS.addListener(DdtServerEvents::onRightClickItem);
+        NeoForge.EVENT_BUS.addListener(NetherGateBlock::ignite);
         // 试验物品 065 的场：范围里打出的伤害一律无效，判定与场心登记都在 Experiment065Field
         NeoForge.EVENT_BUS.addListener(Experiment065Field::onLivingIncomingDamage);
         // 火箭机弩的火箭：星数、力量、火矢、无敌帧在伤害落地前补，冲击削的那一次击退在落地后削

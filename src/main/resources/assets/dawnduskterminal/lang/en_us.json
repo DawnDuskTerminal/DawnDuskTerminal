@@ -1,4 +1,8 @@
 {
+  "message.dawnduskterminal.portal.no_safe_exit": "No safe portal exit was found nearby.",
+  "message.dawnduskterminal.portal.dimension_unavailable": "The destination dimension is unavailable.",
+  "block.dawnduskterminal.twilight_portal": "Twilight Pool Portal",
+  "block.dawnduskterminal.nether_gate": "Dawn–Dusk Nether Gate",
   "death.attack.hui_death": "%1$s turned into a meat patty",
   "death.attack.hui_death.player": "%1$s turned into a meat patty",
   "block.dawnduskterminal.portal_fluid": "Portal Fluid",
@@ -12,6 +16,8 @@
   "block.dawnduskterminal.eclogite": "Eclogite",
   "block.dawnduskterminal.charnockite": "Charnockite",
   "block.dawnduskterminal.charnockite_lichen": "Charnockite Lichen",
+  "block.dawnduskterminal.lichen_sheet": "Lichen Sheet",
+  "block.dawnduskterminal.mimic": "Mimic",
   "block.dawnduskterminal.twilight_stone": "Twilight Stone",
   "block.dawnduskterminal.canopy_stone_copper_ore": "Canopy Stone Copper Ore",
   "block.dawnduskterminal.canopy_stone_iron_ore": "Canopy Stone Iron Ore",

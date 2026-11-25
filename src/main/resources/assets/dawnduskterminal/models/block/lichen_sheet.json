@@ -1,0 +1,20 @@
+{
+  "parent": "minecraft:block/block",
+  "ambientocclusion": false,
+  "render_type": "cutout_mipped",
+  "textures": {
+    "particle": "dawnduskterminal:block/lichen_sheet",
+    "lichen": "dawnduskterminal:block/lichen_sheet"
+  },
+  "elements": [
+    {
+      "from": [0, 0, 0.1],
+      "to": [16, 16, 0.1],
+      "neoforge_data": { "block_light": 8 },
+      "faces": {
+        "north": { "uv": [16, 0, 0, 16], "texture": "#lichen", "tintindex": 0 },
+        "south": { "uv": [0, 0, 16, 16], "texture": "#lichen", "tintindex": 0 }
+      }
+    }
+  ]
+}

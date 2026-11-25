@@ -4,10 +4,14 @@ import com.dawnduskterminal.registry.ModProcessors;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
+import java.util.ArrayList;
+import java.util.List;
 import javax.annotation.Nullable;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.StringRepresentable;
 import net.minecraft.world.level.LevelReader;
+import net.minecraft.world.level.ServerLevelAccessor;
+import net.minecraft.world.level.block.BaseRailBlock;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.TrapDoorBlock;
 import net.minecraft.world.level.block.state.BlockState;
@@ -147,6 +151,7 @@ public final class BandProcessor extends StructureProcessor {
                 && raw.nbt() == null
                 && current.nbt() == null
                 && !isClimbable(raw.state())
+                && !(raw.state().getBlock() instanceof BaseRailBlock)
                 && !(raw.state().getBlock() instanceof TrapDoorBlock)) {
             int roll = positionHash(current.pos(), this.webSeed);
             if (Math.floorMod(roll, 1000) < this.decayPermille) {
@@ -158,6 +163,28 @@ public final class BandProcessor extends StructureProcessor {
             }
         }
         return current;
+    }
+
+    @Override
+    public List<StructureTemplate.StructureBlockInfo> finalizeProcessing(
+            ServerLevelAccessor level,
+            BlockPos pos,
+            BlockPos pivot,
+            List<StructureTemplate.StructureBlockInfo> original,
+            List<StructureTemplate.StructureBlockInfo> processed,
+            StructurePlaceSettings settings) {
+        if (processed.stream().noneMatch(info -> info.state().getBlock() instanceof BaseRailBlock)) {
+            return processed;
+        }
+
+        // 模板原先把漏斗等方块实体排在普通方块之后。铁轨要等支撑放好后再触发支撑检查。
+        List<StructureTemplate.StructureBlockInfo> ordered = new ArrayList<>(processed.size());
+        List<StructureTemplate.StructureBlockInfo> rails = new ArrayList<>();
+        for (StructureTemplate.StructureBlockInfo info : processed) {
+            (info.state().getBlock() instanceof BaseRailBlock ? rails : ordered).add(info);
+        }
+        ordered.addAll(rails);
+        return ordered;
     }
 
     /** 绳梯列：Twilight Forest 的绳与原版的梯子都算 */

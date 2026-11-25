@@ -30,6 +30,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Holder;
 import net.minecraft.core.HolderGetter;
 import net.minecraft.core.SectionPos;
 import net.minecraft.core.Vec3i;
@@ -54,6 +55,7 @@ import net.minecraft.server.packs.repository.PackSource;
 import net.minecraft.server.packs.resources.MultiPackResourceManager;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.util.datafix.DataFixers;
+import net.minecraft.world.Container;
 import net.minecraft.world.RandomizableContainer;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.vehicle.MinecartChest;
@@ -63,6 +65,7 @@ import net.minecraft.world.level.WorldGenLevel;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.chunk.ChunkGenerator;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.levelgen.structure.PoolElementStructurePiece;
@@ -76,6 +79,7 @@ import net.minecraft.world.level.levelgen.structure.pools.StructureTemplatePool;
 import net.minecraft.world.level.levelgen.structure.templatesystem.LiquidSettings;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureProcessor;
+import net.minecraft.world.level.levelgen.structure.templatesystem.StructureProcessorList;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureProcessorType;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager;
@@ -1056,13 +1060,34 @@ public final class StructureTemplateTests {
         helper.succeed();
     }
 
-    /** 带机关的那间房里自带两辆宝箱矿车：哪次重新导出漏掉实体，这条会先报出来 */
+    /** 机关房导出时保留矿车与红石块旁的动力铁轨状态。 */
     @GameTest(template = "ddt_empty")
-    public static void furnRoomKeepsItsMinecarts(GameTestHelper helper) {
+    public static void furnRoomKeepsItsMinecartsAndPoweredRails(GameTestHelper helper) {
         String path = "/data/dawnduskterminal/structure/towerwood_rooms/room/rect/furn_06.nbt";
         try (InputStream in = StructureTemplateTests.class.getResourceAsStream(path)) {
             helper.assertTrue(in != null, "找不到机关房件 " + path);
             CompoundTag root = NbtIo.readCompressed(in, NbtAccounter.unlimitedHeap());
+            ListTag palette = root.getList("palette", Tag.TAG_COMPOUND);
+            ListTag blocks = root.getList("blocks", Tag.TAG_COMPOUND);
+            Set<BlockPos> poweredRails = new HashSet<>();
+            for (int i = 0; i < blocks.size(); i++) {
+                CompoundTag block = blocks.getCompound(i);
+                CompoundTag state = palette.getCompound(block.getInt("state"));
+                if (state.getString("Name").equals("minecraft:powered_rail")
+                        && state.getCompound("Properties").getString("powered").equals("true")) {
+                    ListTag pos = block.getList("pos", Tag.TAG_INT);
+                    poweredRails.add(new BlockPos(pos.getInt(0), pos.getInt(1), pos.getInt(2)));
+                }
+            }
+            helper.assertTrue(
+                    poweredRails.equals(Set.of(
+                            new BlockPos(3, 2, 3),
+                            new BlockPos(3, 2, 4),
+                            new BlockPos(3, 2, 5),
+                            new BlockPos(2, 3, 3),
+                            new BlockPos(2, 3, 4),
+                            new BlockPos(2, 3, 5))),
+                    "红石块旁的六段动力铁轨应以激活状态保存，实际是 " + poweredRails);
             ListTag entities = root.getList("entities", Tag.TAG_COMPOUND);
             helper.assertTrue(entities.size() == 2, "熔炉房应当带两辆矿车，实际 " + entities.size() + " 个实体");
             for (int i = 0; i < entities.size(); i++) {
@@ -1143,8 +1168,12 @@ public final class StructureTemplateTests {
         ChunkPos chunkPos = new ChunkPos(anchor);
         BoundingBox area = writableArea(level, chunkPos);
         BlockPos min = new BlockPos(area.minX() + 1, anchor.getY(), area.minZ() + 1);
-        PoolElementStructurePiece room =
-                piece(templates, DawnDuskTerminal.id("towerwood_rooms/room/rect/furn_06"), min);
+        BandProcessor processor = new BandProcessor(Integer.MIN_VALUE, Integer.MAX_VALUE, BandProcessor.Phase.SOLID);
+        StructurePoolElement element = StructurePoolElement.single(
+                        DawnDuskTerminal.id("towerwood_rooms/room/rect/furn_06").toString(),
+                        Holder.direct(new StructureProcessorList(List.of(processor))))
+                .apply(StructureTemplatePool.Projection.RIGID);
+        PoolElementStructurePiece room = piece(templates, element, min);
         room.postProcess(level, level.structureManager(), generator, level.random, area, chunkPos, min);
 
         BoundingBox box = room.getBoundingBox();
@@ -1157,13 +1186,12 @@ public final class StructureTemplateTests {
         }
         helper.assertTrue(chest, "机关房的箱子应当带着 loot 表（否则开出来是空的）");
 
-        // 件里两辆宝箱矿车、两段动力铁轨（局部 (3,2,1) 与 (2,3,1)）。
-        // 摆一遍就该只有两辆；多出来说明同一条实体被 spawn 了两次
+        // 两辆宝箱矿车分别从两排轨道的端点出发。模板应当仅生成一次矿车。
         AABB reach = new AABB(
                 min.getX() - 2, min.getY() - 2, min.getZ() - 2, min.getX() + 7, min.getY() + 8, min.getZ() + 9);
         helper.assertTrue(level.getEntitiesOfClass(MinecartChest.class, reach).size() == 2, "件里两辆宝箱矿车，世界里应当也是两辆");
 
-        helper.runAfterDelay(5, () -> {
+        helper.runAfterDelay(20, () -> {
             List<ItemEntity> popped = level.getEntitiesOfClass(
                     ItemEntity.class,
                     new AABB(
@@ -1179,12 +1207,26 @@ public final class StructureTemplateTests {
                             + popped.stream()
                                     .map(entity -> entity.getItem().toString())
                                     .toList());
-            // 两段铁轨还在原位、还是动力铁轨。形状不看：这两段一格高、一格西（(3,2,1) 与 (2,3,1)），
-            // 原版铁轨 onPlace 会自己算成 ascending_west 的坡（与 setBlock 的 update flags 无关），
-            // 件里写的 north_south 保不住。要两段各自平放得挪件，见 docs/worldgen.md
+            // 原版会重新计算轨道连接。这里只检查矿车起点的方块类型。
             for (BlockPos rail : List.of(min.offset(3, 2, 1), min.offset(2, 3, 1))) {
                 BlockState state = level.getBlockState(rail);
                 helper.assertTrue(state.is(Blocks.POWERED_RAIL), rail + " 应当是动力铁轨，实际 " + state);
+            }
+            for (int z = 2; z <= 5; z++) {
+                var expected = z == 2 ? Blocks.RAIL : Blocks.POWERED_RAIL;
+                for (BlockPos rail : List.of(min.offset(3, 2, z), min.offset(2, 3, z))) {
+                    helper.assertTrue(level.getBlockState(rail.below()).is(Blocks.HOPPER), "轨道下方应当是漏斗 " + rail);
+                    BlockState railState = level.getBlockState(rail);
+                    helper.assertTrue(railState.is(expected), "漏斗上应当保留模板中的铁轨 " + rail);
+                    if (expected == Blocks.POWERED_RAIL) {
+                        helper.assertTrue(railState.getValue(BlockStateProperties.POWERED), "动力铁轨应已激活 " + rail);
+                    }
+                }
+                for (BlockPos receptacle : List.of(min.offset(3, 1, z), min.offset(2, 2, z), min.offset(2, 1, z))) {
+                    helper.assertTrue(
+                            level.getBlockEntity(receptacle) instanceof Container container && container.isEmpty(),
+                            "漏斗和熔炉中不应残留模板误存或生成时掉落的物品 " + receptacle);
+                }
             }
             helper.assertTrue(
                     level.getEntitiesOfClass(MinecartChest.class, reach).size() == 2, "跑了几 tick 之后宝箱矿车应当还是两辆");
@@ -1201,8 +1243,7 @@ public final class StructureTemplateTests {
      *   <li>件里的宝箱写的 {@code LootTable} 必须在注册表里；
      *   <li>模组自己那几张宝箱表必须逐条写着物品，不许出现 {@code minecraft:loot_table} 嵌套引用：
      *       开箱掉什么要能在 {@code data/dawnduskterminal/loot_table/chests/} 的那一个文件里逐行读到；
-     *   <li>表里写的每个 item 都要在物品注册表里——20 个试验物品是逐个手写的，写错一个号不会报错，
-     *       只会少一样东西。
+     *   <li>各张表中的所有物品 ID 均须存在于物品注册表中。
      * </ul>
      */
     @GameTest(template = "ddt_empty")
@@ -2000,6 +2041,11 @@ public final class StructureTemplateTests {
             StructureTemplateManager templates, ResourceLocation id, BlockPos min) {
         StructurePoolElement element =
                 StructurePoolElement.single(id.toString()).apply(StructureTemplatePool.Projection.RIGID);
+        return piece(templates, element, min);
+    }
+
+    private static PoolElementStructurePiece piece(
+            StructureTemplateManager templates, StructurePoolElement element, BlockPos min) {
         BoundingBox zero = element.getBoundingBox(templates, BlockPos.ZERO, Rotation.NONE);
         BlockPos pos = min.offset(-zero.minX(), -zero.minY(), -zero.minZ());
         BoundingBox box = zero.moved(pos.getX(), pos.getY(), pos.getZ());

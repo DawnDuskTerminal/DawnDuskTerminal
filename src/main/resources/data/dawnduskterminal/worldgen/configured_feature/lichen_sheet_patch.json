@@ -1,0 +1,12 @@
+{
+  "type": "minecraft:random_patch",
+  "config": {
+    "tries": 12,
+    "xz_spread": 4,
+    "y_spread": 2,
+    "feature": {
+      "feature": "dawnduskterminal:lichen_sheet",
+      "placement": []
+    }
+  }
+}

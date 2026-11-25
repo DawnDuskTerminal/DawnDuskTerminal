@@ -19,7 +19,9 @@ import com.dawnduskterminal.block.PortalWaterfallBlock;
 import com.dawnduskterminal.block.SusCakeBlock;
 import com.dawnduskterminal.block.TowerdevBuilderType2Block;
 import com.dawnduskterminal.block.TowerdevBuiltType2Block;
+import com.dawnduskterminal.portal.NetherGateBlock;
 import com.dawnduskterminal.portal.PortalBlock;
+import com.dawnduskterminal.portal.TwilightPoolPortalBlock;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -56,6 +58,21 @@ public final class ModBlocks {
                     .noLootTable()
                     .liquid()
                     .sound(SoundType.EMPTY));
+
+    public static final DeferredBlock<TwilightPoolPortalBlock> TWILIGHT_PORTAL = BLOCKS.registerBlock(
+            "twilight_portal", TwilightPoolPortalBlock::new, gateProperties().randomTicks());
+    public static final DeferredBlock<NetherGateBlock> NETHER_PORTAL =
+            BLOCKS.registerBlock("nether_gate", NetherGateBlock::new, gateProperties());
+
+    private static BlockBehaviour.Properties gateProperties() {
+        return BlockBehaviour.Properties.of()
+                .noCollission()
+                .noOcclusion()
+                .strength(-1)
+                .noLootTable()
+                .lightLevel(state -> 12)
+                .pushReaction(PushReaction.DESTROY);
+    }
 
     public static final DeferredBlock<PortalWaterfallBlock> PORTAL_WATERFALL = BLOCKS.registerBlock(
             "portal_waterfall",

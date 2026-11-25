@@ -7,6 +7,7 @@ import com.dawnduskterminal.client.model.CountertopModel;
 import com.dawnduskterminal.client.model.ExperimentArmorModel;
 import com.dawnduskterminal.client.model.HueBandModel;
 import com.dawnduskterminal.client.model.LoopTileModel;
+import com.dawnduskterminal.client.model.MimicModel;
 import com.dawnduskterminal.client.model.MountedTowerWoodModel;
 import com.dawnduskterminal.client.model.ScarletMolybdenumArmorModel;
 import com.dawnduskterminal.client.model.WroughtIronGlassModel;
@@ -246,6 +247,11 @@ public final class DdtClient {
         wrapLoopTile(event, "experiment_059", Experiment059Block::tileAt);
         wrapTowerdevBuilt(event);
         wrapHueBands(event);
+        event.getModels()
+                .replaceAll((location, model) -> location.id().equals(ModTerrainBlocks.MIMIC.getId())
+                                && !location.variant().equals(ModelResourceLocation.INVENTORY_VARIANT)
+                        ? new MimicModel(model)
+                        : model);
     }
 
     /**
@@ -377,7 +383,8 @@ public final class DdtClient {
     private static void registerBlockColors(RegisterColorHandlersEvent.Block event) {
         event.register(
                 (state, level, pos, tintIndex) -> tintIndex == 0 ? CharnockiteLichenColors.current() : -1,
-                ModTerrainBlocks.CHARNOCKITE_LICHEN.get());
+                ModTerrainBlocks.CHARNOCKITE_LICHEN.get(),
+                ModTerrainBlocks.LICHEN_SHEET.get());
         event.register(
                 (state, level, pos, tintIndex) -> {
                     if (tintIndex != 0) {
@@ -409,7 +416,8 @@ public final class DdtClient {
     private static void registerItemColors(RegisterColorHandlersEvent.Item event) {
         event.register(
                 (stack, tintIndex) -> tintIndex == 0 ? CharnockiteLichenColors.current() : -1,
-                ModTerrainBlocks.CHARNOCKITE_LICHEN_ITEM.get());
+                ModTerrainBlocks.CHARNOCKITE_LICHEN_ITEM.get(),
+                ModTerrainBlocks.LICHEN_SHEET_ITEM.get());
         // 原版 ItemColors 会以 level 为空把方块物品的颜色转回方块取色器（ItemColors.createDefault），
         // 缺了这条注册，模组草方块在背包和手里就是灰的。物品渲染的 level 恒为空，所以这里落到默认草色
         event.register(

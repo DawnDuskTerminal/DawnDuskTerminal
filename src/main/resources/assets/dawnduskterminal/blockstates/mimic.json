@@ -1,0 +1,10 @@
+{
+  "multipart": [
+    { "when": { "north": "true" }, "apply": { "model": "dawnduskterminal:block/mimic" } },
+    { "when": { "east": "true" }, "apply": { "model": "dawnduskterminal:block/mimic", "y": 90, "uvlock": true } },
+    { "when": { "south": "true" }, "apply": { "model": "dawnduskterminal:block/mimic", "y": 180, "uvlock": true } },
+    { "when": { "west": "true" }, "apply": { "model": "dawnduskterminal:block/mimic", "y": 270, "uvlock": true } },
+    { "when": { "up": "true" }, "apply": { "model": "dawnduskterminal:block/mimic", "x": 270, "uvlock": true } },
+    { "when": { "down": "true" }, "apply": { "model": "dawnduskterminal:block/mimic", "x": 90, "uvlock": true } }
+  ]
+}

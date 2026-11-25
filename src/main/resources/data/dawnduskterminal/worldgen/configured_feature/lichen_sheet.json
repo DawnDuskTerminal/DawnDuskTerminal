@@ -1,7 +1,7 @@
 {
   "type": "minecraft:multiface_growth",
   "config": {
-    "block": "minecraft:sculk_vein",
+    "block": "dawnduskterminal:lichen_sheet",
     "can_be_placed_on": [
       "dawnduskterminal:canopy_stone",
       "dawnduskterminal:eclogite",

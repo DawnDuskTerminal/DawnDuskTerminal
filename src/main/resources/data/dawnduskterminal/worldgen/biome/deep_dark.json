@@ -15,12 +15,6 @@
       "sound": "minecraft:ambient.cave",
       "tick_delay": 6000
     },
-    "music": {
-      "max_delay": 24000,
-      "min_delay": 12000,
-      "replace_current_music": false,
-      "sound": "minecraft:music.overworld.deep_dark"
-    },
     "sky_color": 7907327,
     "water_color": 4159204,
     "water_fog_color": 329011
@@ -63,11 +57,13 @@
       "dawnduskterminal:disk_gravel"
     ],
     [
-      "dawnduskterminal:sculk_vein",
-      "dawnduskterminal:sculk_patch_deep_dark"
+      "dawnduskterminal:lichen_sheet",
+      "dawnduskterminal:charnockite_lichen_patch",
+      "dawnduskterminal:lichen_sheet_patch"
     ],
     [],
     [
+      "dawnduskterminal:mimic",
       "dawnduskterminal:patch_tall_grass_2",
       "dawnduskterminal:trees_plains",
       "dawnduskterminal:flower_plains",

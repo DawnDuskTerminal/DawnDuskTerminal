@@ -1,16 +1,16 @@
 package com.dawnduskterminal.portal;
 
-import com.dawnduskterminal.registry.ModBlocks;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 
 public final class PortalTrigger {
     private PortalTrigger() {}
 
     public static boolean isPortalBlock(BlockState state) {
-        return state.is(ModBlocks.PORTAL_FLUID.get());
+        return PortalRoute.from(state) != null;
     }
 
     public static boolean isChrono(Entity entity) {
@@ -19,14 +19,16 @@ public final class PortalTrigger {
 
     public static boolean isActivePortal(Entity entity, BlockPos pos) {
         BlockState state = entity.level().getBlockState(pos);
-        if (isChrono(entity)) {
-            return isPortalBlock(state);
-        }
-        return state.is(ModBlocks.PORTAL_FLUID.get());
+        PortalRoute route = PortalRoute.from(state);
+        return route != null && route.destination(entity.level().dimension()) != null;
     }
 
     public static boolean isInsidePortal(Entity entity, BlockPos pos) {
-        return isActivePortal(entity, pos) && PortalShape.isCompletePortalPart(entity.level(), pos);
+        Level level = entity.level();
+        return isActivePortal(entity, pos)
+                && (level.getBlockState(pos).is(PortalRoute.TWILIGHT.block())
+                        ? TwilightPoolPortalBlock.isFramed(level, pos)
+                        : PortalShape.isCompletePortalPart(level, pos));
     }
 
     public static boolean shouldTeleport(Entity entity, BlockPos pos) {

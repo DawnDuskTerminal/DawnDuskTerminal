@@ -3,10 +3,11 @@ package com.dawnduskterminal.portal;
 import com.dawnduskterminal.entity.CanopyBoatEntity;
 import com.dawnduskterminal.registry.ModDamageTypes;
 import com.dawnduskterminal.registry.ModEffects;
-import com.dawnduskterminal.registry.ModItems;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LightningBolt;
@@ -31,6 +32,20 @@ public class PortalBlock extends LiquidBlock {
     }
 
     @Override
+    public void animateTick(BlockState state, Level level, BlockPos pos, RandomSource random) {
+        if (!PortalShape.isCompletePortalPart(level, pos)) return;
+        for (Direction direction : Direction.Plane.HORIZONTAL) {
+            BlockPos edge = pos.relative(direction);
+            if (PortalShape.isPlantable(level.getBlockState(edge))) {
+                if (TwilightPoolPortalBlock.isFramed(level, pos, this)) {
+                    TwilightPoolPortalBlock.animatePool(level, pos, random);
+                }
+                return;
+            }
+        }
+    }
+
+    @Override
     protected void randomTick(
             BlockState state,
             net.minecraft.server.level.ServerLevel level,
@@ -44,6 +59,10 @@ public class PortalBlock extends LiquidBlock {
     @Override
     public void entityInside(BlockState state, Level level, BlockPos pos, Entity entity) {
         super.entityInside(state, level, pos, entity);
+        touch(state, level, pos, entity);
+    }
+
+    static void touch(BlockState state, Level level, BlockPos pos, Entity entity) {
         if (level.isClientSide) {
             return;
         }
@@ -67,7 +86,7 @@ public class PortalBlock extends LiquidBlock {
                 if (!PortalTrigger.shouldTeleport(living, pos)) {
                     return;
                 }
-                PortalTeleporter.teleportEntity(living);
+                PortalTeleporter.teleportEntity(living, PortalRoute.from(state));
                 living.setPortalCooldown(REENTRY_GUARD_TICKS);
             } else if (living.tickCount % 40 == 0
                     && living.hurt(living.damageSources().source(ModDamageTypes.STABILITY), 2.0F)) {
@@ -93,12 +112,13 @@ public class PortalBlock extends LiquidBlock {
             return;
         }
         ItemStack stack = item.getItem();
-        if (!isCatalyst(stack)) {
+        PortalRoute route = PortalRoute.poolRoute(level.dimension(), stack);
+        if (route == null) {
             return;
         }
         Entity owner = item.getOwner();
         Player player = owner instanceof Player p ? p : null;
-        if (!PortalBuilder.build(serverLevel, pos)) {
+        if (!PortalBuilder.build(serverLevel, pos, route)) {
             return;
         }
         stack.shrink(1);
@@ -143,9 +163,5 @@ public class PortalBlock extends LiquidBlock {
         if (holder != null) {
             player.getAdvancements().award(holder, "built");
         }
-    }
-
-    public static boolean isCatalyst(ItemStack stack) {
-        return stack.is(ModItems.ENCASED_DUST.get());
     }
 }

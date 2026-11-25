@@ -4,6 +4,9 @@
   "package": "com.dawnduskterminal.mixin",
   "compatibilityLevel": "JAVA_21",
   "mixins": [
+    "PortalFrameAccess",
+    "PortalFrameMaterialMixin",
+    "TwilightPortalCatalystMixin",
     "HuiFoodMixin",
     "HuiPlayerMixin",
     "HuiMenuMixin",
@@ -11,6 +14,7 @@
     "HuiLivingMixin",
     "HuiCakeMixin",
     "HuiSliceMixin",
+    "MimicMiningMixin",
     "FluidStatusAccessor",
     "DensityNoiseAccessor",
     "LavaBandPaletteMixin",

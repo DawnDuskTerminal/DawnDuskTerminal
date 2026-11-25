@@ -2,7 +2,7 @@
   "parent": "dawnduskterminal:enter_chrono",
   "display": {
     "icon": {
-      "id": "minecraft:sculk"
+      "id": "dawnduskterminal:charnockite_lichen"
     },
     "title": {
       "translate": "advancements.dawnduskterminal.polar_dusk.title"

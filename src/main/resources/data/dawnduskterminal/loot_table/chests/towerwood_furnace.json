@@ -2,172 +2,187 @@
   "type": "minecraft:chest",
   "pools": [
     {
-      "rolls": 3.0,
+      "rolls": 4,
       "entries": [
         {
           "type": "minecraft:item",
-          "weight": 75,
-          "name": "minecraft:stone",
+          "name": "dawnduskterminal:canopy_stone",
+          "weight": 9,
           "functions": [
             {
               "function": "minecraft:set_count",
               "count": {
                 "type": "minecraft:uniform",
-                "min": 4.0,
-                "max": 12.0
+                "min": 1,
+                "max": 100
               }
             }
           ]
         },
         {
           "type": "minecraft:item",
-          "weight": 75,
-          "name": "minecraft:cobblestone",
+          "name": "dawnduskterminal:charnockite",
+          "weight": 9,
           "functions": [
             {
               "function": "minecraft:set_count",
               "count": {
                 "type": "minecraft:uniform",
-                "min": 4.0,
-                "max": 12.0
+                "min": 1,
+                "max": 100
               }
             }
           ]
         },
         {
           "type": "minecraft:item",
-          "weight": 50,
-          "name": "minecraft:tuff",
-          "functions": [
-            {
-              "function": "minecraft:set_count",
-              "count": {
-                "type": "minecraft:uniform",
-                "min": 2.0,
-                "max": 8.0
-              }
-            }
-          ]
-        },
-        {
-          "type": "minecraft:item",
-          "weight": 50,
-          "name": "minecraft:andesite",
-          "functions": [
-            {
-              "function": "minecraft:set_count",
-              "count": {
-                "type": "minecraft:uniform",
-                "min": 2.0,
-                "max": 8.0
-              }
-            }
-          ]
-        },
-        {
-          "type": "minecraft:item",
-          "weight": 25,
-          "name": "minecraft:deepslate",
-          "functions": [
-            {
-              "function": "minecraft:set_count",
-              "count": {
-                "type": "minecraft:uniform",
-                "min": 2.0,
-                "max": 6.0
-              }
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "rolls": 2.0,
-      "entries": [
-        {
-          "type": "minecraft:item",
-          "weight": 75,
           "name": "minecraft:charcoal",
+          "weight": 3,
           "functions": [
             {
               "function": "minecraft:set_count",
               "count": {
                 "type": "minecraft:uniform",
-                "min": 4.0,
-                "max": 10.0
+                "min": 1,
+                "max": 16
               }
             }
           ]
         },
         {
           "type": "minecraft:item",
-          "weight": 75,
           "name": "minecraft:coal",
+          "weight": 3,
           "functions": [
             {
               "function": "minecraft:set_count",
               "count": {
                 "type": "minecraft:uniform",
-                "min": 4.0,
-                "max": 10.0
+                "min": 1,
+                "max": 16
               }
             }
           ]
-        }
-      ]
-    },
-    {
-      "rolls": 2.0,
-      "entries": [
-        {
-          "type": "minecraft:item",
-          "weight": 75,
-          "name": "minecraft:beef"
         },
         {
           "type": "minecraft:item",
-          "weight": 75,
-          "name": "minecraft:porkchop"
+          "name": "minecraft:raw_copper",
+          "weight": 3,
+          "functions": [
+            {
+              "function": "minecraft:set_count",
+              "count": {
+                "type": "minecraft:uniform",
+                "min": 1,
+                "max": 16
+              }
+            }
+          ]
         },
         {
           "type": "minecraft:item",
-          "weight": 75,
-          "name": "minecraft:chicken"
+          "name": "minecraft:raw_iron",
+          "weight": 3,
+          "functions": [
+            {
+              "function": "minecraft:set_count",
+              "count": {
+                "type": "minecraft:uniform",
+                "min": 1,
+                "max": 16
+              }
+            }
+          ]
         },
         {
           "type": "minecraft:item",
-          "weight": 75,
-          "name": "twilightforest:raw_venison"
+          "name": "minecraft:raw_gold",
+          "weight": 3,
+          "functions": [
+            {
+              "function": "minecraft:set_count",
+              "count": {
+                "type": "minecraft:uniform",
+                "min": 1,
+                "max": 8
+              }
+            }
+          ]
         },
         {
           "type": "minecraft:item",
-          "weight": 75,
-          "name": "twilightforest:raw_meef"
+          "name": "minecraft:copper_ingot",
+          "weight": 3,
+          "functions": [
+            {
+              "function": "minecraft:set_count",
+              "count": {
+                "type": "minecraft:uniform",
+                "min": 1,
+                "max": 16
+              }
+            }
+          ]
         },
         {
           "type": "minecraft:item",
-          "weight": 75,
-          "name": "minecraft:cooked_beef"
+          "name": "minecraft:iron_ingot",
+          "weight": 3,
+          "functions": [
+            {
+              "function": "minecraft:set_count",
+              "count": {
+                "type": "minecraft:uniform",
+                "min": 1,
+                "max": 16
+              }
+            }
+          ]
         },
         {
           "type": "minecraft:item",
-          "weight": 75,
-          "name": "minecraft:cooked_porkchop"
+          "name": "minecraft:gold_ingot",
+          "weight": 3,
+          "functions": [
+            {
+              "function": "minecraft:set_count",
+              "count": {
+                "type": "minecraft:uniform",
+                "min": 1,
+                "max": 8
+              }
+            }
+          ]
         },
         {
           "type": "minecraft:item",
-          "weight": 75,
-          "name": "minecraft:cooked_chicken"
+          "name": "minecraft:rotten_flesh",
+          "weight": 6,
+          "functions": [
+            {
+              "function": "minecraft:set_count",
+              "count": {
+                "type": "minecraft:uniform",
+                "min": 1,
+                "max": 6
+              }
+            }
+          ]
         },
         {
           "type": "minecraft:item",
-          "weight": 75,
-          "name": "twilightforest:cooked_venison"
-        },
-        {
-          "type": "minecraft:item",
-          "weight": 75,
-          "name": "twilightforest:cooked_meef"
+          "name": "twilightforest:monster_jerky",
+          "weight": 6,
+          "functions": [
+            {
+              "function": "minecraft:set_count",
+              "count": {
+                "type": "minecraft:uniform",
+                "min": 1,
+                "max": 6
+              }
+            }
+          ]
         }
       ]
     }

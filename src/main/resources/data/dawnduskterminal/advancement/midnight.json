@@ -2,7 +2,7 @@
   "parent": "dawnduskterminal:polar_dusk",
   "display": {
     "icon": {
-      "id": "minecraft:sculk_sensor"
+      "id": "dawnduskterminal:lichen_sheet"
     },
     "title": {
       "translate": "advancements.dawnduskterminal.midnight.title"

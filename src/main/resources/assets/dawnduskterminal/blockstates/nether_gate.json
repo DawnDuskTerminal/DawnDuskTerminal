@@ -1,0 +1,11 @@
+{
+  "variants": {
+    "axis=x": {
+      "model": "dawnduskterminal:block/nether_gate"
+    },
+    "axis=z": {
+      "model": "dawnduskterminal:block/nether_gate",
+      "y": 90
+    }
+  }
+}

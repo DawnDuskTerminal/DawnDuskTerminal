@@ -1,13 +1,21 @@
 package com.dawnduskterminal.gametest;
 
+import com.dawnduskterminal.portal.NetherGateBlock;
+import com.dawnduskterminal.portal.PortalBlock;
 import com.dawnduskterminal.portal.PortalState;
 import com.dawnduskterminal.portal.PortalTeleporter;
 import com.dawnduskterminal.registry.ModAttachments;
 import com.dawnduskterminal.registry.ModBlocks;
 import com.dawnduskterminal.registry.ModDimensions;
+import com.dawnduskterminal.registry.ModItems;
+import com.dawnduskterminal.registry.ModTerrainBlocks;
 import com.dawnduskterminal.world.ChronoLineState;
+import com.google.gson.JsonParser;
 import com.mojang.authlib.GameProfile;
+import com.mojang.serialization.JsonOps;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.HashSet;
 import java.util.List;
@@ -16,15 +24,22 @@ import java.util.UUID;
 import java.util.function.BiConsumer;
 import net.minecraft.Util;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.resources.RegistryOps;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.progress.LoggerChunkProgressListener;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.RelativeMovement;
 import net.minecraft.world.entity.decoration.ArmorStand;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.LevelChunk;
@@ -33,10 +48,14 @@ import net.minecraft.world.level.levelgen.FlatLevelSource;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.storage.DerivedLevelData;
 import net.minecraft.world.level.storage.LevelStorageSource;
+import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.common.util.FakePlayer;
+import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
+import twilightforest.init.TFBlocks;
+import twilightforest.init.TFDimension;
 
 @GameTestHolder("dawnduskterminal")
 @PrefixGameTestTemplate(false)
@@ -227,6 +246,271 @@ public final class PortalTeleporterTests {
         helper.succeed();
     }
 
+    @GameTest(template = "ddt_empty", batch = "portal_teleporter")
+    public static void specialPortalsSelectAndReuseTheirOwnExits(GameTestHelper helper) {
+        withWorlds(helper, (overworld, chrono) -> {
+            var tfKey = TFDimension.DIMENSION_KEY;
+            var server = chrono.getServer();
+            var levels = server.forgeGetWorldMap();
+            try (var storage = LevelStorageSource.createDefault(Files.createTempDirectory("ddt-route-test"))
+                            .createAccess("routes");
+                    var twilight = new TrackingLevel(overworld, storage, tfKey);
+                    var nether = new TrackingLevel(overworld, storage, Level.NETHER)) {
+                var oldTf = levels.put(tfKey, twilight);
+                var oldNether = levels.put(Level.NETHER, nether);
+                server.markWorldsDirty();
+                try {
+                    var pool = new BlockPos(-64, 64, -64);
+                    for (var side : List.of(twilight, chrono)) {
+                        var catalyst = side == twilight ? ModItems.ENCASED_DUST.get() : Items.DIAMOND;
+                        for (int x = -1; x <= 2; x++) {
+                            for (int z = -1; z <= 2; z++) {
+                                var p = pool.offset(x, 0, z);
+                                side.setBlockAndUpdate(p.below(), Blocks.STONE.defaultBlockState());
+                                if (x >= 0 && x < 2 && z >= 0 && z < 2)
+                                    side.setBlockAndUpdate(p, Blocks.WATER.defaultBlockState());
+                                else {
+                                    side.setBlockAndUpdate(p, Blocks.GRASS_BLOCK.defaultBlockState());
+                                    side.setBlockAndUpdate(p.above(), Blocks.POPPY.defaultBlockState());
+                                }
+                            }
+                        }
+                        var item = new ItemEntity(side, pool.getX(), pool.getY(), pool.getZ(), new ItemStack(catalyst));
+                        if (side == chrono) {
+                            helper.assertFalse(
+                                    TFBlocks.TWILIGHT_PORTAL
+                                            .get()
+                                            .tryToCreatePortal(side, pool, item, new TestPlayer(side)),
+                                    "TF must leave the DDT diamond for the DDT gate");
+                        }
+                        PortalBlock.tryIgnite(side, pool, item);
+                        helper.assertTrue(
+                                item.isRemoved() && side.getBlockState(pool).is(ModBlocks.TWILIGHT_PORTAL.get()),
+                                "The local catalyst must open the twilight pool");
+                    }
+                    var traveler = touchGate(helper, twilight, pool, chrono);
+                    helper.assertTrue(
+                            traveler.landing.distanceToSqr(Vec3.atCenterOf(pool)) < 16,
+                            "The existing DDT pool must be reused");
+                    touchGate(helper, chrono, pool, twilight);
+                    var natural = pool.offset(8, 0, 0);
+                    for (int x = 0; x < 2; x++)
+                        for (int z = 0; z < 2; z++)
+                            chrono.setBlockAndUpdate(
+                                    natural.offset(x, 0, z),
+                                    ModBlocks.PORTAL_FLUID.get().defaultBlockState());
+                    touchGate(helper, chrono, natural, overworld);
+
+                    var remotePool = pool.offset(64, 100, 0);
+                    for (int x = -6; x <= 6; x++) {
+                        for (int z = -6; z <= 6; z++) {
+                            var p = remotePool.offset(x, 0, z);
+                            twilight.setBlockAndUpdate(p.below(97), Blocks.DIRT.defaultBlockState());
+                            twilight.setBlockAndUpdate(p.below(96), Blocks.GRASS_BLOCK.defaultBlockState());
+                            twilight.setBlockAndUpdate(p.below(95), Blocks.SNOW.defaultBlockState());
+                        }
+                    }
+                    for (int x = -1; x <= 2; x++) {
+                        for (int z = -1; z <= 2; z++) {
+                            var p = remotePool.offset(x, 0, z);
+                            chrono.setBlockAndUpdate(p.below(), Blocks.STONE.defaultBlockState());
+                            chrono.setBlockAndUpdate(
+                                    p,
+                                    (x >= 0 && x < 2 && z >= 0 && z < 2
+                                                    ? ModBlocks.TWILIGHT_PORTAL.get()
+                                                    : Blocks.GRASS_BLOCK)
+                                            .defaultBlockState());
+                            boolean interior = x >= 0 && x < 2 && z >= 0 && z < 2;
+                            BlockPos buried = p.below(101);
+                            twilight.setBlockAndUpdate(buried.below(), Blocks.DIRT.defaultBlockState());
+                            twilight.setBlockAndUpdate(
+                                    buried,
+                                    (interior ? ModBlocks.TWILIGHT_PORTAL.get() : Blocks.GRASS_BLOCK)
+                                            .defaultBlockState());
+                            if (interior)
+                                twilight.setBlockAndUpdate(
+                                        p, ModBlocks.TWILIGHT_PORTAL.get().defaultBlockState());
+                        }
+                    }
+                    var grounded = touchGate(helper, chrono, remotePool, twilight);
+                    helper.assertTrue(
+                            grounded.landing.y == 69,
+                            "A high DDT gate must land at the Twilight surface, got " + grounded.landing);
+                    BlockPos feet = BlockPos.containing(grounded.landing);
+                    BlockPos exitPool = feet.north().below();
+                    BlockPos rim = feet.below();
+                    helper.assertTrue(
+                            twilight.getBlockState(exitPool).is(ModBlocks.TWILIGHT_PORTAL.get())
+                                    && twilight.getBlockState(rim).is(Blocks.GRASS_BLOCK)
+                                    && twilight.getBlockState(exitPool.below()).is(Blocks.DIRT),
+                            "A generated portal must have a bank and solid floor");
+                    helper.assertTrue(
+                            twilight.getBlockState(feet).is(Blocks.SNOW)
+                                    && twilight.getBlockState(rim)
+                                            .getValue(net.minecraft.world.level.block.SnowyDirtBlock.SNOWY),
+                            "Snow and snowy grass must be preserved beside the generated pool");
+                    twilight.setBlockAndUpdate(rim, Blocks.AIR.defaultBlockState());
+                    var blocked = new TestPlayer(twilight);
+                    blocked.setPos(Vec3.atCenterOf(exitPool));
+                    twilight.getBlockState(exitPool).entityInside(twilight, exitPool, blocked);
+                    helper.assertTrue(blocked.destination == null, "A broken bank must immediately disable travel");
+                    twilight.getBlockState(exitPool).tick(twilight, exitPool, twilight.getRandom());
+                    helper.assertTrue(
+                            twilight.getBlockState(exitPool).isAir(), "The invalid pool must disappear on update");
+
+                    var frame = new BlockPos(80, 64, 80);
+                    helper.assertTrue(
+                            igniteFrame(chrono, frame, Blocks.OBSIDIAN, ModTerrainBlocks.CHAOS_STONE.get()),
+                            "Flint and steel must ignite the frame in DDT");
+                    var vanilla = new BlockPos(10, 64, 10);
+                    helper.assertFalse(
+                            igniteFrame(nether, vanilla, Blocks.OBSIDIAN, Blocks.OBSIDIAN),
+                            "Nether ignition must remain available to vanilla");
+                    for (int x = 0; x < 2; x++)
+                        for (int y = 0; y < 3; y++)
+                            nether.setBlock(vanilla.offset(x, y, 0), Blocks.NETHER_PORTAL.defaultBlockState(), 2);
+                    var first = touchGate(helper, chrono, frame, nether);
+                    var exit = BlockPos.containing(first.landing).north();
+                    helper.assertTrue(
+                            nether.getBlockState(exit).is(ModBlocks.NETHER_PORTAL.get()),
+                            "The generated portal must have the DDT route");
+                    helper.assertTrue(
+                            Math.abs(exit.getX() - 10) <= 14 && Math.abs(exit.getZ() - 10) <= 14 && exit.getY() < 128,
+                            "The exit must use Nether scale below the roof");
+                    helper.assertTrue(
+                            nether.getBlockState(vanilla).is(Blocks.NETHER_PORTAL), "The vanilla portal must survive");
+                    var back = touchGate(helper, nether, exit, chrono);
+                    helper.assertTrue(
+                            back.landing.distanceToSqr(Vec3.atCenterOf(frame)) < 20,
+                            "The original DDT frame must be reused");
+                    var bottom = frame.below();
+                    chrono.setBlockAndUpdate(bottom, Blocks.OBSIDIAN.defaultBlockState());
+                    chrono.setBlockAndUpdate(
+                            bottom, ModTerrainBlocks.CHAOS_STONE.get().defaultBlockState());
+                    helper.assertTrue(
+                            chrono.getBlockState(frame).is(ModBlocks.NETHER_PORTAL.get()),
+                            "A chaos stone frame block must keep the portal active after a neighbor update");
+                    chrono.setBlockAndUpdate(bottom, Blocks.AIR.defaultBlockState());
+                    helper.assertTrue(
+                            chrono.getBlockState(frame).isAir(), "Breaking the frame must extinguish the portal");
+                } finally {
+                    if (oldTf == null) levels.remove(tfKey);
+                    else levels.put(tfKey, oldTf);
+                    if (oldNether == null) levels.remove(Level.NETHER);
+                    else levels.put(Level.NETHER, oldNether);
+                    server.markWorldsDirty();
+                }
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        });
+        helper.succeed();
+    }
+
+    @GameTest(template = "ddt_empty", batch = "portal_teleporter")
+    public static void chaosStoneFrameWorksInChrono(GameTestHelper helper) {
+        withWorlds(helper, (overworld, chrono) -> {
+            BlockPos origin = new BlockPos(48, 64, 48);
+            Block chaosStone = ModTerrainBlocks.CHAOS_STONE.get();
+            helper.assertTrue(
+                    igniteFrame(chrono, origin, chaosStone, chaosStone),
+                    "A frame made entirely of chaos stone must ignite");
+            helper.assertTrue(
+                    chrono.getBlockState(origin).is(ModBlocks.NETHER_PORTAL.get()),
+                    "Ignition must create the DDT nether gate");
+            igniteFrame(overworld, origin, chaosStone, chaosStone);
+            helper.assertTrue(
+                    net.minecraft.world.level.portal.PortalShape.findEmptyPortalShape(
+                                    overworld, origin, Direction.Axis.X)
+                            .isEmpty(),
+                    "Vanilla portal validation outside DDT must reject chaos stone");
+        });
+        helper.succeed();
+    }
+
+    private static boolean igniteFrame(ServerLevel level, BlockPos origin, Block primary, Block alternate) {
+        for (int x = -1; x <= 2; x++)
+            for (int y = -1; y <= 3; y++) {
+                if (x == -1 || x == 2 || y == -1 || y == 3)
+                    level.setBlockAndUpdate(
+                            origin.offset(x, y, 0), ((x + y) % 2 == 0 ? primary : alternate).defaultBlockState());
+            }
+        level.setBlockAndUpdate(origin.south().below(), Blocks.STONE.defaultBlockState());
+        var player = new TestPlayer(level);
+        player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.FLINT_AND_STEEL));
+        var hit = new BlockHitResult(Vec3.atCenterOf(origin.below()), Direction.UP, origin.below(), false);
+        var event = new PlayerInteractEvent.RightClickBlock(player, InteractionHand.MAIN_HAND, origin.below(), hit);
+        NetherGateBlock.ignite(event);
+        return event.isCanceled();
+    }
+
+    private static TestPlayer touchGate(
+            GameTestHelper helper, ServerLevel source, BlockPos gate, ServerLevel expected) {
+        var player = new TestPlayer(source);
+        player.setPos(Vec3.atCenterOf(gate));
+        source.getBlockState(gate).entityInside(source, gate, player);
+        helper.assertTrue(
+                player.destination == expected,
+                "Gate at " + gate + " must lead to " + expected.dimension() + ": " + player.message);
+        return player;
+    }
+
+    @GameTest(template = "ddt_empty", batch = "portal_teleporter")
+    @SuppressWarnings("deprecation")
+    public static void buildsExitInGeneratedTwilightTerrain(GameTestHelper helper) {
+        withWorlds(helper, (overworld, chrono) -> {
+            var server = chrono.getServer();
+            var levels = server.forgeGetWorldMap();
+            try (var input = TFDimension.class.getResourceAsStream(
+                            "/data/twilightforest/dimension/twilight_forest.json");
+                    var reader = new InputStreamReader(input, StandardCharsets.UTF_8);
+                    var storage = LevelStorageSource.createDefault(Files.createTempDirectory("ddt-generated-twilight"))
+                            .createAccess("routes")) {
+                var stem = LevelStem.CODEC
+                        .parse(
+                                RegistryOps.create(JsonOps.INSTANCE, server.registryAccess()),
+                                JsonParser.parseReader(reader))
+                        .getOrThrow();
+                try (var twilight = new TrackingLevel(overworld, storage, TFDimension.DIMENSION_KEY, stem)) {
+                    var previous = levels.put(TFDimension.DIMENSION_KEY, twilight);
+                    server.markWorldsDirty();
+                    try {
+                        BlockPos pool = new BlockPos(16, 200, 16);
+                        BlockState portal = ModBlocks.TWILIGHT_PORTAL.get().defaultBlockState();
+                        helper.assertTrue(
+                                portal.skipRendering(portal, Direction.EAST), "Adjacent pool faces must be culled");
+                        for (int x = -1; x <= 2; x++) {
+                            for (int z = -1; z <= 2; z++) {
+                                BlockPos pos = pool.offset(x, 0, z);
+                                chrono.setBlockAndUpdate(pos.below(), Blocks.DIRT.defaultBlockState());
+                                chrono.setBlockAndUpdate(
+                                        pos,
+                                        x >= 0 && x < 2 && z >= 0 && z < 2
+                                                ? portal
+                                                : Blocks.GRASS_BLOCK.defaultBlockState());
+                            }
+                        }
+                        var traveler = touchGate(helper, chrono, pool, twilight);
+                        BlockPos feet = BlockPos.containing(traveler.landing);
+                        helper.assertTrue(
+                                feet.getY() < pool.getY()
+                                        && twilight.getBlockState(feet.north().below())
+                                                .is(portal.getBlock()),
+                                "The generated forest must have a ground-level DDT return pool");
+                        touchGate(helper, twilight, feet.north().below(), chrono);
+                    } finally {
+                        if (previous == null) levels.remove(TFDimension.DIMENSION_KEY);
+                        else levels.put(TFDimension.DIMENSION_KEY, previous);
+                        server.markWorldsDirty();
+                    }
+                }
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        });
+        helper.succeed();
+    }
+
     private static TestPlayer returningPlayer(ServerLevel level) {
         TestPlayer player = new TestPlayer(level);
         player.setPos(CURRENT.getX() + 0.25D, CURRENT.getY(), CURRENT.getZ() + 0.75D);
@@ -289,11 +573,17 @@ public final class PortalTeleporterTests {
 
     private static final class TestPlayer extends FakePlayer {
         private ServerLevel destination;
+        private String message;
         private Vec3 landing;
         private int teleports;
 
         private TestPlayer(ServerLevel level) {
             super(level, new GameProfile(UUID.randomUUID(), "portal-test"));
+        }
+
+        @Override
+        public void displayClientMessage(net.minecraft.network.chat.Component component, boolean overlay) {
+            message = component.getString();
         }
 
         // 仅截获最终传送，不将模拟玩家加入服务器玩家列表；非玩家用例另行验证实际跨维度传送。
@@ -328,6 +618,20 @@ public final class PortalTeleporterTests {
                 ServerLevel original,
                 LevelStorageSource.LevelStorageAccess storage,
                 net.minecraft.resources.ResourceKey<Level> dimension) {
+            this(
+                    original,
+                    storage,
+                    dimension,
+                    new LevelStem(
+                            original.dimensionTypeRegistration(),
+                            original.getChunkSource().getGenerator()));
+        }
+
+        private TrackingLevel(
+                ServerLevel original,
+                LevelStorageSource.LevelStorageAccess storage,
+                net.minecraft.resources.ResourceKey<Level> dimension,
+                LevelStem stem) {
             super(
                     original.getServer(),
                     Util.backgroundExecutor(),
@@ -336,9 +640,7 @@ public final class PortalTeleporterTests {
                             original.getServer().getWorldData(),
                             original.getServer().getWorldData().overworldData()),
                     dimension,
-                    new LevelStem(
-                            original.dimensionTypeRegistration(),
-                            original.getChunkSource().getGenerator()),
+                    stem,
                     LoggerChunkProgressListener.createCompleted(),
                     false,
                     0L,

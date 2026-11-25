@@ -315,6 +315,7 @@ dependencies {
     // MaFgLib 是 Tweakerge 的前置，Modrinth 的 pom 传递不出来，只能显式加
     clientDevMods "maven.modrinth:mafglib:${mafglib_version}"
     clientDevMods "maven.modrinth:tweakerge:${tweakerge_version}"
+    compileOnly "maven.modrinth:jade:${jade_version}"
     clientDevMods "maven.modrinth:jade:${jade_version}"
     // Chunky 的 1.4.23 在 Modrinth 上是 fabric forge neoforge 三条同版本号的文件，按版本号取会拿到 forge 那个
     // （FML 打日志 Skipping jar ... is for Minecraft Forge ... cannot be loaded 然后静默跳过）

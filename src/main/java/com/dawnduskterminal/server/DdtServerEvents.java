@@ -10,6 +10,7 @@ import com.dawnduskterminal.item.GhastTrapProcess;
 import com.dawnduskterminal.item.RequiemProcess;
 import com.dawnduskterminal.network.ChronoLinePayload;
 import com.dawnduskterminal.portal.PortalBlock;
+import com.dawnduskterminal.portal.PortalRoute;
 import com.dawnduskterminal.portal.PortalTrigger;
 import com.dawnduskterminal.progression.BossProgressTracker;
 import com.dawnduskterminal.registry.ModFluids;
@@ -257,7 +258,7 @@ public final class DdtServerEvents {
                 .getEntitiesOfClass(
                         ItemEntity.class,
                         player.getBoundingBox().inflate(ITEM_SCAN_RADIUS),
-                        item -> PortalBlock.isCatalyst(item.getItem()));
+                        item -> PortalRoute.poolRoute(player.level().dimension(), item.getItem()) != null);
         for (ItemEntity item : items) {
             BlockPos pos = item.blockPosition();
             if (item.level().getBlockState(pos).is(Blocks.WATER)) {

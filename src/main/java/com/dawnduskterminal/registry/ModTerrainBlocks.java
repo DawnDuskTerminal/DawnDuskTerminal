@@ -7,6 +7,8 @@ import com.dawnduskterminal.block.CountertopBlock;
 import com.dawnduskterminal.block.FairyDianthusBlock;
 import com.dawnduskterminal.block.FairyDianthusSmallBlock;
 import com.dawnduskterminal.block.HorizontalHollowLogBlock;
+import com.dawnduskterminal.block.LichenSheetBlock;
+import com.dawnduskterminal.block.MimicBlock;
 import com.dawnduskterminal.block.NightGlowBushBlock;
 import com.dawnduskterminal.block.VerticalHollowLogBlock;
 import com.dawnduskterminal.block.WroughtIronGlassBlock;
@@ -29,6 +31,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.GlowLichenBlock;
 import net.minecraft.world.level.block.HalfTransparentBlock;
 import net.minecraft.world.level.block.LeavesBlock;
 import net.minecraft.world.level.block.RotatedPillarBlock;
@@ -76,6 +79,18 @@ public final class ModTerrainBlocks {
             "charnockite_lichen",
             CharnockiteLichenBlock::new,
             stone(MapColor.DEEPSLATE, 5.0F, SoundType.DEEPSLATE).lightLevel(state -> 4));
+
+    public static final DeferredBlock<LichenSheetBlock> LICHEN_SHEET = BLOCKS.registerBlock(
+            "lichen_sheet", LichenSheetBlock::new, copied(Blocks.GLOW_LICHEN).lightLevel(GlowLichenBlock.emission(4)));
+
+    public static final DeferredBlock<MimicBlock> MIMIC = BLOCKS.registerBlock(
+            "mimic",
+            MimicBlock::new,
+            copied(Blocks.GLOW_LICHEN)
+                    .lightLevel(state -> 0)
+                    .strength(2.5F)
+                    .sound(SoundType.STONE)
+                    .noLootTable());
 
     public static final DeferredBlock<Block> TWILIGHT_STONE =
             BLOCKS.registerSimpleBlock("twilight_stone", stone(MapColor.TERRACOTTA_GRAY, 2.5F));
@@ -151,6 +166,8 @@ public final class ModTerrainBlocks {
     public static final DeferredItem<BlockItem> CHARNOCKITE_ITEM = ITEMS.registerSimpleBlockItem(CHARNOCKITE);
     public static final DeferredItem<BlockItem> CHARNOCKITE_LICHEN_ITEM =
             ITEMS.registerSimpleBlockItem(CHARNOCKITE_LICHEN);
+    public static final DeferredItem<BlockItem> LICHEN_SHEET_ITEM = ITEMS.registerSimpleBlockItem(LICHEN_SHEET);
+    public static final DeferredItem<BlockItem> MIMIC_ITEM = ITEMS.registerSimpleBlockItem(MIMIC);
     public static final DeferredItem<BlockItem> TWILIGHT_STONE_ITEM = ITEMS.registerSimpleBlockItem(TWILIGHT_STONE);
     public static final DeferredItem<BlockItem> ROAD_SAND_ITEM = ITEMS.registerSimpleBlockItem(ROAD_SAND);
     public static final DeferredItem<BlockItem> UNCONSCIOUS_SAND_ITEM = ITEMS.registerSimpleBlockItem(UNCONSCIOUS_SAND);

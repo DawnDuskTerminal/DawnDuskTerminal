@@ -33,7 +33,10 @@ import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.tags.ItemTags;
 import net.minecraft.tags.TagKey;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.biome.MultiNoiseBiomeSourceParameterList;
@@ -363,20 +366,18 @@ public final class ChronoMineshaftTests {
     }
 
     /**
-     * 箱车里的东西必须逐条写在 {@code chests/chrono_mineshaft.json} 里，内容对着暮色森林大型空心矿山
+     * 验证矿井宝箱矿车使用独立的战利品表，并能够实际抽取战利品。
      *
-     * <p>三件事一起钉：
+     * <p>战利品表须满足以下条件。
      *
      * <ul>
-     *   <li>表里不许出现 {@code minecraft:loot_table} 这种嵌套引用——宝箱掉什么要能在那一个文件里逐行读到；
-     *   <li>三个池的投掷次数必须是大型空心矿山那三档 4 / 2 / 1；
-     *   <li>几样招牌货得在：火把浆果、铁木稿、魔法地图、月虫女王、铁木块、金粒。
+     *   <li>所有条目均在同一文件中定义。
+     *   <li>紫苏岩、矿井补给和额外奖励的抽取次数依次为 1、6、1。
+     *   <li>战利品包含紫苏岩、矿产、工具和暮色森林道具。
      * </ul>
-     *
-     * <p>最后再真抽几次：表 id 写错、物品 id 写错，游戏都不会报错，箱车照常刷出来、打开是空的
      */
     @GameTest(template = "ddt_empty")
-    public static void minecartsCarryTheLargeHollowHillLoot(GameTestHelper helper) {
+    public static void minecartsCarryMineshaftLoot(GameTestHelper helper) {
         HolderGetter<LootTable> tables =
                 helper.getLevel().getServer().reloadableRegistries().lookup().lookupOrThrow(Registries.LOOT_TABLE);
         Holder<LootTable> table = tables.get(ChronoMineshaftPieces.LOOT).orElse(null);
@@ -410,26 +411,38 @@ public final class ChronoMineshaftTests {
             throw new AssertionError(resource + " 读不出来", error);
         }
 
-        helper.assertTrue(rolls.equals(List.of(4.0D, 2.0D, 1.0D)), "三个池的投掷次数应当是大型空心矿山的 4 / 2 / 1，实际 " + rolls);
+        helper.assertTrue(rolls.equals(List.of(1.0D, 6.0D, 1.0D)), "三个池的抽取次数应当依次为 1、6、1，实际为 " + rolls);
         for (String wanted : List.of(
+                "dawnduskterminal:charnockite",
+                "dawnduskterminal:transfore",
+                "minecraft:raw_iron",
                 "twilightforest:torchberries",
                 "twilightforest:ironwood_pickaxe",
-                "twilightforest:magic_map",
                 "twilightforest:moonworm_queen",
-                "twilightforest:ironwood_block",
-                "minecraft:gold_nugget")) {
-            helper.assertTrue(names.contains(wanted), resource + " 少了大空心矿山的 " + wanted);
+                "minecraft:book")) {
+            helper.assertTrue(names.contains(wanted), resource + " 缺少物品 " + wanted);
         }
 
-        // 真抽几次：抽得出东西才算「货在」
         LootParams params = new LootParams.Builder(helper.getLevel())
                 .withParameter(LootContextParams.ORIGIN, Vec3.atCenterOf(helper.absolutePos(new BlockPos(4, 0, 4))))
                 .create(LootContextParamSets.CHEST);
         for (long seed : new long[] {1L, 7L, 42L}) {
             var items = table.value().getRandomItems(params, seed);
-            helper.assertTrue(!items.isEmpty(), "种子 " + seed + " 抽出来的箱车是空的");
-            helper.assertTrue(items.size() >= 3, "三个池一共至少 7 堆东西，种子 " + seed + " 只抽到 " + items.size() + " 堆");
+            helper.assertTrue(items.size() >= 8, "三个池至少生成 8 组物品，种子 " + seed + " 生成了 " + items.size() + " 组");
         }
+
+        boolean multiEnchantedPickaxe = false;
+        boolean multiEnchantedBook = false;
+        for (long seed = 1L; seed <= 128L && !(multiEnchantedPickaxe && multiEnchantedBook); seed++) {
+            for (var item : table.value().getRandomItems(params, seed)) {
+                if (EnchantmentHelper.getEnchantmentsForCrafting(item).size() > 1) {
+                    multiEnchantedPickaxe |= item.is(ItemTags.PICKAXES);
+                    multiEnchantedBook |= item.is(Items.ENCHANTED_BOOK);
+                }
+            }
+        }
+        helper.assertTrue(multiEnchantedPickaxe, "矿井战利品应能生成具有多项附魔的镐");
+        helper.assertTrue(multiEnchantedBook, "矿井战利品应能生成具有多项附魔的书");
         helper.succeed();
     }
 

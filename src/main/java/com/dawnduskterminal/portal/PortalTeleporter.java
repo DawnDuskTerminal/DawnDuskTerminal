@@ -6,9 +6,12 @@ import com.dawnduskterminal.registry.ModBlocks;
 import com.dawnduskterminal.registry.ModDimensions;
 import com.dawnduskterminal.registry.ModTerrainBlocks;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
+import java.util.WeakHashMap;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
@@ -26,6 +29,10 @@ import net.minecraft.world.phys.Vec3;
  * 到达时播原版下界传送门音效
  */
 public final class PortalTeleporter {
+    private static final Map<LivingEntity, FailedExit> FAILED_EXITS = new WeakHashMap<>();
+
+    private record FailedExit(PortalRoute route, BlockPos source, long retryAt) {}
+
     private static final int MAX_CHUNK_LOADS = 64;
     /**
      * 落点搜索跑在主线程 每个未加载的区块都是一次同步生成
@@ -41,14 +48,36 @@ public final class PortalTeleporter {
     private PortalTeleporter() {}
 
     public static void teleportEntity(LivingEntity entity) {
+        teleportEntity(entity, PortalRoute.OVERWORLD);
+    }
+
+    static void teleportEntity(LivingEntity entity, PortalRoute route) {
         if (!(entity.level() instanceof ServerLevel current)) {
             return;
         }
         boolean entering = !current.dimension().equals(ModDimensions.CHRONO);
-        ServerLevel target = entering
-                ? current.getServer().getLevel(ModDimensions.CHRONO)
-                : current.getServer().overworld();
+        if (route == null || route.destination(current.dimension()) == null) return;
+        FailedExit previous = FAILED_EXITS.get(entity);
+        if (previous != null
+                && previous.route() == route
+                && previous.source().equals(entity.blockPosition())
+                && current.getGameTime() < previous.retryAt()) return;
+        ServerLevel target = current.getServer().getLevel(route.destination(current.dimension()));
         if (target == null) {
+            reportFailedExit(entity, current, route, "message.dawnduskterminal.portal.dimension_unavailable");
+            return;
+        }
+        if (route != PortalRoute.OVERWORLD) {
+            double scale = route == PortalRoute.NETHER ? (entering ? 8.0 : 0.125) : 1.0;
+            BlockPos origin =
+                    target.getWorldBorder().clampToBounds(entity.getX() * scale, entity.getY(), entity.getZ() * scale);
+            Vec3 exit = RouteExit.findOrCreate(target, origin, route, entity);
+            if (exit == null) {
+                reportFailedExit(entity, current, route, "message.dawnduskterminal.portal.no_safe_exit");
+            } else {
+                FAILED_EXITS.remove(entity);
+                travel(entity, target, exit);
+            }
             return;
         }
         double originX = entity.getX();
@@ -76,6 +105,16 @@ public final class PortalTeleporter {
                 landing = arrived;
             }
         }
+        travel(entity, target, landing);
+    }
+
+    private static void reportFailedExit(
+            LivingEntity entity, ServerLevel level, PortalRoute route, String translation) {
+        FAILED_EXITS.put(entity, new FailedExit(route, entity.blockPosition(), level.getGameTime() + 40));
+        if (entity instanceof Player player) player.displayClientMessage(Component.translatable(translation), true);
+    }
+
+    private static void travel(LivingEntity entity, ServerLevel target, Vec3 landing) {
         entity.teleportTo(target, landing.x, landing.y, landing.z, Set.of(), entity.getYRot(), entity.getXRot());
         target.playSound(
                 null, landing.x, landing.y, landing.z, SoundEvents.PORTAL_TRAVEL, SoundSource.PLAYERS, 1.0F, 1.0F);

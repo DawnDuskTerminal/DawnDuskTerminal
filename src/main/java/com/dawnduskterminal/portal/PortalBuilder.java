@@ -1,7 +1,6 @@
 package com.dawnduskterminal.portal;
 
 import com.dawnduskterminal.registry.ModAttachments;
-import com.dawnduskterminal.registry.ModBlocks;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -19,6 +18,10 @@ public final class PortalBuilder {
     }
 
     public static boolean build(ServerLevel level, BlockPos seed) {
+        return build(level, seed, PortalRoute.OVERWORLD);
+    }
+
+    static boolean build(ServerLevel level, BlockPos seed, PortalRoute route) {
         Optional<PortalShape> found = PortalShape.find(level, seed);
         if (found.isEmpty()) {
             return false;
@@ -44,7 +47,7 @@ public final class PortalBuilder {
                 above = above.above();
             }
         }
-        BlockState portal = ModBlocks.PORTAL_FLUID.get().defaultBlockState();
+        BlockState portal = route.block().defaultBlockState();
         for (BlockPos pos : targets) {
             level.setBlock(pos, portal, 3);
         }

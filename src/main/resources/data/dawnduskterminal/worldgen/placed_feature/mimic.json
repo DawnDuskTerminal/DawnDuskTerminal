@@ -1,16 +1,13 @@
 {
-  "feature": "dawnduskterminal:sculk_vein",
+  "feature": "dawnduskterminal:mimic",
   "placement": [
     {
       "type": "minecraft:count",
       "count": {
         "type": "minecraft:uniform",
-        "max_inclusive": 250,
-        "min_inclusive": 204
+        "max_inclusive": 157,
+        "min_inclusive": 104
       }
-    },
-    {
-      "type": "minecraft:in_square"
     },
     {
       "type": "minecraft:height_range",
@@ -23,6 +20,14 @@
           "above_bottom": 0
         }
       }
+    },
+    {
+      "type": "minecraft:in_square"
+    },
+    {
+      "type": "minecraft:surface_relative_threshold_filter",
+      "heightmap": "OCEAN_FLOOR_WG",
+      "max_inclusive": -13
     },
     {
       "type": "minecraft:biome"

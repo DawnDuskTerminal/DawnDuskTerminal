@@ -119,10 +119,11 @@ PALETTE = {
     "minecraft:grass_block": "dawnduskterminal:rosy_grass",
     "minecraft:dirt": "dawnduskterminal:rosy_dirt",
     "minecraft:stone": "dawnduskterminal:canopy_stone",
-    "minecraft:granite": "dawnduskterminal:ochre",
+    "minecraft:granite": "dawnduskterminal:ochre_block",
     "minecraft:diorite": "dawnduskterminal:greenschist",
     "minecraft:andesite": "dawnduskterminal:eclogite",
     "minecraft:deepslate": "dawnduskterminal:charnockite",
+    "minecraft:sculk_vein": "dawnduskterminal:lichen_sheet",
     "minecraft:tuff": "dawnduskterminal:twilight_stone",
     "minecraft:sand": "dawnduskterminal:road_sand",
     "minecraft:red_sand": "dawnduskterminal:unconscious_sand",
@@ -484,11 +485,9 @@ def build_palette_layer(vanilla_root: Path, vanilla_tag_root: Path, out_root: Pa
     pf_all = load_json_dir(vanilla_root / "placed_feature")
     biome_all = load_json_dir(vanilla_root / "biome")
     for biome in biome_all.values():
-        if "features" in biome:
-            biome["features"] = [
-                [feature for feature in step if feature != "minecraft:glow_lichen"]
-                for step in biome["features"]
-            ]
+        for step in biome.get("features", []):
+            if "minecraft:ore_emerald" in step:
+                step.remove("minecraft:ore_emerald")
     carver_all = load_json_dir(vanilla_root / "configured_carver")
     overworld = overworld_biome_names(vanilla_tag_root)
 
@@ -533,27 +532,66 @@ def build_palette_layer(vanilla_root: Path, vanilla_tag_root: Path, out_root: Pa
     biome_docs = {k: retarget(swap_block_ids(biome_all[k]),
                               id_map(pf_keep) | id_map(carvers)) for k in biome_keep}
 
+    lichen_names = {
+        "glow_lichen": "mimic",
+        "sculk_vein": "lichen_sheet",
+        "sculk_patch_deep_dark": "charnockite_lichen_patch",
+    }
+    lichen_refs = {f"{MOD_ID}:{old}": f"{MOD_ID}:{new}" for old, new in lichen_names.items()}
     for k in sorted(cf_keep):
-        write_json(out_root / "configured_feature" / f"{k}.json",
-                   retarget_block_tags(swap_block_ids(cf_all[k])))
+        output_name = lichen_names.get(k, k)
+        doc = retarget_block_tags(swap_block_ids(cf_all[k]))
+        if k == "glow_lichen":
+            doc["config"]["block"] = f"{MOD_ID}:mimic"
+            doc["config"]["can_place_on_floor"] = True
+            doc["config"]["can_be_placed_on"] = f"#{MOD_ID}:mimic_supports"
+        write_json(out_root / "configured_feature" / f"{output_name}.json", doc)
     # `minecraft:freeze_top_layer` 在代码里写死 ICE 与 SNOW，JSON 替换够不到它，
     # 所以维度把特征表指向自己那个铺调色板雪与冰的特征
     write_json(out_root / "configured_feature" / "freeze_top_layer.json",
                {"type": f"{MOD_ID}:freeze_top_layer", "config": {}})
     write_json(out_root / "configured_feature" / "charnockite_lichen_patch.json",
                {"type": f"{MOD_ID}:charnockite_lichen_patch", "config": {}})
+    write_json(out_root / "configured_feature" / "lichen_sheet_patch.json", {
+        "type": "minecraft:random_patch",
+        "config": {
+            "tries": 12,
+            "xz_spread": 4,
+            "y_spread": 2,
+            "feature": {"feature": f"{MOD_ID}:lichen_sheet", "placement": []},
+        },
+    })
     for k in sorted(pf_keep):
         doc = retarget_block_tags(retarget(swap_block_ids(pf_all[k]), id_map(cf_keep)))
+        doc = retarget(doc, lichen_refs)
         if k == "freeze_top_layer":
             doc["feature"] = f"{MOD_ID}:freeze_top_layer"
         elif k == "sculk_patch_deep_dark":
+            write_json(out_root / "placed_feature" / "lichen_sheet_patch.json", {
+                **doc,
+                "feature": f"{MOD_ID}:lichen_sheet_patch",
+                "placement": [*doc["placement"], {
+                    "type": "minecraft:block_predicate_filter",
+                    "predicate": {
+                        "type": "minecraft:matching_blocks",
+                        "blocks": ["minecraft:air", "minecraft:cave_air", "minecraft:water"],
+                    },
+                }],
+            })
             doc["feature"] = f"{MOD_ID}:charnockite_lichen_patch"
             for modifier in doc["placement"]:
                 if modifier["type"] == "minecraft:height_range":
                     modifier["height"]["max_inclusive"] = {"absolute": 8}
-        write_json(out_root / "placed_feature" / f"{k}.json", doc)
+        output_name = lichen_names.get(k, k)
+        write_json(out_root / "placed_feature" / f"{output_name}.json", doc)
     for k in sorted(biome_docs):
-        write_json(out_root / "biome" / f"{k}.json", biome_docs[k])
+        doc = retarget(biome_docs[k], lichen_refs)
+        if k == "deep_dark":
+            doc["effects"].pop("music", None)
+            for step in doc["features"]:
+                if f"{MOD_ID}:charnockite_lichen_patch" in step:
+                    step.append(f"{MOD_ID}:lichen_sheet_patch")
+        write_json(out_root / "biome" / f"{k}.json", doc)
 
     biome_map = id_map(biome_keep)
     param_lists = 0
@@ -653,17 +691,20 @@ def build_biome_tags(vanilla_tag_root: Path, biome_map: dict[str, str]) -> int:
         shutil.rmtree(VANILLA_BIOME_TAG_OUT)
     written = 0
     for p in sorted(vanilla_tag_root.rglob("*.json")):
+        tag_path = p.relative_to(vanilla_tag_root)
         tag = json.loads(p.read_text(encoding="utf-8"))
         ours = []
         for entry in tag.get("values", []):
             name = entry.get("id") if isinstance(entry, dict) else entry
             if not isinstance(name, str) or name.startswith("#"):
                 continue
+            if tag_path.as_posix() == "has_structure/ancient_city.json" and name == "minecraft:deep_dark":
+                continue
             if name in biome_map:
                 ours.append(biome_map[name])
         if not ours:
             continue
-        write_json(VANILLA_BIOME_TAG_OUT / p.relative_to(vanilla_tag_root),
+        write_json(VANILLA_BIOME_TAG_OUT / tag_path,
                    {"replace": False, "values": sorted(set(ours))})
         written += 1
 

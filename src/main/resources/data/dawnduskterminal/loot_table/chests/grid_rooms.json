@@ -2,194 +2,18 @@
   "type": "minecraft:chest",
   "pools": [
     {
-      "rolls": 4.0,
+      "rolls": 1,
       "entries": [
         {
           "type": "minecraft:item",
-          "weight": 3,
-          "name": "minecraft:poppy",
+          "name": "dawnduskterminal:canopy_stone",
           "functions": [
             {
               "function": "minecraft:set_count",
               "count": {
                 "type": "minecraft:uniform",
-                "min": 1.0,
-                "max": 4.0
-              }
-            }
-          ]
-        },
-        {
-          "type": "minecraft:item",
-          "weight": 3,
-          "name": "minecraft:dandelion",
-          "functions": [
-            {
-              "function": "minecraft:set_count",
-              "count": {
-                "type": "minecraft:uniform",
-                "min": 1.0,
-                "max": 4.0
-              }
-            }
-          ]
-        },
-        {
-          "type": "minecraft:item",
-          "weight": 3,
-          "name": "minecraft:feather",
-          "functions": [
-            {
-              "function": "minecraft:set_count",
-              "count": {
-                "type": "minecraft:uniform",
-                "min": 1.0,
-                "max": 3.0
-              }
-            }
-          ]
-        },
-        {
-          "type": "minecraft:item",
-          "weight": 3,
-          "name": "minecraft:wheat_seeds",
-          "functions": [
-            {
-              "function": "minecraft:set_count",
-              "count": {
-                "type": "minecraft:uniform",
-                "min": 1.0,
-                "max": 2.0
-              }
-            }
-          ]
-        },
-        {
-          "type": "minecraft:item",
-          "weight": 3,
-          "name": "minecraft:flint",
-          "functions": [
-            {
-              "function": "minecraft:set_count",
-              "count": {
-                "type": "minecraft:uniform",
-                "min": 1.0,
-                "max": 2.0
-              }
-            }
-          ]
-        },
-        {
-          "type": "minecraft:item",
-          "weight": 3,
-          "name": "minecraft:cactus",
-          "functions": [
-            {
-              "function": "minecraft:set_count",
-              "count": {
-                "type": "minecraft:uniform",
-                "min": 1.0,
-                "max": 2.0
-              }
-            }
-          ]
-        },
-        {
-          "type": "minecraft:item",
-          "weight": 3,
-          "name": "minecraft:sugar_cane",
-          "functions": [
-            {
-              "function": "minecraft:set_count",
-              "count": {
-                "type": "minecraft:uniform",
-                "min": 1.0,
-                "max": 4.0
-              }
-            }
-          ]
-        },
-        {
-          "type": "minecraft:item",
-          "weight": 3,
-          "name": "minecraft:sand",
-          "functions": [
-            {
-              "function": "minecraft:set_count",
-              "count": {
-                "type": "minecraft:uniform",
-                "min": 1.0,
-                "max": 4.0
-              }
-            }
-          ]
-        },
-        {
-          "type": "minecraft:item",
-          "weight": 3,
-          "name": "minecraft:flower_pot"
-        },
-        {
-          "type": "minecraft:item",
-          "weight": 3,
-          "name": "minecraft:bone_meal"
-        },
-        {
-          "type": "minecraft:item",
-          "weight": 75,
-          "name": "minecraft:gold_nugget",
-          "functions": [
-            {
-              "function": "minecraft:set_count",
-              "count": {
-                "type": "minecraft:uniform",
-                "min": 1.0,
-                "max": 9.0
-              }
-            }
-          ]
-        },
-        {
-          "type": "minecraft:item",
-          "weight": 75,
-          "name": "minecraft:potato",
-          "functions": [
-            {
-              "function": "minecraft:set_count",
-              "count": {
-                "type": "minecraft:uniform",
-                "min": 1.0,
-                "max": 4.0
-              }
-            }
-          ]
-        },
-        {
-          "type": "minecraft:item",
-          "weight": 75,
-          "name": "minecraft:cod",
-          "functions": [
-            {
-              "function": "minecraft:set_count",
-              "count": {
-                "type": "minecraft:uniform",
-                "min": 1.0,
-                "max": 4.0
-              }
-            }
-          ]
-        },
-        {
-          "type": "minecraft:item",
-          "weight": 75,
-          "name": "twilightforest:torchberries",
-          "functions": [
-            {
-              "function": "minecraft:set_count",
-              "count": {
-                "type": "minecraft:uniform",
-                "min": 1.0,
-                "max": 5.0
+                "min": 1,
+                "max": 160
               }
             }
           ]
@@ -197,150 +21,462 @@
       ]
     },
     {
-      "rolls": 2.0,
+      "rolls": 1,
       "entries": [
         {
           "type": "minecraft:item",
+          "name": "dawnduskterminal:charnockite",
+          "functions": [
+            {
+              "function": "minecraft:set_count",
+              "count": {
+                "type": "minecraft:uniform",
+                "min": 1,
+                "max": 160
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "rolls": 6,
+      "entries": [
+        {
+          "type": "minecraft:item",
+          "name": "minecraft:coal",
+          "weight": 4,
+          "functions": [
+            {
+              "function": "minecraft:set_count",
+              "count": {
+                "type": "minecraft:uniform",
+                "min": 1,
+                "max": 16
+              }
+            }
+          ]
+        },
+        {
+          "type": "minecraft:item",
+          "name": "minecraft:copper_ingot",
+          "weight": 4,
+          "functions": [
+            {
+              "function": "minecraft:set_count",
+              "count": {
+                "type": "minecraft:uniform",
+                "min": 1,
+                "max": 16
+              }
+            }
+          ]
+        },
+        {
+          "type": "minecraft:item",
+          "name": "minecraft:iron_ingot",
+          "weight": 4,
+          "functions": [
+            {
+              "function": "minecraft:set_count",
+              "count": {
+                "type": "minecraft:uniform",
+                "min": 1,
+                "max": 16
+              }
+            }
+          ]
+        },
+        {
+          "type": "minecraft:item",
+          "name": "minecraft:gold_ingot",
+          "weight": 3,
+          "functions": [
+            {
+              "function": "minecraft:set_count",
+              "count": {
+                "type": "minecraft:uniform",
+                "min": 1,
+                "max": 8
+              }
+            }
+          ]
+        },
+        {
+          "type": "minecraft:item",
+          "name": "minecraft:redstone",
+          "weight": 2,
+          "functions": [
+            {
+              "function": "minecraft:set_count",
+              "count": {
+                "type": "minecraft:uniform",
+                "min": 1,
+                "max": 16
+              }
+            }
+          ]
+        },
+        {
+          "type": "minecraft:item",
+          "name": "minecraft:lapis_lazuli",
+          "weight": 2,
+          "functions": [
+            {
+              "function": "minecraft:set_count",
+              "count": {
+                "type": "minecraft:uniform",
+                "min": 1,
+                "max": 16
+              }
+            }
+          ]
+        },
+        {
+          "type": "minecraft:item",
+          "name": "minecraft:diamond",
+          "weight": 2,
+          "functions": [
+            {
+              "function": "minecraft:set_count",
+              "count": {
+                "type": "minecraft:uniform",
+                "min": 1,
+                "max": 8
+              }
+            }
+          ]
+        },
+        {
+          "type": "minecraft:item",
+          "name": "dawnduskterminal:garnet",
+          "weight": 2,
+          "functions": [
+            {
+              "function": "minecraft:set_count",
+              "count": {
+                "type": "minecraft:uniform",
+                "min": 1,
+                "max": 8
+              }
+            }
+          ]
+        },
+        {
+          "type": "minecraft:item",
+          "name": "twilightforest:torchberries",
+          "weight": 3,
+          "functions": [
+            {
+              "function": "minecraft:set_count",
+              "count": {
+                "type": "minecraft:uniform",
+                "min": 1,
+                "max": 8
+              }
+            }
+          ]
+        },
+        {
+          "type": "minecraft:item",
           "name": "minecraft:torch",
+          "weight": 4,
           "functions": [
             {
               "function": "minecraft:set_count",
               "count": {
                 "type": "minecraft:uniform",
-                "min": 1.0,
-                "max": 12.0
+                "min": 1,
+                "max": 16
               }
             }
           ]
         },
         {
           "type": "minecraft:item",
-          "name": "minecraft:arrow",
+          "name": "minecraft:iron_pickaxe",
+          "weight": 1,
           "functions": [
             {
-              "function": "minecraft:set_count",
-              "count": {
+              "function": "minecraft:set_damage",
+              "damage": {
                 "type": "minecraft:uniform",
-                "min": 1.0,
-                "max": 12.0
+                "min": 0.01,
+                "max": 1
               }
+            },
+            {
+              "function": "minecraft:enchant_with_levels",
+              "levels": {
+                "type": "minecraft:uniform",
+                "min": 20,
+                "max": 30
+              },
+              "options": "#minecraft:on_random_loot"
             }
           ]
         },
         {
           "type": "minecraft:item",
-          "name": "minecraft:gunpowder",
+          "name": "twilightforest:ironwood_pickaxe",
+          "weight": 1,
           "functions": [
             {
-              "function": "minecraft:set_count",
-              "count": {
+              "function": "minecraft:set_damage",
+              "damage": {
                 "type": "minecraft:uniform",
-                "min": 1.0,
-                "max": 4.0
+                "min": 0.01,
+                "max": 1
               }
+            },
+            {
+              "function": "minecraft:enchant_with_levels",
+              "levels": {
+                "type": "minecraft:uniform",
+                "min": 20,
+                "max": 30
+              },
+              "options": "#minecraft:on_random_loot"
+            }
+          ]
+        },
+        {
+          "type": "minecraft:item",
+          "name": "twilightforest:steeleaf_pickaxe",
+          "weight": 1,
+          "functions": [
+            {
+              "function": "minecraft:set_damage",
+              "damage": {
+                "type": "minecraft:uniform",
+                "min": 0.01,
+                "max": 1
+              }
+            },
+            {
+              "function": "minecraft:enchant_with_levels",
+              "levels": {
+                "type": "minecraft:uniform",
+                "min": 20,
+                "max": 30
+              },
+              "options": "#minecraft:on_random_loot"
+            }
+          ]
+        },
+        {
+          "type": "minecraft:item",
+          "name": "minecraft:diamond_pickaxe",
+          "weight": 1,
+          "functions": [
+            {
+              "function": "minecraft:set_damage",
+              "damage": {
+                "type": "minecraft:uniform",
+                "min": 0.01,
+                "max": 1
+              }
+            },
+            {
+              "function": "minecraft:enchant_with_levels",
+              "levels": {
+                "type": "minecraft:uniform",
+                "min": 20,
+                "max": 30
+              },
+              "options": "#minecraft:on_random_loot"
+            }
+          ]
+        },
+        {
+          "type": "minecraft:item",
+          "name": "twilightforest:fiery_pickaxe",
+          "weight": 1,
+          "functions": [
+            {
+              "function": "minecraft:set_damage",
+              "damage": {
+                "type": "minecraft:uniform",
+                "min": 0.01,
+                "max": 1
+              }
+            },
+            {
+              "function": "minecraft:enchant_with_levels",
+              "levels": {
+                "type": "minecraft:uniform",
+                "min": 20,
+                "max": 30
+              },
+              "options": "#minecraft:on_random_loot"
             }
           ]
         },
         {
           "type": "minecraft:item",
           "name": "twilightforest:steeleaf_ingot",
+          "weight": 2,
           "functions": [
             {
               "function": "minecraft:set_count",
               "count": {
                 "type": "minecraft:uniform",
-                "min": 1.0,
-                "max": 4.0
+                "min": 1,
+                "max": 6
               }
             }
           ]
         },
         {
           "type": "minecraft:item",
-          "name": "minecraft:pumpkin_pie"
+          "name": "twilightforest:maze_wafer",
+          "weight": 2,
+          "functions": [
+            {
+              "function": "minecraft:set_count",
+              "count": {
+                "type": "minecraft:uniform",
+                "min": 1,
+                "max": 8
+              }
+            }
+          ]
         },
         {
           "type": "minecraft:item",
-          "name": "twilightforest:ore_magnet"
+          "name": "minecraft:bread",
+          "weight": 2,
+          "functions": [
+            {
+              "function": "minecraft:set_count",
+              "count": {
+                "type": "minecraft:uniform",
+                "min": 1,
+                "max": 4
+              }
+            }
+          ]
+        },
+        {
+          "type": "minecraft:item",
+          "name": "twilightforest:mutton_jerky",
+          "weight": 2,
+          "functions": [
+            {
+              "function": "minecraft:set_count",
+              "count": {
+                "type": "minecraft:uniform",
+                "min": 1,
+                "max": 4
+              }
+            }
+          ]
+        },
+        {
+          "type": "minecraft:item",
+          "name": "twilightforest:pork_jerky",
+          "weight": 2,
+          "functions": [
+            {
+              "function": "minecraft:set_count",
+              "count": {
+                "type": "minecraft:uniform",
+                "min": 1,
+                "max": 4
+              }
+            }
+          ]
+        },
+        {
+          "type": "minecraft:item",
+          "name": "twilightforest:venison_jerky",
+          "weight": 2,
+          "functions": [
+            {
+              "function": "minecraft:set_count",
+              "count": {
+                "type": "minecraft:uniform",
+                "min": 1,
+                "max": 4
+              }
+            }
+          ]
+        },
+        {
+          "type": "minecraft:item",
+          "name": "twilightforest:monster_jerky",
+          "weight": 3,
+          "functions": [
+            {
+              "function": "minecraft:set_count",
+              "count": {
+                "type": "minecraft:uniform",
+                "min": 1,
+                "max": 4
+              }
+            }
+          ]
+        },
+        {
+          "type": "minecraft:item",
+          "name": "minecraft:golden_apple",
+          "weight": 2
         }
       ]
     },
     {
-      "rolls": 1.0,
+      "rolls": 1,
       "entries": [
         {
           "type": "minecraft:item",
-          "weight": 75,
+          "name": "minecraft:book",
+          "weight": 9,
+          "functions": [
+            {
+              "function": "minecraft:enchant_with_levels",
+              "levels": {
+                "type": "minecraft:uniform",
+                "min": 20,
+                "max": 30
+              },
+              "options": "#minecraft:on_random_loot"
+            }
+          ]
+        },
+        {
+          "type": "minecraft:item",
           "name": "twilightforest:transformation_powder",
+          "weight": 3,
           "functions": [
             {
               "function": "minecraft:set_count",
               "count": {
                 "type": "minecraft:uniform",
-                "min": 1.0,
-                "max": 12.0
+                "min": 1,
+                "max": 8
               }
             }
           ]
         },
         {
           "type": "minecraft:item",
-          "weight": 75,
-          "name": "twilightforest:ironwood_pickaxe",
-          "functions": [
-            {
-              "function": "minecraft:set_enchantments",
-              "enchantments": {
-                "minecraft:efficiency": 1.0,
-                "minecraft:fortune": 1.0
-              }
-            }
-          ]
+          "name": "minecraft:enchanted_golden_apple",
+          "weight": 1
         },
         {
           "type": "minecraft:item",
-          "weight": 75,
-          "name": "twilightforest:magic_map"
+          "name": "twilightforest:ore_magnet",
+          "weight": 3
         },
         {
           "type": "minecraft:item",
-          "weight": 25,
-          "name": "minecraft:diamond",
-          "functions": [
-            {
-              "function": "minecraft:set_count",
-              "count": {
-                "type": "minecraft:uniform",
-                "min": 1.0,
-                "max": 2.0
-              }
-            }
-          ]
+          "name": "twilightforest:moonworm_queen",
+          "weight": 3
         },
         {
           "type": "minecraft:item",
-          "weight": 25,
-          "name": "twilightforest:moonworm_queen"
-        },
-        {
-          "type": "minecraft:item",
-          "weight": 25,
-          "name": "twilightforest:charm_of_life_1"
-        },
-        {
-          "type": "minecraft:item",
-          "weight": 25,
-          "name": "twilightforest:charm_of_keeping_1"
-        },
-        {
-          "type": "minecraft:item",
-          "weight": 25,
-          "name": "twilightforest:ironwood_block"
-        },
-        {
-          "type": "minecraft:item",
-          "weight": 20,
-          "name": "twilightforest:music_disc_maker"
+          "name": "twilightforest:charm_of_life_1",
+          "weight": 3
         }
       ]
     }

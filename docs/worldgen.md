@@ -196,7 +196,22 @@
 **矿脉自身的生成概率与高度带一个数都没改**：铜脉 `0 ~ 50`、铁脉 `-60 ~ -8` 都还是原版那一套，
 这条路径也进 `OverworldOreTests.vanillaOresBecomeThePaletteOres`，只管方块对不对，不管频率。
 
-绿宝石矿与虫蚀石同样不在这一套里：`ore_emerald` 与 `ore_infested` 仍指向原版的配置特征。
+晨昏线维度不生成绿宝石矿。
+虫蚀石仍由 `ore_infested` 引用原版配置特征生成。
+
+## 模仿者
+
+模仿者沿用原发光地衣的多面附着特征，在原有群系的洞壁、洞顶和地面生成。
+每区块尝试 104 至 157 次，候选点须位于生成地表以下至少 13 格。
+普通岩石宿主限于苍穹石和紫苏岩，模仿者也可附着于晨昏线生成的矿石。
+附着于真矿时，模仿者使用该矿石的贴图。
+若多个附着面均为真矿，则按下、上、北、南、西、东的顺序选择。
+附着面均无真矿时，初始宿主决定浅层或深层伪装池，坐标决定所选矿石。
+模仿者不发光。
+安装 Jade 的客户端会在准星提示中显示所选矿石的名称。
+生存模式下挖除时，主手工具扣除 64 至 128 点耐久，耐久附魔不减少这项损耗。
+创造模式下可用中键取得模仿者物品，并将其放置在朝上的面上。
+该物品不会出现在创造模式物品栏中，挖除模仿者也不会产生掉落。
 
 ## 调色板群系源
 
@@ -633,15 +648,15 @@ vanilla 不校验 uv 顺序（`BlockFaceUV#getV` 只按顶点号取 `uvs[1]` / `
 | 沼泽类（`swamp`、`mangrove_swamp`） | 暮色森林的红树（`twilight_oak` 的沼泽套） |
 | 其余 | 暮色橡木（`twilight_oak_wood`） |
 
-**箱车与战利品**：战利品表是 `dawnduskterminal:chests/chrono_mineshaft`，内容对着暮色森林大型空心矿山
-（`large_hollow_hill` 的 `hill_size: 3`，即 `twilightforest:hill_3`），但**逐条写在这一个文件里**：
-三个池的投掷次数分别是 4 / 2 / 1，每个池里的物品、权重、数量区间与附魔都按原表抄写。
+**箱车与战利品**
 
-表里不出现 `minecraft:loot_table` 这样的嵌套引用，开箱掉什么都能在 `data/dawnduskterminal/loot_table/chests/`
-的那一个文件里逐行读到、逐行改。原版 TF 表里有一处 `twilightforest:useless`（一堆花花草草，权重 25），
-嵌套引用摊不开，这里拆成 10 条、每条权重 3（合计 30，原表 25，差值可以忽略）。
-`chests/grid_rooms` 与 `chests/towerwood_rooms` 同样摊平：前者与矿井同内容，
-后者对应 `twilightforest:chests/tower_room`（含 `suspicious_stew` 的六种蘑菇煲效果，也是内联写的）。
+矿井宝箱矿车使用 `dawnduskterminal:chests/chrono_mineshaft`。
+紫苏岩抽取一次，数量为 1 至 325 块。
+矿井补给抽取六次，包含矿产、照明用品、镐和食物。
+额外奖励抽取一次，包含附魔书、转换粉、附魔金苹果、矿石磁铁、月光蠕虫女王和生命符咒 I。
+抽中的镐具有随机耐久。
+镐与附魔书均按 20 至 30 级进行随机附魔，可获得多项相容的附魔。
+所有条目直接定义在 `data/dawnduskterminal/loot_table/chests/chrono_mineshaft.json`。
 
 箱车的抽取挪到了铺完地板之后，概率由 `structure.mineshaft_chest_chance` 决定（默认 0.01，与原版一致）。
 原版在铺地板之前抽，判定是「这一格是空气、下面不是空气」；本维度 y `-64 ~ -10` 以成片的空腔与浮岛为主，
@@ -996,9 +1011,11 @@ data/dawnduskterminal/structure/
 没有 `room/*/rope_*` 就是那一族不出这类房间。
 塔木的门是 `wall/large_door_01` 与 `wall/small_door_01`，门洞里那面是重现方块。
 
-`room/rect/furn_06` 那间是红石机关房：两辆宝箱矿车各压在一段动力铁轨上，箱子是熔炉房的占位 loot。
-两段铁轨一格高、一格西（局部 `(3,2,1)` 与 `(2,3,1)`），原版铁轨 `onPlace` 会自己算成 `ascending_west`
-的坡——`setBlock` 的 update flags 拦不住，件里写的 `north_south` 保不住。要两段各自平放，得把它们挪开一格。
+`room/rect/furn_06` 是红石机关房，其中两辆宝箱矿车分别位于局部 `(3,2,1)` 与 `(2,3,1)` 的动力铁轨上。
+两排漏斗上方各有一段普通铁轨和三段动力铁轨，紧邻红石块的六段动力铁轨以激活状态保存。
+结构处理器先放置漏斗及其他支撑方块，再放置铁轨。
+铁轨不参与结构破损，连接形状由原版根据邻轨计算。
+房间内的宝箱方块使用熔炉房战利品表。
 
 不要把两段塞进同一个结构里掷硬币——那样每一段都只剩一半的结构，等于把丰度砍半。
 **新增结构 id 必须同时进 `StructureExclusions.ALLOWED`**：`StructureExclusionMixin` 会压制
@@ -1017,12 +1034,12 @@ data/dawnduskterminal/structure/
   每座房子再掷一次「要不要长蜘蛛网」（`WEBBED_CHANCE` = 一半），掷中时缺失位置的约四分之一换成蜘蛛网。
   判定用「世界位置哈希 + 这一座房子的盐」，所以同一份存档里反复进出同一区块得到同一副面孔。
   带 nbt 的方块（宝箱）不参与缺失。
-- **箱子是件里自带的方块**，不是另外摆的件，`LootTable` 写在件的方块 nbt 里。三张表：
-  `grid_rooms/room/rect/chest` → `dawnduskterminal:chests/grid_rooms`（同矿井那张表的内容，对着大型空心矿山）；
-  `towerwood_rooms/room/rect/chest_02` → `chests/towerwood_rooms`（塔木那套房间宝箱，对着 `tower_room`
-  的内容再加一池试验物品 `experiment_001..020`）；
-  `towerwood_rooms/room/rect/furn_06` 的箱子 → `chests/towerwood_furnace`（石头占位 + 木炭/煤炭 + 生熟肉）。
-  四张表都是逐条写着物品的，没有一个 `minecraft:loot_table` 嵌套引用，见「废弃矿井」的「箱车与战利品」。
+- 结构模板通过容器的 `LootTable` 指定战利品表。各表均直接定义物品条目。
+  网格屋宝箱使用 `chests/grid_rooms`，塔木小屋宝箱使用 `chests/towerwood_rooms`。
+  两种小屋宝箱均各抽取一次苍穹石和紫苏岩，数量各为 1 至 160 块，并抽取六次补给。
+  网格屋额外抽取一次奖励，塔木小屋额外抽取四次试验物品。
+  塔木小屋的补给池也可抽到试验物品115。
+  熔炉房容器使用 `chests/towerwood_furnace`，从石料、燃料、矿产、腐肉和腐肉干中抽取四次。
   **每座房子至少一间宝箱房**：它在挑格子的第一轮就占下一格 `rect`（`pickChest`），
   原来的 3% 权重只是「额外的宝箱房还能不能再出」；一栋仍可能出多间，`large` 与 `small` 没有宝箱件。
   带机关与熔炉的那间（`room/rect/furn_06`）只是普通家具房，跟 `furn_01..05` 一起按权重抽，

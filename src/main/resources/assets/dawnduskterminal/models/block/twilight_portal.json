@@ -1,0 +1,26 @@
+{
+  "render_type": "minecraft:translucent",
+  "textures": {
+    "portal": "dawnduskterminal:block/twilight_portal",
+    "particle": "#portal"
+  },
+  "elements": [
+    {
+      "from": [
+        0,
+        13,
+        0
+      ],
+      "to": [
+        16,
+        13,
+        16
+      ],
+      "faces": {
+        "up": {
+          "texture": "#portal"
+        }
+      }
+    }
+  ]
+}

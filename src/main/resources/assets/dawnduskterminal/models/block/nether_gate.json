@@ -1,0 +1,29 @@
+{
+  "render_type": "minecraft:translucent",
+  "textures": {
+    "portal": "dawnduskterminal:block/nether_gate",
+    "particle": "#portal"
+  },
+  "elements": [
+    {
+      "from": [
+        0,
+        0,
+        6
+      ],
+      "to": [
+        16,
+        16,
+        10
+      ],
+      "faces": {
+        "north": {
+          "texture": "#portal"
+        },
+        "south": {
+          "texture": "#portal"
+        }
+      }
+    }
+  ]
+}

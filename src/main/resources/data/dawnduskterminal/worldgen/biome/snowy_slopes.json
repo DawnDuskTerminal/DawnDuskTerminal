@@ -63,8 +63,7 @@
       "dawnduskterminal:underwater_magma",
       "dawnduskterminal:disk_sand",
       "dawnduskterminal:disk_clay",
-      "dawnduskterminal:disk_gravel",
-      "dawnduskterminal:ore_emerald"
+      "dawnduskterminal:disk_gravel"
     ],
     [
       "dawnduskterminal:ore_infested"
@@ -75,6 +74,7 @@
       "dawnduskterminal:spring_lava_frozen"
     ],
     [
+      "dawnduskterminal:mimic",
       "dawnduskterminal:patch_sugar_cane",
       "dawnduskterminal:patch_pumpkin"
     ],

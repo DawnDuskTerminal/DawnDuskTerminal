@@ -57,9 +57,10 @@ public final class PortalShape {
     }
 
     public static int countNeighbors(net.minecraft.world.level.LevelReader level, BlockPos pos) {
+        Block block = level.getBlockState(pos).getBlock();
         int n = 0;
         for (net.minecraft.core.Direction dir : net.minecraft.core.Direction.values()) {
-            if (level.getBlockState(pos.relative(dir)).is(ModBlocks.PORTAL_FLUID.get())) {
+            if (level.getBlockState(pos.relative(dir)).is(block)) {
                 n++;
             }
         }
@@ -67,7 +68,7 @@ public final class PortalShape {
     }
 
     public static boolean isCompletePortalPart(net.minecraft.world.level.LevelReader level, BlockPos pos) {
-        return countNeighbors(level, pos) >= 2;
+        return PortalRoute.from(level.getBlockState(pos)) != null && countNeighbors(level, pos) >= 2;
     }
 
     public static boolean isPoolBlock(BlockState state) {
@@ -84,6 +85,15 @@ public final class PortalShape {
 
     public static boolean isPlant(BlockState state) {
         return state.is(PORTAL_DECO_TAG);
+    }
+
+    static boolean hasPoolFloor(BlockGetter level, BlockPos pos) {
+        BlockPos floor = pos.below();
+        int depth = 0;
+        while (isPoolWater(level, floor) && depth++ < 16) {
+            floor = floor.below();
+        }
+        return level.getBlockState(floor).isFaceSturdy(level, floor, Direction.UP);
     }
 
     public static Optional<PortalShape> find(BlockGetter level, BlockPos seed) {
@@ -110,12 +120,7 @@ public final class PortalShape {
             if (water.size() > MAX_WATER) {
                 return Optional.empty();
             }
-            BlockPos floor = current.below();
-            int guard = 0;
-            while (isPoolWater(level, floor) && guard++ < 16) {
-                floor = floor.below();
-            }
-            if (!level.getBlockState(floor).isFaceSturdy(level, floor, Direction.UP)) {
+            if (!hasPoolFloor(level, current)) {
                 return Optional.empty();
             }
             for (Direction direction : Direction.Plane.HORIZONTAL) {

@@ -24,7 +24,8 @@ Java 直接引用 `TFEntities`、`TFBlocks`、`TFSounds`、`TFConfig` 等类型�
 
 `runClient` 通过 `clientDevMods` 加载 JEI、拼音搜索、Xaero 两种地图、Jade、Chunky、Zume。
 其他开发模组为 Tweakerge、MaFgLib、AppleSkin、BoccHUD 与 OpenYSM。
-它们不参与编译、不进入玩家产物，也不进入服务端、数据生成或 GameTest 的类路径。
+Jade 为模仿者提供可选的名称提示集成，因此同时列为编译期依赖。
+这些客户端模组均不进入玩家产物，也不进入服务端、数据生成或 GameTest 的运行类路径。
 版本统一在 `gradle.properties` 中维护。
 
 | 来源 | 模组 |
