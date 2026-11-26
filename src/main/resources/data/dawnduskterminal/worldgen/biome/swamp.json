@@ -96,7 +96,20 @@
     "axolotls": [],
     "creature": [],
     "misc": [],
-    "monster": [],
+    "monster": [
+      {
+        "type": "minecraft:zombie",
+        "maxCount": 2,
+        "minCount": 1,
+        "weight": 10
+      },
+      {
+        "type": "twilightforest:mosquito_swarm",
+        "maxCount": 1,
+        "minCount": 1,
+        "weight": 10
+      }
+    ],
     "underground_water_creature": [],
     "water_ambient": [],
     "water_creature": []

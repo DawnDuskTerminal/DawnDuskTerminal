@@ -26,6 +26,7 @@ import net.minecraft.world.entity.EntityDimensions;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.MobCategory;
 import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.entity.MoverType;
 import net.minecraft.world.entity.PathfinderMob;
@@ -233,6 +234,27 @@ public class StringEntity extends PathfinderMob implements Enemy {
                 .add(Attributes.FLYING_SPEED, SMALL_BASE_SPEED)
                 .add(Attributes.FOLLOW_RANGE, 24.0D)
                 .add(Attributes.KNOCKBACK_RESISTANCE, 1.0D);
+    }
+
+    // ---------------------------------------------------------------- 生物容量
+
+    /**
+     * 不计入刷怪容量：只有「算不算刷怪名额」这一问按容量外处理，类别本身仍是 {@code CREATURE}
+     *
+     * <h2>为什么要把这一问拆出来</h2>
+     * 原版 {@code NaturalSpawner.SpawnState} 统计「加载中、且不持久化」的生物，按类别累加，
+     * 一个类别的上限是 {@code 上限值 × 可刷怪区块数 / 289}，{@code CREATURE} 的上限值是 10，
+     * 单玩家约十只。弦自己有 {@link com.dawnduskterminal.world.StringSpawner} 的 5 只上限
+     * （48 格内），若再占着 {@code CREATURE} 的名额，动物就要和它抢同一份预算：
+     * 名额满了以后刷怪器连一次尝试都不再做，动物因此刷不出来。
+     *
+     * <p>NeoForge 为此留了扩展点 {@code IEntityExtension#getClassification(boolean)}：
+     * {@code forSpawnCount} 为真时返回 {@code MISC}，该实体便从按类别的统计中剔除。
+     * 类别本身不动，消失距离、友好标记与落点判定仍按 {@code CREATURE} 走。
+     */
+    @Override
+    public MobCategory getClassification(boolean forSpawnCount) {
+        return forSpawnCount ? MobCategory.MISC : this.getType().getCategory();
     }
 
     @Override

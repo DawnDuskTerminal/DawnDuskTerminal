@@ -334,6 +334,7 @@ native 仅重试几何输出，不能重复实体事件、动画推进、牵引�
 | 范围 | 测试类 | 规格 |
 |---|---|---|
 | 世界生成与流体调色板 | `WorldgenTests`、`AquiferTests`、`OverworldOreTests` | [世界生成](worldgen.md) |
+| 刷怪表与落点判定 | `ChronoSpawnTests`、`DarkForestSpawnTests` | [群系对照](biomes.md#刷怪) |
 | 传送门与反应 | `PortalShapeTests`、`PortalTeleporterTests`、`FluidReactionTests` | [传送门与流体](portal.md) |
 | 霜层与面剔除 | `CanopyFrostMeltTests`、`TranslucentFaceCullingTests`、`WroughtIronGlassTests` | [世界生成](worldgen.md)、[合成与标签](crafting.md) |
 | 方块外观与装饰 | `BlockStyleTests`、`PaintingTests`、`CampCarminiteFireTests` | [架构总览](architecture.md) |
@@ -384,6 +385,7 @@ native 仅重试几何输出，不能重复实体事件、动画推进、牵引�
 |---|---|
 | `tools/port_overworld_worldgen.py` | 从 Gradle 缓存客户端 jar 抽取主世界生成并改写命名空间 |
 | `tools/port_tf_biomes.py` | 移植暮色森林群系、保留洞穴雕刻并重映射特征 |
+| `tools/port_tf_spawns.py` | 清掉原版刷怪条目（蝙蝠除外）并按群系对应关系并入暮色森林的刷怪表 |
 | `tools/check_tf_biomes.py` | 检查 JSON、原版特征残留及暮色森林引用是否存在 |
 | `tools/check_worldgen_refs.py` | 报告已有模组副本却仍引用原版的特征及未使用副本 |
 

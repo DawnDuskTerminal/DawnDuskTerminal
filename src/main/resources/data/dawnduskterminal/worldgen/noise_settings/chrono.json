@@ -1348,7 +1348,7 @@
                                         {
                                           "type": "minecraft:block",
                                           "result_state": {
-                                            "Name": "minecraft:gravel"
+                                            "Name": "dawnduskterminal:orange_marble"
                                           }
                                         }
                                       ]
@@ -2177,7 +2177,7 @@
                                         {
                                           "type": "minecraft:block",
                                           "result_state": {
-                                            "Name": "minecraft:gravel"
+                                            "Name": "dawnduskterminal:orange_marble"
                                           }
                                         }
                                       ]

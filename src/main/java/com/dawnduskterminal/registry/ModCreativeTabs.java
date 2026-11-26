@@ -57,10 +57,12 @@ public final class ModCreativeTabs {
                         accept(output, ModTerrainBlocks.CHARNOCKITE_ITEM.get());
                         accept(output, ModTerrainBlocks.CHARNOCKITE_LICHEN_ITEM.get());
                         accept(output, ModTerrainBlocks.LICHEN_SHEET_ITEM.get());
+                        accept(output, ModTerrainBlocks.SKY_LICHEN_ITEM.get());
                         accept(output, ModTerrainBlocks.TWILIGHT_STONE_ITEM.get());
                         accept(output, ModTerrainBlocks.ROAD_SAND_ITEM.get());
                         accept(output, ModTerrainBlocks.UNCONSCIOUS_SAND_ITEM.get());
                         accept(output, ModTerrainBlocks.SILTSTONE_ITEM.get());
+                        accept(output, ModTerrainBlocks.ORANGE_MARBLE_ITEM.get());
                         accept(output, ModTerrainBlocks.FROZEN_CANOPY_ITEM.get());
                         accept(output, ModTerrainBlocks.FRAGILE_CANOPY_ITEM.get());
                         accept(output, ModTerrainBlocks.CANOPY_FROST_ITEM.get());
@@ -122,6 +124,8 @@ public final class ModCreativeTabs {
                         accept(output, ModItems.CARMINITE_BALL.get());
                         accept(output, ModItems.PRISM_STAFF.get());
                         accept(output, ModItems.FIREWORK_MACHINEBOW.get());
+                        accept(output, ModItems.MELONGUN.get());
+                        accept(output, ModItems.PUMPKINGUN.get());
                         accept(output, ModItems.STRING.get());
                         // 血肉之书没有序号，不是试验物品，挂在主栏目
                         accept(output, ModExperimentItems.EXPOWHEEL_FLESHBOOK.get());
@@ -139,6 +143,7 @@ public final class ModCreativeTabs {
                         accept(output, ModItems.GHASTFRUITY_SPAWN_EGG.get());
                         accept(output, ModItems.GHAST_ELITE_SPAWN_EGG.get());
                         accept(output, ModItems.LIVING_ARMOR_SPAWN_EGG.get());
+                        accept(output, ModItems.VIRTUAL_IMAGE_SPAWN_EGG.get());
                         ModEquipment.sets().values().forEach(set -> set.items()
                                 .forEach(item -> accept(output, item.get())));
                     })

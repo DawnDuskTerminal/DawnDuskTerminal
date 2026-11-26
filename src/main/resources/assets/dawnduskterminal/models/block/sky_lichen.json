@@ -1,0 +1,7 @@
+{
+  "parent": "dawnduskterminal:block/lichen_sheet",
+  "textures": {
+    "particle": "dawnduskterminal:block/sky_lichen",
+    "lichen": "dawnduskterminal:block/sky_lichen"
+  }
+}

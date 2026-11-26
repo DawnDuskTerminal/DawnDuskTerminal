@@ -8,6 +8,8 @@ import com.dawnduskterminal.entity.CarminiteShrapnelEntity;
 import com.dawnduskterminal.entity.Experiment011PlateEntity;
 import com.dawnduskterminal.entity.Experiment057BladeEntity;
 import com.dawnduskterminal.entity.ExpowheelEntity;
+import com.dawnduskterminal.entity.FruitKind;
+import com.dawnduskterminal.entity.FruitProjectileEntity;
 import com.dawnduskterminal.entity.GhastEliteEntity;
 import com.dawnduskterminal.entity.GhastEliteFireball;
 import com.dawnduskterminal.entity.GhastEliteTear;
@@ -17,6 +19,7 @@ import com.dawnduskterminal.entity.LivingArmorEntity;
 import com.dawnduskterminal.entity.StringEntity;
 import com.dawnduskterminal.entity.TowerGhastEntity;
 import com.dawnduskterminal.entity.TransformationPowderEntity;
+import com.dawnduskterminal.entity.VirtualImageEntity;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.MobCategory;
@@ -119,6 +122,19 @@ public final class ModEntities {
                     .build("expowheel"));
 
     /**
+     * 西瓜炮的炮弹
+     *
+     * <p>碰撞箱 1.0 见方，与一格果实的外观一致；updateInterval 1 让快速平飞的炮弹不出现折线。
+     * 种类由工厂带进构造，客户端渲染器据实体类型直接取方块，不必另同步一个字段
+     */
+    public static final DeferredHolder<EntityType<?>, EntityType<FruitProjectileEntity>> MELON_PROJECTILE =
+            fruitProjectile(FruitKind.MELON);
+
+    /** 南瓜炮的炮弹，尺寸与跟踪参数同 {@link #MELON_PROJECTILE} */
+    public static final DeferredHolder<EntityType<?>, EntityType<FruitProjectileEntity>> PUMPKIN_PROJECTILE =
+            fruitProjectile(FruitKind.PUMPKIN);
+
+    /**
      * 「弦」。碰撞箱的基准值是小型，真正的尺寸由 {@link StringEntity#getDefaultDimensions} 按变种
      * 与随机体型偏移算；这里只要给一个能通过构造期校验的占位值。
      *
@@ -132,6 +148,21 @@ public final class ModEntities {
                     .clientTrackingRange(10)
                     .updateInterval(2)
                     .build("string"));
+
+    /**
+     * 「虚像」。碰撞箱按玩家取 0.6 x 1.8、眼高 1.62：几何是一具玩家比例的人形骨架，
+     * 渲染时整体缩到 0.9375，身高正好落在 1.8 格上下
+     *
+     * <p>类别取 {@code MONSTER}，落点判定与刷怪表因此走敌对生物那一套；
+     * 「只站在霞草上」另由 {@link VirtualImageEntity#checkVirtualImageSpawnRules} 补上
+     */
+    public static final DeferredHolder<EntityType<?>, EntityType<VirtualImageEntity>> VIRTUAL_IMAGE =
+            ENTITIES.register("virtual_image", () -> EntityType.Builder.of(VirtualImageEntity::new, MobCategory.MONSTER)
+                    .sized(0.6F, 1.8F)
+                    .eyeHeight(1.62F)
+                    .clientTrackingRange(10)
+                    .updateInterval(3)
+                    .build("virtual_image"));
 
     /** 泪滴的碰撞箱为 0.8×0.8 格；远距离显示另由视觉消息负责。 */
     public static final DeferredHolder<EntityType<?>, EntityType<GhastEliteTear>> GHAST_ELITE_TEAR = ENTITIES.register(
@@ -234,6 +265,20 @@ public final class ModEntities {
                 .build(name));
     }
 
+    /**
+     * 一种果实炮弹一个实体类型：注册名取 {@code <果实>_projectile}，种类由工厂带进构造。
+     * 这样实体与物品、渲染器三处都只认 {@link FruitKind}，不必各写一份字符串
+     */
+    private static DeferredHolder<EntityType<?>, EntityType<FruitProjectileEntity>> fruitProjectile(FruitKind kind) {
+        String name = kind.id() + "_projectile";
+        return ENTITIES.register(name, () -> EntityType.Builder.<FruitProjectileEntity>of(
+                        (type, level) -> new FruitProjectileEntity(type, level, kind), MobCategory.MISC)
+                .sized(1.0F, 1.0F)
+                .clientTrackingRange(4)
+                .updateInterval(1)
+                .build(name));
+    }
+
     private ModEntities() {}
 
     public static void register(IEventBus bus) {
@@ -247,6 +292,7 @@ public final class ModEntities {
     private static void onEntityAttributeCreation(EntityAttributeCreationEvent event) {
         event.put(TOWER_GHAST.get(), TowerGhastEntity.createAttributes().build());
         event.put(STRING.get(), StringEntity.createAttributes().build());
+        event.put(VIRTUAL_IMAGE.get(), VirtualImageEntity.createAttributes().build());
         event.put(GHASTFRUITY.get(), GhastFruityEntity.createAttributes().build());
         event.put(GHAST_ELITE.get(), GhastEliteEntity.createAttributes().build());
         event.put(LIVING_ARMOR.get(), LivingArmorEntity.createAttributes().build());
@@ -285,6 +331,13 @@ public final class ModEntities {
                 SpawnPlacementTypes.ON_GROUND,
                 Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
                 Monster::checkMonsterSpawnRules,
+                RegisterSpawnPlacementsEvent.Operation.REPLACE);
+        // 「虚像」：同样落在不含树叶的地表上，另外要求脚下是霞草，见 checkVirtualImageSpawnRules
+        event.register(
+                VIRTUAL_IMAGE.get(),
+                SpawnPlacementTypes.ON_GROUND,
+                Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
+                VirtualImageEntity::checkVirtualImageSpawnRules,
                 RegisterSpawnPlacementsEvent.Operation.REPLACE);
     }
 

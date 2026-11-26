@@ -89,6 +89,91 @@
 蓝沙沙漠保留独立群系 ID，并沿用低温沙漠模板。
 其生态配置移除了仙人掌、枯灌木与沙漠水井。
 
+石岸 `stony_shore` 的地表规则沿用原版形态，只把砾石斑块换成橙大理石 `orange_marble`。
+详见 [世界生成](worldgen.md) 的「石岸的砾石」一节。
+
+## 刷怪
+
+原版生物只保留蝙蝠。
+其余 `minecraft:*` 的刷怪条目已从全部群系文件里删除，这一步由 `tools/port_tf_spawns.py` 完成。
+
+暮色森林的自然生成按上一节的对应关系并入，脚本用的是同一张表：
+
+| 模组群系 | 并入的暮色森林群系 |
+|---|---|
+| `forest` | `forest` |
+| `birch_forest` | `firefly_forest` |
+| `flower_forest` | `dense_forest` |
+| `jungle` | `enchanted_forest` |
+| `plains` | `clearing` |
+| `savanna` | `oak_savannah` |
+| `windswept_hills` | `highlands` |
+| `dark_forest` | `dark_forest_center` |
+| `swamp` | `swamp` 与 `fire_swamp` |
+| `snowy_plains` | `glacier` 与 `snowy_forest` |
+
+沼泽与冰川在项目里只有中心群系，因此中心与外围的刷怪表一并并入。
+沼泽拿到外围的僵尸与蚊群，冰川拿到外围的冬狼与雪怪。
+
+表里那些暮色森林的动物表自带 `minecraft:chicken` 与 `minecraft:wolf`，并入它们的群系会连这两条一起拿到。
+不在这张表里的群系只剩蝙蝠，`deep_dark` 与 `wild_void` 什么都不刷。
+
+### 共享表
+
+两份表铺给不在映射表里的同类群系，属于共享表，不是映射：
+
+| 表 | 来源 | 铺给 |
+|---|---|---|
+| 通用动物表 | 暮色森林 `forest` 那一份 | `taiga`、`old_growth_pine_taiga`、`old_growth_spruce_taiga`、`meadow`、`sunflower_plains`、`savanna_plateau`、`windswept_savanna`、`windswept_forest`、`sparse_jungle`、`bamboo_jungle` |
+| 雪地一族 | `glacier` 与 `snowy_forest` 两份合起来 | `frozen_peaks`、`jagged_peaks` |
+
+雪地一族只给温度 −0.7 的两个群系，这是本项目数据里最冷的一档。
+其余雪地群系不铺：`snowy_taiga` 为 −0.5、`snowy_slopes` 为 −0.3、`grove` 为 −0.2、`ice_spikes` 为 0.0、`snowy_beach` 为 0.05。
+`cherry_grove` 与 `windswept_gravelly_hills` 同样不铺，保持只有蝙蝠。
+
+### 刷得出来的前提
+
+条目写进群系只是一半，另一半是落点判定读的方块标签：
+
+| 标签 | 需要的方块 | 管谁 |
+|---|---|---|
+| `#minecraft:animals_spawnable_on` | `rosy_grass` | 暮色森林的动物与鸡、狼 |
+| `#twilightforest:penguins_spawnable_on` | `#minecraft:ice` 中的 `frozen_canopy` | 企鹅 |
+
+`rosy_grass` 由 `data/minecraft/tags/block/animals_spawnable_on.json` 追加，
+`frozen_canopy` 已在 `data/minecraft/tags/block/ice.json` 里。
+缺任何一条，条目写对了也是一只不刷，`ChronoSpawnTests` 把这两条钉在测试里。
+
+### 虚像
+
+`virtual_image` 铺满河海类群系，含全部温度档：
+`river`、`frozen_river`、`ocean`、`deep_ocean`、`warm_ocean`、`lukewarm_ocean`、
+`deep_lukewarm_ocean`、`cold_ocean`、`deep_cold_ocean`、`frozen_ocean`、`deep_frozen_ocean`。
+
+它的落点判定比别的敌对生物多一条：脚下必须是 `rosy_grass`。
+群系表只能表达「哪个群系、多少权重」，方块条件写在
+`VirtualImageEntity#checkVirtualImageSpawnRules` 里。
+低温的河海群系地表同样由霞草与霞土铺成，因此它们也在列表之内；
+落点判定不读亮度，这只生物白天与夜里都刷。
+条目、落点判定与数值由 `gametest/VirtualImageTests` 钉住。
+
+运行时另有天气与群系的自定义规则，见 [雨天](weather.md#露天的自然生成被压掉)。
+
+### 夜侧才刷怪
+
+敌对生物的落点判定还要读亮度，本维度这一项由坐标决定：
+
+- 天光上限决定画面亮度，默认昼侧 15、晨昏线 14、夜侧 12，动物与作物读的是它；
+- 刷怪判定读「天光减去压暗量」，压暗量按坐标取值，昼侧 0、晨昏线 5、夜侧 11。
+
+两者的差别来自 `fixed_time`：它锁住的是服务端的时刻，服务端算出的压暗量晴天恒为 0，
+原版判定因此读到天光本身（12 至 15），高于维度类型给出的抽样上限 7，露天地表一只敌对生物也刷不出来。
+`mixin/MonsterSpawnLightMixin` 把这一步的压暗量换成按坐标取的值：昼侧照旧不刷，夜侧约三分之一以外可以刷。
+天光上限不动，所以画面亮度、作物生长与动物判定都不受影响。
+
+`ChronoSpawnTests` 的 `theNightSideIsDarkEnoughForMonsters` 钉住昼侧不刷、夜侧能刷这两条，
+`theSkyLightCapStillFeedsAnimalsAndCrops` 钉住天光上限必须留在 8 以上。
+
 ## 尚未落地的名字
 
 以下名称在语言文件中已有对应的键，但 `worldgen/biome/` 中尚无同名的群系文件，因此当前没有任何气候格子会选中它们：

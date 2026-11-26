@@ -1,0 +1,10 @@
+{
+  "multipart": [
+    { "when": { "north": "true" }, "apply": { "model": "dawnduskterminal:block/sky_lichen" } },
+    { "when": { "east": "true" }, "apply": { "model": "dawnduskterminal:block/sky_lichen", "y": 90, "uvlock": true } },
+    { "when": { "south": "true" }, "apply": { "model": "dawnduskterminal:block/sky_lichen", "y": 180, "uvlock": true } },
+    { "when": { "west": "true" }, "apply": { "model": "dawnduskterminal:block/sky_lichen", "y": 270, "uvlock": true } },
+    { "when": { "up": "true" }, "apply": { "model": "dawnduskterminal:block/sky_lichen", "x": 270, "uvlock": true } },
+    { "when": { "down": "true" }, "apply": { "model": "dawnduskterminal:block/sky_lichen", "x": 90, "uvlock": true } }
+  ]
+}

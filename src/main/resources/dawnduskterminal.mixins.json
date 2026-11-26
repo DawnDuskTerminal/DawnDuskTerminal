@@ -28,6 +28,7 @@
     "ChronoSnowAccumulationMixin",
     "FeatureSorterMixin",
     "LightEngineSkyLightMixin",
+    "MonsterSpawnLightMixin",
     "StructureExclusionMixin",
     "StructureTemplateManagerMixin",
     "PaintingVariantGuardMixin",

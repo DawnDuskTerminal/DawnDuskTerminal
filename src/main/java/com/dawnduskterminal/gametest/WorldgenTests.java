@@ -38,11 +38,13 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.dimension.DimensionType;
 import net.minecraft.world.level.levelgen.DensityFunction;
 import net.minecraft.world.level.levelgen.DensityFunctions;
+import net.minecraft.world.level.levelgen.GenerationStep;
 import net.minecraft.world.level.levelgen.NoiseBasedChunkGenerator;
 import net.minecraft.world.level.levelgen.NoiseGeneratorSettings;
 import net.minecraft.world.level.levelgen.NoiseRouter;
 import net.minecraft.world.level.levelgen.RandomState;
 import net.minecraft.world.level.levelgen.feature.ConfiguredFeature;
+import net.minecraft.world.level.levelgen.feature.configurations.MultifaceGrowthConfiguration;
 import net.minecraft.world.level.levelgen.material.MaterialRuleList;
 import net.minecraft.world.level.levelgen.placement.PlacedFeature;
 import net.minecraft.world.level.levelgen.synth.NormalNoise;
@@ -317,6 +319,71 @@ public final class WorldgenTests {
                 featureIds.stream().anyMatch(id -> MOD_ID.equals(id.getNamespace())),
                 "the biome copy must place our own features, found " + featureIds);
         helper.succeed();
+    }
+
+    /**
+     * 天衣只挂天门群系（{@code floatrees}），不挂其它调色板群系。
+     *
+     * <p>天门群系由气候深度低于 −1.6 选中，本身就只出现在高空，所以放置特征里不再写高度带。
+     * 群系名单写错或漏写时不会报错，只是这一维度不再生成天衣，所以两头都钉：天门有、平原有
+     */
+    @GameTest(template = "ddt_empty")
+    public static void skyLichenJoinsOnlyTheSkygateBiome(GameTestHelper helper) {
+        var registries = helper.getLevel().getServer().registryAccess();
+        ResourceLocation id = ResourceLocation.fromNamespaceAndPath(MOD_ID, "sky_lichen");
+        PlacedFeature placed =
+                registries.registryOrThrow(Registries.PLACED_FEATURE).get(id);
+        helper.assertTrue(placed != null, id + " must be a placed feature");
+        helper.assertTrue(
+                placed.feature().value().config() instanceof MultifaceGrowthConfiguration growth
+                        && growth.placeBlock == ModTerrainBlocks.SKY_LICHEN.get(),
+                "the sky lichen feature must place the sky lichen block");
+        helper.assertTrue(featureIds(helper, "floatrees").contains(id), "the skygate biome must request " + id);
+        helper.assertFalse(featureIds(helper, "plains").contains(id), "only the skygate biome may request " + id);
+        helper.succeed();
+    }
+
+    /**
+     * 天衣只肯长在石头与土的表面上，不许长在霞草的顶面
+     *
+     * <p>多面附着类特征读的是配置里的 {@code can_be_placed_on} 标签，标签里放谁，它就能长在谁的任何一面上。
+     * 霞草是完整方块，把它的顶面也算进支撑面，结果就是草地上盖了一层地衣；这份标签因此只留苍穹石与霞土，
+     * 霞草一格都不留。这条用例把三件事同时钉住：两种石头土要在、霞草不能在
+     */
+    @GameTest(template = "ddt_empty")
+    public static void skyLichenOnlyGrowsOnRockOrSoil(GameTestHelper helper) {
+        TagKey<Block> supports =
+                TagKey.create(Registries.BLOCK, ResourceLocation.fromNamespaceAndPath(MOD_ID, "sky_lichen_supports"));
+        helper.assertTrue(
+                ModTerrainBlocks.CANOPY_STONE.get().defaultBlockState().is(supports),
+                "sky lichen must be placeable on canopy stone");
+        helper.assertTrue(
+                ModTerrainBlocks.ROSY_DIRT.get().defaultBlockState().is(supports),
+                "sky lichen must be placeable on rosy dirt");
+        helper.assertFalse(
+                ModTerrainBlocks.ROSY_GRASS.get().defaultBlockState().is(supports),
+                "sky lichen must not be placeable on rosy grass, otherwise it covers the grass top");
+        helper.succeed();
+    }
+
+    private static Set<ResourceLocation> featureIds(GameTestHelper helper, String biomePath) {
+        Biome biome = helper.getLevel()
+                .getServer()
+                .registryAccess()
+                .registryOrThrow(Registries.BIOME)
+                .get(ResourceLocation.fromNamespaceAndPath(MOD_ID, biomePath));
+        if (biome == null) {
+            throw new IllegalStateException(MOD_ID + ":" + biomePath + " must be registered");
+        }
+        Set<ResourceLocation> ids = new LinkedHashSet<>();
+        int vegetal = GenerationStep.Decoration.VEGETAL_DECORATION.ordinal();
+        List<HolderSet<PlacedFeature>> steps = biome.getGenerationSettings().features();
+        if (steps.size() > vegetal) {
+            for (Holder<PlacedFeature> holder : steps.get(vegetal)) {
+                holder.unwrapKey().ifPresent(key -> ids.add(key.location()));
+            }
+        }
+        return ids;
     }
 
     /**

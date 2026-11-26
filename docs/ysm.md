@@ -58,8 +58,15 @@
 | 贴图 | `assets/dawnduskterminal/textures/entity/<名字>.png` | `textures/entity/ghast_elite.png` |
 
 按这个布局接线的实体：大恶魂、恶果（普通与持块两套几何）、弦（小型与大型两套几何加两条动画）、
-博览轮、试验 057 飞刃。另外 `geo/ghasbigail.geo.json` 与 `geo/ghayelliupiter.geo.json`
+博览轮、试验 057 飞刃、虚像。另外 `geo/ghasbigail.geo.json` 与 `geo/ghayelliupiter.geo.json`
 是尚无敌事实体的备用模型，同样按原名原样放着。
+
+虚像是唯一不按上表放贴图的实体：它直接用流体方块的 `textures/block/portal_fluid_flow.png`。
+那是一张 32×1024 的 32 帧动画竖条，几何的 `texture_width/height` 写单帧 32×32，
+所有 UV 都落在这一帧之内，渲染时由 `AnimatedStripTexture` 提取当前帧，模型才会跟着流体动。
+它的动作不靠关键帧，而是把玩家那一套算式写进 `idle` 片段：`ysm.head_pitch`/`ysm.head_yaw` 转头，
+`query.ground_speed` 与 `query.life_time` 驱动迈步，出手进度由宿主每帧写进 `v.attack`。
+盔甲壳是同一批骨骼上的 `armor_*` 子骨骼，渲染分两趟，见 [架构总览](architecture.md)。
 
 一个实体可以按状态换几何与动画：重写 `YsmAnimatable#getModelLocation` 与
 `#getAnimationFileLocation`，`updateModel()` 装载的就是这两个 getter 返回的文件。

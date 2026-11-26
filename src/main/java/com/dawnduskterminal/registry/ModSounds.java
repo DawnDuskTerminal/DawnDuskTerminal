@@ -30,6 +30,12 @@ public final class ModSounds {
     /** 棱镜权杖发射 */
     public static final DeferredHolder<SoundEvent, SoundEvent> PRISM_STAFF_LASER = register("prism_staff_laser");
 
+    /** 西瓜炮与南瓜炮共用的发射音，音高由调用方随机 */
+    public static final DeferredHolder<SoundEvent, SoundEvent> MELONGUN_SHOOT = register("melongun_shoot");
+
+    /** 西瓜炮弹爆裂时的三种音效，{@code sounds.json} 里由原版随机挑一条 */
+    public static final DeferredHolder<SoundEvent, SoundEvent> MELON_HIT = register("melon_hit");
+
     /** 弹体命中后炸开的反应场，也用作弹体命中地面的声音 */
     public static final DeferredHolder<SoundEvent, SoundEvent> CARMINITE_FIELD = register("carminite_field");
 

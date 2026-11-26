@@ -53,6 +53,13 @@ public final class YsmPackResourceTests {
             "textures/block/portal_fluid_flow.png",
             "2"
         },
+        // 虚像：贴图直接用流体方块那一张，所以这里写的是 block/ 下的路径
+        {
+            "geo/virtual_image.geo.json",
+            "animations/virtual_image.animation.json",
+            "textures/block/portal_fluid_flow.png",
+            "1"
+        },
         {"geo/expowheel.geo.json", "animations/expowheel.animation.json", "ysm/tower_ghast/textures/ghast.png", "1"},
         {"geo/e_57_blade.geo.json", "animations/e_57_blade.animation.json", "textures/entity/e_57_blade.png", "1"},
         // 备用模型：还没有实体接线，但文件必须在，免得以后接线时才发现少东西

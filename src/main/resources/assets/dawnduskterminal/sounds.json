@@ -258,5 +258,19 @@
       "minecraft:item/crossbow/loading_middle3",
       "minecraft:item/crossbow/loading_middle4"
     ]
+  },
+  "melongun_shoot": {
+    "subtitle": "subtitles.dawnduskterminal.melongun_shoot",
+    "sounds": [
+      "dawnduskterminal:melongun_shoot"
+    ]
+  },
+  "melon_hit": {
+    "subtitle": "subtitles.dawnduskterminal.melon_hit",
+    "sounds": [
+      "dawnduskterminal:melon_hit1",
+      "dawnduskterminal:melon_hit2",
+      "dawnduskterminal:melon_hit3"
+    ]
   }
 }

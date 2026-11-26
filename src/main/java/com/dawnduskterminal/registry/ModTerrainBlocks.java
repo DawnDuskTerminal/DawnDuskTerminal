@@ -83,6 +83,11 @@ public final class ModTerrainBlocks {
     public static final DeferredBlock<LichenSheetBlock> LICHEN_SHEET = BLOCKS.registerBlock(
             "lichen_sheet", LichenSheetBlock::new, copied(Blocks.GLOW_LICHEN).lightLevel(GlowLichenBlock.emission(4)));
 
+    // 天衣：地衣片的天空版本。除贴图以外与地衣片完全相同——同一个方块类、同一套多面附着与蔓延、
+    // 同样自带光照 4，所以它沿用原版发光地衣的配置特征类型，只挂在天门群系（floatrees）
+    public static final DeferredBlock<LichenSheetBlock> SKY_LICHEN = BLOCKS.registerBlock(
+            "sky_lichen", LichenSheetBlock::new, copied(Blocks.GLOW_LICHEN).lightLevel(GlowLichenBlock.emission(4)));
+
     public static final DeferredBlock<MimicBlock> MIMIC = BLOCKS.registerBlock(
             "mimic",
             MimicBlock::new,
@@ -102,6 +107,11 @@ public final class ModTerrainBlocks {
 
     public static final DeferredBlock<Block> SILTSTONE =
             BLOCKS.registerSimpleBlock("siltstone", stone(MapColor.TERRACOTTA_WHITE, 1.5F));
+
+    // 橙大理石：石岸群系的整层地表。属性与粉砂岩同档——硬度 1.5、爆炸抗性 9、石头音效，
+    // 地图色取陶瓦那一档的橙，与贴图的暖色基调一致
+    public static final DeferredBlock<Block> ORANGE_MARBLE =
+            BLOCKS.registerSimpleBlock("orange_marble", stone(MapColor.TERRACOTTA_ORANGE, 1.5F));
 
     // 用 HalfTransparentBlock，也就是原版冰和原版玻璃共同继承的那个类
     // （IceBlock 继承 HalfTransparentBlock，TransparentBlock 继承 HalfTransparentBlock，玻璃是
@@ -167,11 +177,13 @@ public final class ModTerrainBlocks {
     public static final DeferredItem<BlockItem> CHARNOCKITE_LICHEN_ITEM =
             ITEMS.registerSimpleBlockItem(CHARNOCKITE_LICHEN);
     public static final DeferredItem<BlockItem> LICHEN_SHEET_ITEM = ITEMS.registerSimpleBlockItem(LICHEN_SHEET);
+    public static final DeferredItem<BlockItem> SKY_LICHEN_ITEM = ITEMS.registerSimpleBlockItem(SKY_LICHEN);
     public static final DeferredItem<BlockItem> MIMIC_ITEM = ITEMS.registerSimpleBlockItem(MIMIC);
     public static final DeferredItem<BlockItem> TWILIGHT_STONE_ITEM = ITEMS.registerSimpleBlockItem(TWILIGHT_STONE);
     public static final DeferredItem<BlockItem> ROAD_SAND_ITEM = ITEMS.registerSimpleBlockItem(ROAD_SAND);
     public static final DeferredItem<BlockItem> UNCONSCIOUS_SAND_ITEM = ITEMS.registerSimpleBlockItem(UNCONSCIOUS_SAND);
     public static final DeferredItem<BlockItem> SILTSTONE_ITEM = ITEMS.registerSimpleBlockItem(SILTSTONE);
+    public static final DeferredItem<BlockItem> ORANGE_MARBLE_ITEM = ITEMS.registerSimpleBlockItem(ORANGE_MARBLE);
     public static final DeferredItem<BlockItem> FROZEN_CANOPY_ITEM = ITEMS.registerSimpleBlockItem(FROZEN_CANOPY);
     public static final DeferredItem<BlockItem> FRAGILE_CANOPY_ITEM = ITEMS.registerSimpleBlockItem(FRAGILE_CANOPY);
     public static final DeferredItem<BlockItem> CANOPY_FROST_ITEM = ITEMS.registerSimpleBlockItem(CANOPY_FROST);

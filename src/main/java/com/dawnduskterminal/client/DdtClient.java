@@ -96,6 +96,7 @@ public final class DdtClient {
         modBus.addListener(DdtClient::onModifyBakingResult);
         modBus.addListener(TowerGhastRenderer::onRegisterRenderers);
         modBus.addListener(StringRenderer::onRegisterRenderers);
+        modBus.addListener(VirtualImageRenderer::onRegisterRenderers);
         modBus.addListener(GhastFruityRenderer::onRegisterRenderers);
         modBus.addListener(GhastEliteRenderer::onRegisterRenderers);
         modBus.addListener(LivingArmorRenderer::onRegisterRenderers);
@@ -490,6 +491,9 @@ public final class DdtClient {
      */
     private static void onRegisterEntityRenderers(EntityRenderersEvent.RegisterRenderers event) {
         event.registerEntityRenderer(ModEntities.CARMINITE_BALL.get(), ThrownItemRenderer::new);
+        // 西瓜炮与南瓜炮的炮弹：一格大的方块，三个轴的初始旋转由实体同步，见 FruitProjectileRenderer
+        event.registerEntityRenderer(ModEntities.MELON_PROJECTILE.get(), FruitProjectileRenderer::new);
+        event.registerEntityRenderer(ModEntities.PUMPKIN_PROJECTILE.get(), FruitProjectileRenderer::new);
         // 两瓶转换粉同样用投掷物渲染器：手上那张图标摆成朝镜头的面片，与喷溅药水一个观感
         event.registerEntityRenderer(ModEntities.POTENT_TRANSFORMATION_POWDER.get(), ThrownItemRenderer::new);
         event.registerEntityRenderer(ModEntities.REVERSED_TRANSFORMATION_POWDER.get(), ThrownItemRenderer::new);

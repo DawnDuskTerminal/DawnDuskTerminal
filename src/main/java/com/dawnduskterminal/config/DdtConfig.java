@@ -72,7 +72,9 @@ public final class DdtConfig {
                 .defineInRange("sky_light_day", SKY_LIGHT_DAY_DEFAULT, 0, 15);
         SKY_LIGHT_CENTER = b.comment("sky light on the terminator itself")
                 .defineInRange("sky_light_center", SKY_LIGHT_CENTER_DEFAULT, 0, 15);
-        SKY_LIGHT_NIGHT = b.comment("sky light at the full night side, 8 and below lets monsters spawn")
+        SKY_LIGHT_NIGHT = b.comment(
+                        "sky light at the full night side, appearance only: hostile spawning follows the",
+                        "positional darkening, so lowering this does not make the night side spawn more")
                 .defineInRange("sky_light_night", SKY_LIGHT_NIGHT_DEFAULT, 0, 15);
         b.pop();
 

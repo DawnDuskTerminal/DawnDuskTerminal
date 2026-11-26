@@ -20,7 +20,11 @@
 - `sky_light_center`：晨昏线上的天光，默认值 14，取值范围为 0 至 15。
 - `sky_light_night`：夜侧最远处的天光，默认值 12，取值范围为 0 至 15。
 
-配置注释中已注明：取值在 8 及以下时会导致怪物生成。
+天光上限只决定画面亮度，不决定刷怪。
+刷怪判定读的是另一份量：`ChronoSkyLight.localSkyDarken` 按坐标给出压暗量，昼侧为 0、晨昏线上为 5、夜侧为 11，
+`mixin/MonsterSpawnLightMixin` 用它替换原版刷怪判定里的全维度压暗量。
+因此调低 `sky_light_night` 不会让夜侧多刷怪，改这两组值也不会互相牵连。
+详见 [群系对照](biomes.md#夜侧才刷怪)。
 
 ## chrono_line
 

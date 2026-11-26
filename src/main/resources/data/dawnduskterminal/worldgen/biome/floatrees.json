@@ -88,7 +88,8 @@
       "twilightforest:mushgloom_cluster",
       "minecraft:patch_pumpkin",
       "minecraft:flower_forest_flowers",
-      "twilightforest:default_fallen_logs"
+      "twilightforest:default_fallen_logs",
+      "dawnduskterminal:sky_lichen"
     ],
     [
       "minecraft:freeze_top_layer"
@@ -113,22 +114,10 @@
         "weight": 10
       },
       {
-        "type": "minecraft:chicken",
-        "maxCount": 4,
-        "minCount": 4,
-        "weight": 10
-      },
-      {
         "type": "twilightforest:deer",
         "maxCount": 5,
         "minCount": 4,
         "weight": 15
-      },
-      {
-        "type": "minecraft:wolf",
-        "maxCount": 4,
-        "minCount": 4,
-        "weight": 5
       },
       {
         "type": "twilightforest:tiny_bird",

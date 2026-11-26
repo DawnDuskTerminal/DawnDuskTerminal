@@ -15,6 +15,7 @@ import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.MobCategory;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.control.FlyingMoveControl;
 import net.minecraft.world.entity.ai.navigation.FlyingPathNavigation;
@@ -435,6 +436,29 @@ public final class StringEntityTests {
         helper.assertTrue(
                 Math.abs(ratio - 2.0D) < 0.05D,
                 "air thrust must scale with MOVEMENT_SPEED, moving twice as fast gave ratio " + ratio);
+        helper.succeed();
+    }
+
+    /**
+     * 弦不占 {@code CREATURE} 的刷怪名额
+     *
+     * <p>原版按类别统计加载中的生物，{@code CREATURE} 的上限是 {@code 10 × 可刷怪区块数 / 289}，
+     * 单玩家约十只，动物与弦共用这一份。弦自己已经有 {@code StringSpawner} 的 5 只上限，
+     * 若再占名额，动物就会被挤掉。这里钉住三条：类别仍是 {@code CREATURE}、
+     * 递给刷怪计数时按 {@code MISC} 剔除、其余情形仍按类别走
+     */
+    @GameTest(template = "ddt_empty")
+    public static void stringsStayOutOfTheCreatureSpawnBudget(GameTestHelper helper) {
+        StringEntity string = new StringEntity(ModEntities.STRING.get(), helper.getLevel());
+        helper.assertTrue(
+                ModEntities.STRING.get().getCategory() == MobCategory.CREATURE,
+                "the string stays a creature, its despawn distance and friendly flag come from that category");
+        helper.assertTrue(
+                string.getClassification(true) == MobCategory.MISC,
+                "the string must not be counted under the creature cap, or it starves animals");
+        helper.assertTrue(
+                string.getClassification(false) == MobCategory.CREATURE,
+                "outside the spawn-count question the string is still classified as a creature");
         helper.succeed();
     }
 

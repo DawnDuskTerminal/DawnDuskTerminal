@@ -69,7 +69,20 @@
       }
     ],
     "misc": [],
-    "monster": [],
+    "monster": [
+      {
+        "type": "twilightforest:winter_wolf",
+        "maxCount": 1,
+        "minCount": 1,
+        "weight": 5
+      },
+      {
+        "type": "twilightforest:yeti",
+        "maxCount": 1,
+        "minCount": 1,
+        "weight": 5
+      }
+    ],
     "underground_water_creature": [],
     "water_ambient": [],
     "water_creature": []

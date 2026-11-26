@@ -3,6 +3,7 @@ package com.dawnduskterminal.registry;
 import com.dawnduskterminal.DawnDuskTerminal;
 import com.dawnduskterminal.block.SusCakeBlock;
 import com.dawnduskterminal.entity.CanopyBoatEntity;
+import com.dawnduskterminal.entity.FruitKind;
 import com.dawnduskterminal.entity.GhastPaintingEntity;
 import com.dawnduskterminal.item.CanocanBucketItem;
 import com.dawnduskterminal.item.CanocanItem;
@@ -13,6 +14,7 @@ import com.dawnduskterminal.item.Experiment012Item;
 import com.dawnduskterminal.item.Experiment107Item;
 import com.dawnduskterminal.item.Experiment114Item;
 import com.dawnduskterminal.item.FireworkMachineBowItem;
+import com.dawnduskterminal.item.FruitGunItem;
 import com.dawnduskterminal.item.GhastPaintingItem;
 import com.dawnduskterminal.item.PrismStaffItem;
 import com.dawnduskterminal.item.ScarletMolybdArmorItem;
@@ -349,6 +351,16 @@ public final class ModItems {
             "living_armor_spawn_egg",
             () -> new DeferredSpawnEggItem(ModEntities.LIVING_ARMOR, 0x6E7377, 0xE8E4D8, new Item.Properties()));
 
+    /**
+     * 「虚像」的刷怪蛋
+     *
+     * <p>两层染色取传送门流体的紫（{@code 0x7F159E}）与泪滴的蓝白（{@code 0xC7E8F5}）。
+     * 它可以自然生成，刷怪蛋只是另一条随手放出它的路
+     */
+    public static final DeferredItem<DeferredSpawnEggItem> VIRTUAL_IMAGE_SPAWN_EGG = ITEMS.register(
+            "virtual_image_spawn_egg",
+            () -> new DeferredSpawnEggItem(ModEntities.VIRTUAL_IMAGE, 0x7F159E, 0xC7E8F5, new Item.Properties()));
+
     public static final DeferredItem<CarminiteStaffItem> CARMINITE_MOLYBDENUM_REACTOR_STAFF = ITEMS.register(
             "carminite_molybdenum_reactor_staff",
             () -> new CarminiteStaffItem(
@@ -374,6 +386,21 @@ public final class ModItems {
                     .stacksTo(1)
                     .durability(FireworkMachineBowItem.DURABILITY)
                     .rarity(Rarity.UNCOMMON)));
+
+    /**
+     * 西瓜炮：右键消耗一个西瓜，射出一格大的西瓜炮弹，见 {@link FruitGunItem}
+     *
+     * <p>耐久 256，每发扣 1 点；2 秒冷却由物品自己的 {@code use} 上。{@code durability} 同时把
+     * 堆叠上限设成 1，所以不必再写 {@code stacksTo}
+     */
+    public static final DeferredItem<FruitGunItem> MELONGUN = ITEMS.register(
+            "melongun",
+            () -> new FruitGunItem(FruitKind.MELON, new Item.Properties().durability(FruitGunItem.DURABILITY)));
+
+    /** 南瓜炮：与西瓜炮同一套发射逻辑，弹药换成南瓜，见 {@link FruitGunItem} */
+    public static final DeferredItem<FruitGunItem> PUMPKINGUN = ITEMS.register(
+            "pumpkingun",
+            () -> new FruitGunItem(FruitKind.PUMPKIN, new Item.Properties().durability(FruitGunItem.DURABILITY)));
 
     // T2 护甲，数值在 ModArmorMaterials 里，四件穿齐时每件自己续生命恢复
     public static final DeferredItem<ScarletMolybdArmorItem> SCARLET_MOLYBD_HELMET =

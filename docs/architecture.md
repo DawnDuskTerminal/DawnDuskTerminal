@@ -67,6 +67,8 @@ Java 路径均相对于 `src/main/java/com/dawnduskterminal/`。
 
 三种形态只主动索敌玩家。
 `world/StringSpawner` 每 5 秒扫描列，自然生成仅产生滑行型，玩家周围 48 格内上限为 5 只。
+弦不计入 `MobCategory.CREATURE` 的刷怪容量：`StringEntity#getClassification(true)` 返回 `MISC`，
+否则它会与动物争同一份名额（单玩家约十只），名额满后动物连一次生成尝试都拿不到。
 滑行型每次承受高于 2 点的伤害时，有 10% 概率分裂为低空飞行型与游动型各一只。
 飞行型抬高 1.5 格；原实体使用 `discard`，不掉落、不计击杀、不播放倒地动画。
 分裂播放末影人传送音并生成 60 颗传送粒子，新形态不再次分裂。
@@ -75,7 +77,8 @@ Java 路径均相对于 `src/main/java/com/dawnduskterminal/`。
 落点本身或正下方必须为传送门流体，否则不消耗刷怪蛋。
 默认发射器实现为私有方法，物品单独实现该入口。
 
-`client/StringRenderer#glowRenderType` 使用自发光着色器与 `COLOR_DEPTH_WRITE`，保留 alpha 230 的半透明。
+`client/StringRenderer` 的自发光半透明层已抽到 `client/EmissiveRenderTypes`，与「虚像」共用。
+配方使用自发光着色器与 `COLOR_DEPTH_WRITE`，保留 alpha 230 的半透明。
 实体先于半透明区块和云绘制，因此不能换用仅有 `COLOR_WRITE` 的 `entityTranslucentEmissive`。
 竖条贴图为 16×512 与 32×1024，各 32 帧，由 `AnimatedStripTexture` 上传至单帧动态贴图。
 播放与资源释放规则见 [动画运行时](ysm.md)。
@@ -84,6 +87,28 @@ Java 路径均相对于 `src/main/java/com/dawnduskterminal/`。
 三个变体等长，413192 采样、44100 Hz，约 9.37 秒或 187 tick；剩余 8 tick 时启动下一段。
 音高必须固定为 1.0，以免实际音长偏离调度时长。
 运动回归入口为 `gametest/StringEntityTests`。
+
+### 虚像
+
+`entity/VirtualImageEntity` 继承 `Monster`，是河海类群系的地面近战生物。
+基准生命 60、近战 10 点、击退抗性 1.0，与小型「弦」同档。
+每只个体再叠一个 0.85 到 1.15 的随机体型偏移，生命、攻击与移速都按同一个比例放大。
+免疫击退、推动、药水与 `stability` 伤害，写法与弦的免疫一节相同。
+待机音与受伤、死亡音沿用弦的事件，排期规则也相同。
+每两 tick 在碰撞箱内落一颗 `dripping_obsidian_tear`。
+
+模型是玩家比例的人形，几何为 `geo/virtual_image.geo.json`，动画为 `animations/virtual_image.animation.json`。
+贴图是 `textures/block/portal_fluid_flow.png`——一张 32×1024 的 32 帧竖条。
+几何的 `texture_width/height` 写单帧 32×32，所有 UV 落在一帧之内，由 `AnimatedStripTexture` 逐帧换图。
+动作按玩家那一套算：走路甩臂迈腿、头跟视线、出手抬右臂，出手进度由 `v.attack` 每帧写入。
+每个部位逐帧在 x、y、z 三个方向各做 ±0.25 像素的随机平移，见 `client/VirtualImageRenderer`。
+
+盔甲壳是同一批骨骼上的 `armor_*` 子骨骼，立方体 `inflate` 0.6，与本体共用同一帧的 UV。
+渲染分两趟：本体不透明度 1，盔甲壳 alpha 0.2，两趟都用 `client/EmissiveRenderTypes`。
+
+自然生成铺满河海类群系，含河与海的全部温度档，落点判定要求脚下是 `rosy_grass`。
+落点判定不读亮度，白天与夜里都刷。
+入口是 `VirtualImageEntity#checkVirtualImageSpawnRules`，回归用例在 `gametest/VirtualImageTests`。
 
 ### 高塔恶魂
 
@@ -559,6 +584,7 @@ Boss 门槛的设计声明与执行链路仍存在未决分歧，不得以删除
 `FluidStatusAccessor` 暴露 `Aquifer.FluidStatus` 的流体类型。
 `FeatureSorterMixin` 允许配置控制的特征环，`StructureExclusionMixin` 执行结构白名单。
 `LightEngineSkyLightMixin` 将天光上限设为 `ChronoSkyLight.maxSkyLight`。
+`MonsterSpawnLightMixin` 把刷怪判定里的压暗量换成 `ChronoSkyLight.localSkyDarken`，天光上限不动。
 `BiomeColorsPlantMixin` 将草与树叶取色接入 `ChronoFoliageColors`。
 装饰画和红篝火的专用补丁见各自章节。
 

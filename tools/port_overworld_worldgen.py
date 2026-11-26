@@ -466,6 +466,79 @@ def retarget_biome_ids(node, biome_names: set[str], key: str | None = None):
     return node
 
 
+# --------------------------------------------------------------------------------------
+# 石岸的砾石：换成橙大理石
+# --------------------------------------------------------------------------------------
+# 石岸的两条地表分支照移植结果原样保留：噪声判据在顶面挑出成片的砾石，
+# 斑块之外的顶面是苍穹石，洞顶一律退回苍穹石。
+# 唯一的改动是把这两条分支里的砾石产物换成 `orange_marble`，
+# 也就是原版砾石斑块在那个群系里改为大理石斑块，结构与判据都不动。
+
+STONY_SHORE_MARBLE = f"{MOD_ID}:orange_marble"
+STONY_SHORE_BIOME = f"{MOD_ID}:stony_shore"
+STONY_SHORE_GRAVEL = "minecraft:gravel"
+
+
+def swap_result_states(node, old: str, new: str) -> int:
+    """就地把 `result_state` 里的方块换成别的，返回换了几处。"""
+    swapped = 0
+    if isinstance(node, dict):
+        if node.get("Name") == old:
+            node["Name"] = new
+            swapped += 1
+        for value in node.values():
+            swapped += swap_result_states(value, old, new)
+    elif isinstance(node, list):
+        for value in node:
+            swapped += swap_result_states(value, old, new)
+    return swapped
+
+
+def apply_stony_shore_surface(settings) -> None:
+    """把石岸群系地表规则里的砾石换成橙大理石。
+
+    石岸有两条地表分支，水面以上与水面以下各一条，每条各有一个砾石产物。
+    只换这两处：分支结构、砾石噪声判据、苍穹石兜底与洞顶例外全部保持原版形态。
+
+    分支里除砾石之外还有苍穹石，所以按 `result_state` 的方块名精确匹配，
+    不做整支替换。
+    """
+    found_scope = 0
+    swapped = 0
+
+    def rewrite_scope(node) -> None:
+        nonlocal found_scope, swapped
+        if isinstance(node, dict):
+            condition = node.get("if_true")
+            if (
+                isinstance(condition, dict)
+                and condition.get("type") == "minecraft:biome"
+                and condition.get("biome_is") == [STONY_SHORE_BIOME]
+            ):
+                body = node.get("then_run")
+                if isinstance(body, dict):
+                    found_scope += 1
+                    swapped += swap_result_states(body, STONY_SHORE_GRAVEL, STONY_SHORE_MARBLE)
+                return
+            for value in node.values():
+                rewrite_scope(value)
+        elif isinstance(node, list):
+            for value in node:
+                rewrite_scope(value)
+
+    rule = settings.get("surface_rule")
+    if rule is None:
+        return
+    rewrite_scope(rule)
+    if found_scope != 2 or swapped != 2:
+        sys.exit(
+            "error: the stony shore gravel swap did not land where it should "
+            f"(branches found {found_scope}/2, gravel swapped {swapped}/2).\n"
+            "       Vanilla's surface rule shape changed; review tools/port_overworld_worldgen.py "
+            "before trusting the port."
+        )
+
+
 def retarget_block_tags(node, key: str | None = None):
     """Points block tag predicates at our own tags, only where a tag is really being referenced."""
     if isinstance(node, dict):
@@ -830,6 +903,8 @@ def main() -> int:
         settings = apply_palette(settings)
         # 地表规则直接点名群系，所以必须点名我们的副本
         settings = retarget_biome_ids(settings, overworld_biome_names(vanilla_tag_root))
+        # 石岸的地表整层用橙大理石，厚度照砂岩；这条不可由调色板表达
+        apply_stony_shore_surface(settings)
         target = OUT_ROOT / "noise_settings" / "chrono.json"
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(json.dumps(settings, indent=2) + "\n", encoding="utf-8")

@@ -17,6 +17,7 @@
   "block.dawnduskterminal.charnockite": "Charnockite",
   "block.dawnduskterminal.charnockite_lichen": "Charnockite Lichen",
   "block.dawnduskterminal.lichen_sheet": "Lichen Sheet",
+  "block.dawnduskterminal.sky_lichen": "Sky Lichen",
   "block.dawnduskterminal.mimic": "Mimic",
   "block.dawnduskterminal.twilight_stone": "Twilight Stone",
   "block.dawnduskterminal.canopy_stone_copper_ore": "Canopy Stone Copper Ore",
@@ -34,6 +35,7 @@
   "block.dawnduskterminal.road_sand": "Road Sand",
   "block.dawnduskterminal.unconscious_sand": "Unconscious Sand",
   "block.dawnduskterminal.siltstone": "Siltstone",
+  "block.dawnduskterminal.orange_marble": "Orange Marble",
   "block.dawnduskterminal.frozen_canopy": "Frozen Canopy",
   "block.dawnduskterminal.fragile_canopy": "Fragile Canopy",
   "block.dawnduskterminal.canopy_frost": "Canopy Frost",
@@ -436,6 +438,8 @@
   "item.dawnduskterminal.ghast_elite_spawn_egg": "Ghast Elite Spawn Egg",
   "entity.dawnduskterminal.living_armor": "Living Armor",
   "item.dawnduskterminal.living_armor_spawn_egg": "Living Armor Spawn Egg",
+  "entity.dawnduskterminal.virtual_image": "Virtual Image",
+  "item.dawnduskterminal.virtual_image_spawn_egg": "Virtual Image Spawn Egg",
   "subtitles.dawnduskterminal.ghast_universal_ambient": "Ghast wails",
   "subtitles.dawnduskterminal.ghast_universal_hurt": "Ghast screams",
   "subtitles.dawnduskterminal.ghast_universal_death": "Ghast dies",
@@ -449,7 +453,15 @@
   "item.dawnduskterminal.firework_machinebow.desc2": "The blast ignores hurt immunity; accepts Power, Punch, Flame, Multishot and Quick Charge",
   "subtitles.dawnduskterminal.firework_machinebow_launch": "Machine bow rocket launches",
   "subtitles.dawnduskterminal.firework_machinebow_shoot": "Machine bow fires",
-  "subtitles.dawnduskterminal.firework_machinebow_draw": "Machine bow draws"
+  "subtitles.dawnduskterminal.firework_machinebow_draw": "Machine bow draws",
+  "item.dawnduskterminal.melongun": "Melon Gun",
+  "item.dawnduskterminal.melongun.desc": "Right-click to fire a melon cannonball; consumes one melon, 2 s cooldown, 256 durability",
+  "item.dawnduskterminal.pumpkingun": "Pumpkin Gun",
+  "item.dawnduskterminal.pumpkingun.desc": "Right-click to fire a pumpkin cannonball; consumes one pumpkin, 2 s cooldown, 256 durability",
+  "entity.dawnduskterminal.melon_projectile": "Melon Cannonball",
+  "entity.dawnduskterminal.pumpkin_projectile": "Pumpkin Cannonball",
+  "subtitles.dawnduskterminal.melongun_shoot": "Gourd cannon fires",
+  "subtitles.dawnduskterminal.melon_hit": "Melon cannonball bursts"
 }
 
 
