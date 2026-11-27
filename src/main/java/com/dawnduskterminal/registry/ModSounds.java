@@ -167,6 +167,19 @@ public final class ModSounds {
      */
     public static final DeferredHolder<SoundEvent, SoundEvent> EXPOWHEEL_AMBIENT = register("expowheel_ambient");
 
+    /**
+     * 鬼花在观察期望向玩家的那一声，三个事件分别指向原版洞穴音的 cave1、cave2、cave10
+     *
+     * <p>不直接用 {@code SoundEvents.AMBIENT_CAVE}：那一条是从全部洞穴音里随机抽一条，
+     * 而鬼花只要这三条之一。三条在 {@code sounds.json} 里各自写成一条
+     * {@code minecraft:ambient/cave/caveN}，播放时三选一
+     */
+    public static final DeferredHolder<SoundEvent, SoundEvent> GHOFLOWER_CAVE_1 = register("ghoflower_cave_1");
+
+    public static final DeferredHolder<SoundEvent, SoundEvent> GHOFLOWER_CAVE_2 = register("ghoflower_cave_2");
+
+    public static final DeferredHolder<SoundEvent, SoundEvent> GHOFLOWER_CAVE_10 = register("ghoflower_cave_10");
+
     /** 一支曲子都没有时 {@code nextInt} 会抛异常，所以这边留个口子 */
     public static int requiemTrackCount() {
         return REQUIEM_TRACKS.size();

@@ -29,6 +29,7 @@
     "FeatureSorterMixin",
     "LightEngineSkyLightMixin",
     "MonsterSpawnLightMixin",
+    "ChunkSpawnBiomeMixin",
     "StructureExclusionMixin",
     "StructureTemplateManagerMixin",
     "PaintingVariantGuardMixin",

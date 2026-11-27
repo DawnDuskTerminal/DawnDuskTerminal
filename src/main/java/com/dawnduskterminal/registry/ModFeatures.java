@@ -4,6 +4,7 @@ import com.dawnduskterminal.DawnDuskTerminal;
 import com.dawnduskterminal.world.CharnockiteLichenPatchFeature;
 import com.dawnduskterminal.world.ChronoFreezeFeature;
 import com.dawnduskterminal.world.FairyDianthusFeature;
+import com.dawnduskterminal.world.SunflowerFeature;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.level.levelgen.feature.Feature;
 import net.neoforged.bus.api.IEventBus;
@@ -24,6 +25,10 @@ public final class ModFeatures {
 
     public static final DeferredHolder<Feature<?>, CharnockiteLichenPatchFeature> CHARNOCKITE_LICHEN_PATCH =
             FEATURES.register("charnockite_lichen_patch", CharnockiteLichenPatchFeature::new);
+
+    /** 向日葵的一簇：半径内撒若干株、每株 1~3 格，见 {@link SunflowerFeature} */
+    public static final DeferredHolder<Feature<?>, SunflowerFeature> SUNFLOWER =
+            FEATURES.register("sunflower", SunflowerFeature::new);
 
     private ModFeatures() {}
 

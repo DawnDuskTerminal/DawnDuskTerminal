@@ -1,0 +1,22 @@
+{
+  "variants": {
+    "segment=0,head=false": {
+      "model": "dawnduskterminal:block/lunarghoflower"
+    },
+    "segment=0,head=true": {
+      "model": "dawnduskterminal:block/lunarghoflower"
+    },
+    "segment=1,head=false": {
+      "model": "dawnduskterminal:block/lunarghoflower"
+    },
+    "segment=1,head=true": {
+      "model": "dawnduskterminal:block/lunarghoflower"
+    },
+    "segment=2,head=false": {
+      "model": "dawnduskterminal:block/lunarghoflower"
+    },
+    "segment=2,head=true": {
+      "model": "dawnduskterminal:block/lunarghoflower"
+    }
+  }
+}

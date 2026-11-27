@@ -15,6 +15,7 @@ import com.dawnduskterminal.entity.GhastEliteFireball;
 import com.dawnduskterminal.entity.GhastEliteTear;
 import com.dawnduskterminal.entity.GhastFruityEntity;
 import com.dawnduskterminal.entity.GhastPaintingEntity;
+import com.dawnduskterminal.entity.GhoflowerProjectile;
 import com.dawnduskterminal.entity.LivingArmorEntity;
 import com.dawnduskterminal.entity.StringEntity;
 import com.dawnduskterminal.entity.TowerGhastEntity;
@@ -69,6 +70,30 @@ public final class ModEntities {
                     .clientTrackingRange(4)
                     .updateInterval(1)
                     .build("carminite_ball"));
+
+    /**
+     * 鬼花射弹：无重力直线飞行，外观由客户端渲染器画成面向镜头的四边形
+     *
+     * <p>昼、夜是<b>两个实体类型</b>，不是一个实体按位置换贴图：
+     * 按位置换的话，射弹飞过晨昏线（{@code param} 变号）会在半路改颜色。
+     * 发射时按发射方确定类型，颜色从出膛到命中都不变。
+     */
+    public static final DeferredHolder<EntityType<?>, EntityType<GhoflowerProjectile>> GHOFLOWER_PROJECTILE =
+            ENTITIES.register("ghoflower_projectile", () -> EntityType.Builder.<GhoflowerProjectile>of(
+                            GhoflowerProjectile::new, MobCategory.MISC)
+                    .sized(0.35F, 0.35F)
+                    .clientTrackingRange(8)
+                    .updateInterval(1)
+                    .build("ghoflower_projectile"));
+
+    /** 夜侧的鬼花射弹：夜版贴图，沿途粒子换成 {@code enchanted_hit} */
+    public static final DeferredHolder<EntityType<?>, EntityType<GhoflowerProjectile>> GHOFLOWER_PROJECTILE_NIGHT =
+            ENTITIES.register("ghoflower_projectile_night", () -> EntityType.Builder.<GhoflowerProjectile>of(
+                            GhoflowerProjectile::new, MobCategory.MISC)
+                    .sized(0.35F, 0.35F)
+                    .clientTrackingRange(8)
+                    .updateInterval(1)
+                    .build("ghoflower_projectile_night"));
 
     /** 命中后留在原地的反应场。不可见 不参与碰撞，客户端靠它每 tick 生成边缘粒子 */
     public static final DeferredHolder<EntityType<?>, EntityType<CarminiteFieldEntity>> CARMINITE_FIELD =

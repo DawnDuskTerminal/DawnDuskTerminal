@@ -223,6 +223,17 @@ public final class PaletteBiomeSource extends BiomeSource {
         return this.palette;
     }
 
+    /**
+     * 采样深度是否落到天门群系那一段
+     *
+     * <p>阈值 {@link #FLOATREES_DEPTH} 由 {@code floatrees} 单独占用，判在气候表匹配之前，因此它与原版
+     * 选点结果无关，只由 y 与 offset 决定。公开出来是给游戏测试直接断言用的，见
+     * {@code gametest/ChunkSpawnBiomeTests}
+     */
+    public static boolean isSkyBiomeDepth(double depth) {
+        return Climate.unquantizeCoord(Climate.quantizeCoord((float) depth)) < FLOATREES_DEPTH;
+    }
+
     @Override
     protected MapCodec<? extends BiomeSource> codec() {
         return CODEC;
@@ -244,7 +255,7 @@ public final class PaletteBiomeSource extends BiomeSource {
         }
         float depth = (float) sampler.depth().compute(context);
         Holder<Biome> floatreesHolder = floatrees();
-        if (floatreesHolder != null && Climate.unquantizeCoord(Climate.quantizeCoord(depth)) < FLOATREES_DEPTH) {
+        if (floatreesHolder != null && isSkyBiomeDepth(depth)) {
             return floatreesHolder;
         }
         double temperature = SHIFTED_TEMPERATURES.get().shifted(sampler, quartX, quartZ, context);

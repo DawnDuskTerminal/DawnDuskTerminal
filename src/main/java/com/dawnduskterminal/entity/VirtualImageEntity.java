@@ -3,6 +3,8 @@ package com.dawnduskterminal.entity;
 import com.dawnduskterminal.registry.ModDamageTypes;
 import com.dawnduskterminal.registry.ModSounds;
 import com.dawnduskterminal.registry.ModTerrainBlocks;
+import com.dawnduskterminal.world.HazardousFluid;
+import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.nbt.CompoundTag;
@@ -11,13 +13,18 @@ import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvent;
+import net.minecraft.sounds.SoundEvents;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
+import net.minecraft.world.Difficulty;
 import net.minecraft.world.DifficultyInstance;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityDimensions;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.entity.Pose;
@@ -35,6 +42,10 @@ import net.minecraft.world.entity.monster.Monster;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.ServerLevelAccessor;
+import net.minecraft.world.level.levelgen.Heightmap;
+import net.minecraft.world.level.material.FluidState;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -57,7 +68,8 @@ import org.jetbrains.annotations.Nullable;
  * 直接用「弦」的那两组事件：待机音一条接一条地排，受伤与死亡各播 {@code string_hit}。
  *
  * <h2>AI</h2>
- * 地面近战：寻路靠近、贴脸挥击，与僵尸那一类同构。它不上天、不下水，也不离开脚下的地面。
+ * 地面近战：寻路靠近、贴脸挥击，与僵尸那一类同构。它不上天、不下水，也不离开脚下的地面；
+ * 例外是 {@code portal_fluid}：它能在液面上行走，见 {@link #canStandOnFluid}。
  *
  * <h2>生成</h2>
  * 只出现在河海类群系（河与海的全部温度档）的霞草方块上，
@@ -99,14 +111,30 @@ public class VirtualImageEntity extends Monster {
     /** 每两 tick 落一颗泪滴：再密就成了水柱，再疏就看不出「不断产生」 */
     private static final int TEAR_INTERVAL_TICKS = 2;
 
+    private static final double MAX_CONTINUOUS_STEP_SQUARED = 16.0D;
+    private static final int RETALIATION_UNSEEN_TICKS = 60;
+    private static final byte IDLE_REPLAY = 1;
+    private static final byte USE_MAIN_HAND = 2;
+    private static final byte USE_OFF_HAND = 3;
     private static final EntityDataAccessor<Float> DATA_SIZE =
             SynchedEntityData.defineId(VirtualImageEntity.class, EntityDataSerializers.FLOAT);
+    private static final EntityDataAccessor<Byte> DATA_REPLAY_STATE =
+            SynchedEntityData.defineId(VirtualImageEntity.class, EntityDataSerializers.BYTE);
+    private static final EntityDataAccessor<Boolean> DATA_REPLAY_TELEPORT =
+            SynchedEntityData.defineId(VirtualImageEntity.class, EntityDataSerializers.BOOLEAN);
 
     /** 随机体型偏移：生命、攻击、移速与渲染缩放都乘这一个数 */
     private float sizeScale = 1.0F;
 
     /** 距离下一条待机音还有多少 tick */
     private int ambientTimer = AMBIENT_PERIOD_TICKS / 2;
+
+    @Nullable
+    private VirtualImageTrace replay;
+
+    private int replayFrame;
+    private boolean replayBlocked;
+    private int retaliationUnseenTicks;
 
     public VirtualImageEntity(EntityType<? extends VirtualImageEntity> type, Level level) {
         super(type, level);
@@ -134,6 +162,8 @@ public class VirtualImageEntity extends Monster {
     protected void defineSynchedData(SynchedEntityData.Builder builder) {
         super.defineSynchedData(builder);
         builder.define(DATA_SIZE, 1.0F);
+        builder.define(DATA_REPLAY_STATE, (byte) 0);
+        builder.define(DATA_REPLAY_TELEPORT, false);
     }
 
     // ---------------------------------------------------------------- 随机体型
@@ -170,7 +200,13 @@ public class VirtualImageEntity extends Monster {
     protected EntityDimensions getDefaultDimensions(Pose pose) {
         // 超类构造期字段仍是 0，给一个合法的兜底尺寸
         float scale = this.sizeScale <= 0.0F ? 1.0F : this.sizeScale;
-        return EntityDimensions.scalable(0.6F * scale, 1.8F * scale).withEyeHeight(1.62F * scale);
+        return switch (pose) {
+            case CROUCHING -> EntityDimensions.scalable(0.6F * scale, 1.5F * scale)
+                    .withEyeHeight(1.27F * scale);
+            case SWIMMING -> EntityDimensions.scalable(0.6F * scale, 0.6F * scale)
+                    .withEyeHeight(0.4F * scale);
+            default -> EntityDimensions.scalable(0.6F * scale, 1.8F * scale).withEyeHeight(1.62F * scale);
+        };
     }
 
     @Override
@@ -179,6 +215,16 @@ public class VirtualImageEntity extends Monster {
         if (DATA_SIZE.equals(key)) {
             this.sizeScale = this.entityData.get(DATA_SIZE);
             this.refreshDimensions();
+        } else if (DATA_REPLAY_TELEPORT.equals(key) && this.level().isClientSide && this.lerpSteps > 0) {
+            // 实体追踪先发送位移，再发送同步数据。传送时直接应用已经收到的目标位置。
+            this.absMoveTo(
+                    this.lerpTargetX(),
+                    this.lerpTargetY(),
+                    this.lerpTargetZ(),
+                    this.lerpTargetYRot(),
+                    this.lerpTargetXRot());
+            this.setOldPosAndRot();
+            this.lerpSteps = 0;
         }
     }
 
@@ -201,11 +247,21 @@ public class VirtualImageEntity extends Monster {
     public void addAdditionalSaveData(CompoundTag tag) {
         super.addAdditionalSaveData(tag);
         tag.putFloat("SizeScale", this.sizeScale);
+        if (this.replay != null) {
+            tag.put("Replay", this.replay.save());
+        }
     }
 
     @Override
     public void readAdditionalSaveData(CompoundTag tag) {
         super.readAdditionalSaveData(tag);
+        this.replay = VirtualImageTrace.load(tag.getCompound("Replay"));
+        this.replayFrame = 0;
+        this.replayBlocked = false;
+        if (this.replay != null) {
+            this.setPersistenceRequired();
+        }
+        this.entityData.set(DATA_REPLAY_STATE, this.replay == null ? (byte) 0 : IDLE_REPLAY);
         float saved = tag.contains("SizeScale") ? tag.getFloat("SizeScale") : 1.0F;
         this.sizeScale = Mth.clamp(saved, MIN_SIZE, MAX_SIZE);
         if (!this.level().isClientSide) {
@@ -226,8 +282,255 @@ public class VirtualImageEntity extends Monster {
         this.goalSelector.addGoal(5, new WaterAvoidingRandomStrollGoal(this, 1.0D));
         this.goalSelector.addGoal(6, new LookAtPlayerGoal(this, Player.class, 8.0F));
         this.goalSelector.addGoal(7, new RandomLookAroundGoal(this));
-        this.targetSelector.addGoal(1, new HurtByTargetGoal(this));
-        this.targetSelector.addGoal(2, new NearestAttackableTargetGoal<>(this, Player.class, true));
+        this.targetSelector.addGoal(1, new HurtByTargetGoal(this) {
+            @Override
+            public boolean canUse() {
+                return VirtualImageEntity.this.replay == null && super.canUse();
+            }
+        });
+        this.targetSelector.addGoal(2, new NearestAttackableTargetGoal<>(this, Player.class, true) {
+            @Override
+            public boolean canUse() {
+                return VirtualImageEntity.this.replay == null && super.canUse();
+            }
+        });
+    }
+
+    @Override
+    public void setTarget(@Nullable LivingEntity target) {
+        LivingEntity previous = this.getTarget();
+        super.setTarget(target);
+        LivingEntity current = this.getTarget();
+        VirtualImageRecording.targetChanged(this, previous, current);
+        if (this.replay != null && previous != current) {
+            this.replayFrame = 0;
+            this.replayBlocked = false;
+            this.getNavigation().stop();
+            this.setPose(Pose.STANDING);
+            this.setSprinting(false);
+            this.setAggressive(false);
+            this.entityData.set(DATA_REPLAY_STATE, current == null ? IDLE_REPLAY : (byte) 0);
+            this.retaliationUnseenTicks = 0;
+        }
+    }
+
+    @Override
+    public void onRemovedFromLevel() {
+        VirtualImageRecording.stopTracking(this, this.getTarget());
+        super.onRemovedFromLevel();
+    }
+
+    @Override
+    public boolean isEffectiveAi() {
+        return super.isEffectiveAi() && (this.replay == null || this.getTarget() != null);
+    }
+
+    @Override
+    protected boolean shouldDespawnInPeaceful() {
+        return this.replay == null && super.shouldDespawnInPeaceful();
+    }
+
+    @Override
+    public boolean canUsePortal(boolean allowPassengers) {
+        return this.replay == null && super.canUsePortal(allowPassengers);
+    }
+
+    @Override
+    public boolean isIgnoringBlockTriggers() {
+        return this.isReplaying() || super.isIgnoringBlockTriggers();
+    }
+
+    @Override
+    public boolean hurt(DamageSource source, float amount) {
+        boolean hurt = super.hurt(source, amount);
+        if (hurt
+                && this.replay != null
+                && this.isAlive()
+                && source.getEntity() instanceof LivingEntity attacker
+                && this.canRetaliateAgainst(attacker)) {
+            this.setTarget(attacker);
+            if (this.getTarget() == attacker) {
+                this.retaliationUnseenTicks = 0;
+            }
+        }
+        return hurt;
+    }
+
+    private boolean canRetaliateAgainst(LivingEntity target) {
+        double range = this.getAttributeValue(Attributes.FOLLOW_RANGE);
+        return this.level().getDifficulty() != Difficulty.PEACEFUL
+                && target != this
+                && target.level() == this.level()
+                && this.canAttack(target)
+                && !this.isAlliedTo(target)
+                && this.distanceToSqr(target) <= range * range;
+    }
+
+    private void checkRetaliation() {
+        LivingEntity target = this.getTarget();
+        if (target != null) {
+            this.retaliationUnseenTicks = this.hasLineOfSight(target) ? 0 : this.retaliationUnseenTicks + 1;
+            if (!this.canRetaliateAgainst(target) || this.retaliationUnseenTicks >= RETALIATION_UNSEEN_TICKS) {
+                this.setTarget(null);
+            }
+        }
+    }
+
+    @Override
+    public void travel(Vec3 input) {
+        if (this.replay != null
+                && this.isAlive()
+                && this.getTarget() == null
+                && this.level() instanceof ServerLevel server) {
+            this.advanceReplay(server, this.replay);
+            return;
+        }
+        super.travel(input);
+    }
+
+    public boolean isReplaying() {
+        return this.entityData.get(DATA_REPLAY_STATE) != 0;
+    }
+
+    @Nullable
+    public InteractionHand getReplayUsedHand() {
+        return switch (this.entityData.get(DATA_REPLAY_STATE)) {
+            case USE_MAIN_HAND -> InteractionHand.MAIN_HAND;
+            case USE_OFF_HAND -> InteractionHand.OFF_HAND;
+            default -> null;
+        };
+    }
+
+    void spawnReplay(ServerLevel level, VirtualImageTrace trace) {
+        this.replay = trace;
+        this.setPersistenceRequired();
+        this.entityData.set(DATA_REPLAY_STATE, IDLE_REPLAY);
+        // 优先在死亡处生成，从第一帧开始播放时再传送到起点。
+        for (int index = trace.size() - 1; index >= 0; index--) {
+            VirtualImageTrace.Frame frame = trace.frame(index);
+            AABB box = this.getDefaultDimensions(frame.pose()).makeBoundingBox(frame.position());
+            if (chunksLoaded(level, box) && this.canOccupy(level, box)) {
+                this.setPose(frame.pose());
+                this.moveTo(frame.position().x, frame.position().y, frame.position().z, frame.yaw(), frame.pitch());
+                this.setYHeadRot(frame.yaw());
+                level.addFreshEntity(this);
+                return;
+            }
+        }
+        BlockPos last = BlockPos.containing(trace.frame(trace.size() - 1).position());
+        if (level.getChunkSource().getChunkNow(last.getX() >> 4, last.getZ() >> 4) != null) {
+            BlockPos surface = level.getHeightmapPos(Heightmap.Types.MOTION_BLOCKING, last);
+            Vec3 position = Vec3.atBottomCenterOf(surface);
+            AABB box = this.getDefaultDimensions(Pose.STANDING).makeBoundingBox(position);
+            if (chunksLoaded(level, box) && this.canOccupy(level, box)) {
+                this.moveTo(position);
+                level.addFreshEntity(this);
+            }
+        }
+    }
+
+    private void advanceReplay(ServerLevel level, VirtualImageTrace trace) {
+        VirtualImageTrace.Frame frame = trace.frame(this.replayFrame);
+        Vec3 displacement = frame.position().subtract(this.position());
+        boolean teleport = this.replayFrame == 0 || displacement.lengthSqr() > MAX_CONTINUOUS_STEP_SQUARED;
+        AABB start = this.getDefaultDimensions(frame.pose()).makeBoundingBox(this.position());
+        AABB destination = start.move(displacement);
+        this.setDeltaMovement(Vec3.ZERO);
+        this.resetFallDistance();
+        this.jumping = false;
+        if (!this.replayBlocked) {
+            if (!chunksLoaded(level, teleport ? destination : start.expandTowards(displacement))) {
+                this.calculateEntityAnimation(false);
+                return;
+            }
+            if (this.canOccupy(level, destination)
+                    && (teleport
+                            || displacement.lengthSqr() < 1.0E-10D
+                            || Entity.collideBoundingBox(this, displacement, start, level, List.of())
+                                            .distanceToSqr(displacement)
+                                    < 1.0E-10D)) {
+                this.applyReplayFrame(level, frame, teleport, displacement.lengthSqr());
+            } else {
+                this.replayBlocked = true;
+                this.setSprinting(false);
+                this.entityData.set(DATA_REPLAY_STATE, IDLE_REPLAY);
+            }
+        }
+        this.calculateEntityAnimation(false);
+        if (++this.replayFrame == trace.size()) {
+            this.replayFrame = 0;
+            this.replayBlocked = false;
+        }
+    }
+
+    private void applyReplayFrame(ServerLevel level, VirtualImageTrace.Frame frame, boolean teleport, double distance) {
+        this.setPose(frame.pose());
+        Vec3 destination = frame.position();
+        if (teleport && distance > 1.0E-6D) {
+            this.teleportReplay(level, destination);
+        } else {
+            this.setPos(destination.x, destination.y, destination.z);
+        }
+        this.setYRot(frame.yaw());
+        this.setYHeadRot(frame.yaw());
+        this.setXRot(frame.pitch());
+        this.setOnGround(frame.onGround());
+        this.setSprinting(frame.sprinting());
+        InteractionHand usedHand = frame.usedHand();
+        this.entityData.set(
+                DATA_REPLAY_STATE,
+                usedHand == null ? IDLE_REPLAY : usedHand == InteractionHand.MAIN_HAND ? USE_MAIN_HAND : USE_OFF_HAND);
+        if (frame.swingMain() || frame.swingOff()) {
+            this.swing(frame.swingMain() ? InteractionHand.MAIN_HAND : InteractionHand.OFF_HAND);
+        }
+    }
+
+    private void teleportReplay(ServerLevel level, Vec3 destination) {
+        Vec3 origin = this.position();
+        this.teleportTo(destination.x, destination.y, destination.z);
+        this.entityData.set(DATA_REPLAY_TELEPORT, !this.entityData.get(DATA_REPLAY_TELEPORT));
+        if (!this.isSilent()) {
+            level.playSound(
+                    null,
+                    origin.x,
+                    origin.y,
+                    origin.z,
+                    SoundEvents.ENDERMAN_TELEPORT,
+                    this.getSoundSource(),
+                    1.0F,
+                    1.0F);
+            this.playSound(SoundEvents.ENDERMAN_TELEPORT, 1.0F, 1.0F);
+        }
+        for (Vec3 position : List.of(origin, destination)) {
+            level.sendParticles(
+                    ParticleTypes.PORTAL,
+                    position.x,
+                    position.y + this.getBbHeight() * 0.5D,
+                    position.z,
+                    16,
+                    0.3D,
+                    this.getBbHeight() * 0.3D,
+                    0.3D,
+                    0.2D);
+        }
+    }
+
+    private boolean canOccupy(ServerLevel level, AABB box) {
+        return box.minY >= level.getMinBuildHeight()
+                && box.maxY <= level.getMaxBuildHeight()
+                && level.getWorldBorder().isWithinBounds(box)
+                && !level.getBlockCollisions(this, box).iterator().hasNext();
+    }
+
+    private static boolean chunksLoaded(ServerLevel level, AABB box) {
+        for (int x = (Mth.floor(box.minX) - 1) >> 4; x <= (Mth.floor(box.maxX) + 1) >> 4; x++) {
+            for (int z = (Mth.floor(box.minZ) - 1) >> 4; z <= (Mth.floor(box.maxZ) + 1) >> 4; z++) {
+                if (level.getChunkSource().getChunkNow(x, z) == null) {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     // ---------------------------------------------------------------- 生成
@@ -254,6 +557,9 @@ public class VirtualImageEntity extends Monster {
 
     @Override
     public void tick() {
+        if (this.replay != null && this.isAlive()) {
+            this.checkRetaliation();
+        }
         super.tick();
         if (this.level().isClientSide() || this.isDeadOrDying()) {
             return;
@@ -279,6 +585,20 @@ public class VirtualImageEntity extends Monster {
         double y = this.getY() + random.nextDouble() * this.getBbHeight() * 0.95D;
         double z = this.getZ() + (random.nextDouble() - 0.5D) * this.getBbWidth() * 0.9D;
         server.sendParticles(ParticleTypes.DRIPPING_OBSIDIAN_TEAR, x, y, z, 1, 0.0D, 0.0D, 0.0D, 0.0D);
+    }
+
+    // ---------------------------------------------------------------- 行走
+
+    /**
+     * 能在不稳定液体的液面上行走
+     *
+     * <p>打开这一个开关之后，{@code LiquidBlock#getCollisionShape} 会像对待岩浆上的炽足兽那样，
+     * 给源方块一层可站立的面；寻路那边由 {@code HazardousFluidPathingMixin} 把最上面一层源方块
+     * 标成 {@code PathType.WALKABLE}。与炽足兽在岩浆上的做法相同（{@code Strider#canStandOnFluid}）
+     */
+    @Override
+    public boolean canStandOnFluid(FluidState fluid) {
+        return HazardousFluid.isPortalFluid(fluid);
     }
 
     // ---------------------------------------------------------------- 免疫
@@ -370,5 +690,8 @@ public class VirtualImageEntity extends Monster {
                     0.0D);
         }
         super.die(source);
+        if (this.dead) {
+            VirtualImageRecording.stopTracking(this, this.getTarget());
+        }
     }
 }

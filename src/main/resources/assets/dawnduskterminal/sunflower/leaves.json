@@ -1,0 +1,244 @@
+{
+  "templates": [
+    {
+      "count": 1,
+      "leaves": [
+        {
+          "yaw": 20,
+          "pitch": 26,
+          "scale": 1.0,
+          "y": 7
+        }
+      ]
+    },
+    {
+      "count": 1,
+      "leaves": [
+        {
+          "yaw": 200,
+          "pitch": 32,
+          "scale": 0.85,
+          "y": 10
+        }
+      ]
+    },
+    {
+      "count": 2,
+      "leaves": [
+        {
+          "yaw": 10,
+          "pitch": 22,
+          "scale": 1.1,
+          "y": 5
+        },
+        {
+          "yaw": 190,
+          "pitch": 30,
+          "scale": 0.9,
+          "y": 11
+        }
+      ]
+    },
+    {
+      "count": 2,
+      "leaves": [
+        {
+          "yaw": 95,
+          "pitch": 28,
+          "scale": 1.05,
+          "y": 8
+        },
+        {
+          "yaw": 275,
+          "pitch": 20,
+          "scale": 1.0,
+          "y": 4
+        }
+      ]
+    },
+    {
+      "count": 2,
+      "leaves": [
+        {
+          "yaw": 300,
+          "pitch": 34,
+          "scale": 0.8,
+          "y": 12
+        },
+        {
+          "yaw": 120,
+          "pitch": 24,
+          "scale": 1.2,
+          "y": 6
+        }
+      ]
+    },
+    {
+      "count": 3,
+      "leaves": [
+        {
+          "yaw": 0,
+          "pitch": 20,
+          "scale": 1.0,
+          "y": 4
+        },
+        {
+          "yaw": 120,
+          "pitch": 30,
+          "scale": 0.9,
+          "y": 9
+        },
+        {
+          "yaw": 240,
+          "pitch": 26,
+          "scale": 1.1,
+          "y": 13
+        }
+      ]
+    },
+    {
+      "count": 3,
+      "leaves": [
+        {
+          "yaw": 45,
+          "pitch": 36,
+          "scale": 0.8,
+          "y": 6
+        },
+        {
+          "yaw": 165,
+          "pitch": 22,
+          "scale": 1.15,
+          "y": 10
+        },
+        {
+          "yaw": 285,
+          "pitch": 28,
+          "scale": 1.0,
+          "y": 3
+        }
+      ]
+    },
+    {
+      "count": 3,
+      "leaves": [
+        {
+          "yaw": 30,
+          "pitch": 24,
+          "scale": 1.2,
+          "y": 11
+        },
+        {
+          "yaw": 150,
+          "pitch": 32,
+          "scale": 0.85,
+          "y": 5
+        },
+        {
+          "yaw": 270,
+          "pitch": 20,
+          "scale": 1.0,
+          "y": 8
+        }
+      ]
+    },
+    {
+      "count": 4,
+      "leaves": [
+        {
+          "yaw": 15,
+          "pitch": 22,
+          "scale": 1.0,
+          "y": 3
+        },
+        {
+          "yaw": 105,
+          "pitch": 30,
+          "scale": 0.9,
+          "y": 7
+        },
+        {
+          "yaw": 195,
+          "pitch": 26,
+          "scale": 1.1,
+          "y": 11
+        },
+        {
+          "yaw": 285,
+          "pitch": 34,
+          "scale": 0.85,
+          "y": 14
+        }
+      ]
+    },
+    {
+      "count": 4,
+      "leaves": [
+        {
+          "yaw": 60,
+          "pitch": 28,
+          "scale": 0.95,
+          "y": 5
+        },
+        {
+          "yaw": 150,
+          "pitch": 20,
+          "scale": 1.15,
+          "y": 9
+        },
+        {
+          "yaw": 240,
+          "pitch": 36,
+          "scale": 0.8,
+          "y": 12
+        },
+        {
+          "yaw": 330,
+          "pitch": 24,
+          "scale": 1.05,
+          "y": 2
+        }
+      ]
+    },
+    {
+      "count": 2,
+      "leaves": [
+        {
+          "yaw": 80,
+          "pitch": 18,
+          "scale": 1.25,
+          "y": 14
+        },
+        {
+          "yaw": 250,
+          "pitch": 38,
+          "scale": 0.75,
+          "y": 7
+        }
+      ]
+    },
+    {
+      "count": 3,
+      "leaves": [
+        {
+          "yaw": 210,
+          "pitch": 26,
+          "scale": 1.0,
+          "y": 6
+        },
+        {
+          "yaw": 330,
+          "pitch": 32,
+          "scale": 0.9,
+          "y": 10
+        },
+        {
+          "yaw": 75,
+          "pitch": 22,
+          "scale": 1.05,
+          "y": 13
+        }
+      ]
+    }
+  ]
+}

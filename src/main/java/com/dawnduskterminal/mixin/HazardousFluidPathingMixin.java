@@ -1,9 +1,11 @@
 package com.dawnduskterminal.mixin;
 
 import com.dawnduskterminal.entity.StringEntity;
+import com.dawnduskterminal.entity.VirtualImageEntity;
 import com.dawnduskterminal.world.HazardousFluid;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Mob;
+import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.level.pathfinder.PathType;
 import net.minecraft.world.level.pathfinder.PathfindingContext;
 import net.minecraft.world.level.pathfinder.WalkNodeEvaluator;
@@ -25,7 +27,12 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * 返回 {@link PathType#DAMAGE_OTHER}（代价 -1，与岩浆同档）而不是 {@link PathType#BLOCKED}：
  * BLOCKED 会把节点关死，已经泡在里面的生物再也寻不出路；DAMAGE_OTHER 只挡住「走进去」
  *
- * <p>「弦」例外：它就活在不稳定液体的液面上，往流体里寻路是它的日常，见 {@link StringEntity}
+ * <p>两个例外：
+ * <ul>
+ *   <li>「弦」：它就活在不稳定液体的液面上，往流体里寻路是它的日常，见 {@link StringEntity}；
+ *   <li>「虚像」：它能在不稳定液体的液面上行走。只有<b>最上面一层的源方块</b>算
+ *       {@link PathType#WALKABLE}，深处与流动的液体照旧是雷区，见 {@link VirtualImageEntity#canStandOnFluid}。
+ * </ul>
  *
  * <p>只管寻路。两只恶魂变体不走寻路（{@code FlyingMob}，直接推 {@code MoveControl}），
  * 它们靠 {@code entity/AvoidHazardousFluidGoal} 自己退开
@@ -42,8 +49,15 @@ public abstract class HazardousFluidPathingMixin {
         if (mob instanceof StringEntity) {
             return;
         }
-        if (HazardousFluid.isHazard(
-                context.getBlockState(this.ddt$cursor.set(x, y, z)).getFluidState())) {
+        FluidState fluid = context.getBlockState(this.ddt$cursor.set(x, y, z)).getFluidState();
+        if (mob instanceof VirtualImageEntity && HazardousFluid.isPortalFluid(fluid)) {
+            boolean surface = fluid.isSource()
+                    && !HazardousFluid.isPortalFluid(context.getBlockState(this.ddt$cursor.set(x, y + 1, z))
+                            .getFluidState());
+            cir.setReturnValue(surface ? PathType.WALKABLE : PathType.DAMAGE_OTHER);
+            return;
+        }
+        if (HazardousFluid.isHazard(fluid)) {
             cir.setReturnValue(PathType.DAMAGE_OTHER);
         }
     }

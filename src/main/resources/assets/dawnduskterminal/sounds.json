@@ -272,5 +272,23 @@
       "dawnduskterminal:melon_hit2",
       "dawnduskterminal:melon_hit3"
     ]
+  },
+  "ghoflower_cave_1": {
+    "subtitle": "subtitles.dawnduskterminal.ghoflower_cave",
+    "sounds": [
+      "minecraft:ambient/cave/cave1"
+    ]
+  },
+  "ghoflower_cave_2": {
+    "subtitle": "subtitles.dawnduskterminal.ghoflower_cave",
+    "sounds": [
+      "minecraft:ambient/cave/cave2"
+    ]
+  },
+  "ghoflower_cave_10": {
+    "subtitle": "subtitles.dawnduskterminal.ghoflower_cave",
+    "sounds": [
+      "minecraft:ambient/cave/cave10"
+    ]
   }
 }

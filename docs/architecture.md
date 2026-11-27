@@ -96,12 +96,24 @@ Java 路径均相对于 `src/main/java/com/dawnduskterminal/`。
 免疫击退、推动、药水与 `stability` 伤害，写法与弦的免疫一节相同。
 待机音与受伤、死亡音沿用弦的事件，排期规则也相同。
 每两 tick 在碰撞箱内落一颗 `dripping_obsidian_tear`。
+它能在 `portal_fluid` 的液面上行走：`VirtualImageEntity#canStandOnFluid` 对不稳定液体返回真，
+`HazardousFluidPathingMixin` 把最上面一层的源方块标成 `WALKABLE`，深处与流动的液体仍是雷区。
+`PortalBlock#getCollisionShape` 给这种实体一个 14 像素高的液面（原版岩浆的稳定面只有 8 像素），
+人形的小腿不会埋进液体。
 
 模型是玩家比例的人形，几何为 `geo/virtual_image.geo.json`，动画为 `animations/virtual_image.animation.json`。
 贴图是 `textures/block/portal_fluid_flow.png`——一张 32×1024 的 32 帧竖条。
 几何的 `texture_width/height` 写单帧 32×32，所有 UV 落在一帧之内，由 `AnimatedStripTexture` 逐帧换图。
 动作按玩家那一套算：走路甩臂迈腿、头跟视线、出手抬右臂，出手进度由 `v.attack` 每帧写入。
 每个部位逐帧在 x、y、z 三个方向各做 ±0.25 像素的随机平移，见 `client/VirtualImageRenderer`。
+
+服务端从第一只虚像锁定玩家时开始录制，同一玩家共用一份最多 200 帧、最近 10 秒的环形缓冲。
+最后一只虚像解除锁定、玩家退出或切换维度时清除缓冲。
+玩家在锁定期间死亡时，生成一只随区块存档保存的回放虚像。
+回放复现轨迹、视角、姿态、挥手和使用物品的动作。
+回放虚像受击时暂停演绎并以近战还击。
+循环结束或还击脱战后，虚像伴随末影粒子和传送音效返回轨迹起点。
+目标区块未加载时暂停回放。地形阻挡时停止本轮移动，下一轮重新尝试。
 
 盔甲壳是同一批骨骼上的 `armor_*` 子骨骼，立方体 `inflate` 0.6，与本体共用同一帧的 UV。
 渲染分两趟：本体不透明度 1，盔甲壳 alpha 0.2，两趟都用 `client/EmissiveRenderTypes`。

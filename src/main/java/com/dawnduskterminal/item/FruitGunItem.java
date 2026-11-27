@@ -29,10 +29,12 @@ import net.minecraft.world.phys.Vec3;
  *
  * <p>右键消耗身上的一整块西瓜或南瓜，射出一颗同种的整格炮弹。发射音是
  * {@code melongun_shoot}，音高每次随机；发射时朝瞄准方向喷出一簇初速各不相同的白色烟雾。
+ * 使用者还会被后坐力推一下，水平沿视线向后、竖直抬一点，见 {@link #applyRecoil}。
  * 冷却 {@value #COOLDOWN_TICKS} tick（2 秒），耐久 {@value #DURABILITY}，每发扣 1 点。
  *
  * <p>弹药优先取副手，其次整份背包；创造模式不消耗。炮弹的物理、命中、偏转与爆裂都在
- * {@link FruitProjectileEntity}，这里只负责扣弹药、放发射音、喷发射烟雾、上冷却与扣耐久。
+ * {@link FruitProjectileEntity}，这里只负责扣弹药、放发射音、喷发射烟雾、推使用者、
+ * 上冷却与扣耐久。
  */
 public class FruitGunItem extends Item {
     /** 耐久上限 */
@@ -63,6 +65,15 @@ public class FruitGunItem extends Item {
     /** 初速方向相对瞄准方向的抖动，归一化后约 20 度以内 */
     private static final double LAUNCH_SMOKE_DIRECTION_JITTER = 0.25D;
 
+    /** 后坐力的水平分量，沿视线的水平投影向后 */
+    public static final double RECOIL_HORIZONTAL = 0.25D;
+
+    /** 后坐力的竖直分量，指向天空 */
+    public static final double RECOIL_LIFT = 0.08D;
+
+    /** 视线的水平分量短于这个值时只保留竖直分量，避免除以接近零的长度 */
+    private static final double MIN_RECOIL_AIM = 1.0E-3D;
+
     private final FruitKind kind;
 
     public FruitGunItem(FruitKind kind, Properties properties) {
@@ -88,6 +99,7 @@ public class FruitGunItem extends Item {
             return InteractionResultHolder.fail(stack);
         }
         FruitProjectileEntity.launch(level, player, this.kind, this.entityType());
+        applyRecoil(player);
         if (level instanceof ServerLevel server) {
             this.spawnLaunchSmoke(server, player);
         }
@@ -156,6 +168,24 @@ public class FruitGunItem extends Item {
             }
         }
         return false;
+    }
+
+    /**
+     * 发射的后坐力：沿视线的水平投影向后推 {@value #RECOIL_HORIZONTAL}，竖直抬 {@value #RECOIL_LIFT}。
+     * 抬到几乎垂直时水平分量按 {@value #MIN_RECOIL_AIM} 判断为没有方向，只保留竖直那一点推力，
+     * 因此朝天上打不会随机往某一侧滑
+     */
+    private static void applyRecoil(Player player) {
+        Vec3 look = player.getViewVector(1.0F);
+        double horizontal = Math.sqrt(look.x * look.x + look.z * look.z);
+        double x = 0.0D;
+        double z = 0.0D;
+        if (horizontal > MIN_RECOIL_AIM) {
+            x = -look.x / horizontal * RECOIL_HORIZONTAL;
+            z = -look.z / horizontal * RECOIL_HORIZONTAL;
+        }
+        player.push(x, RECOIL_LIFT, z);
+        player.hurtMarked = true;
     }
 
     /**

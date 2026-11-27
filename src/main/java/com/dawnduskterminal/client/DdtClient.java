@@ -105,6 +105,8 @@ public final class DdtClient {
         modBus.addListener(Experiment011PlateRenderer::onRegisterRenderers);
         modBus.addListener(DdtClient::onRegisterEntityRenderers);
         modBus.addListener(DdtClient::onRegisterParticleProviders);
+        // 向日葵的叶片模板：资源包可以覆盖，读不到就退回内置的那几组
+        modBus.addListener(SunflowerLeaves::register);
         // 这个维度的天气观感：雨天落地的水花改由 ChronoDimensionEffects 生成
         modBus.addListener(DdtClient::registerDimensionEffects);
         modBus.addListener(DdtClient::registerMenuScreens);
@@ -518,6 +520,15 @@ public final class DdtClient {
         event.registerBlockEntityRenderer(ModBlockEntities.PORTAL_WATERFALL.get(), PortalWaterfallRenderer::new);
         // 红篝火火堆上那四格食材：自带的渲染器，照原版 CampfireRenderer 的摆法画
         event.registerBlockEntityRenderer(ModBlockEntities.CAMP_CARMINITE_FIRE.get(), CampCarminiteFireRenderer::new);
+        // 向日葵：柱身与叶片按株底坐标现算并缓存，花盘每帧朝向太阳或月亮
+        event.registerBlockEntityRenderer(ModBlockEntities.SUNFLOWER.get(), SunflowerRenderer::new);
+        // 鬼花射弹：昼、夜两个实体类型，各自一份贴图，自绘一个面向镜头的四边形
+        event.registerEntityRenderer(
+                ModEntities.GHOFLOWER_PROJECTILE.get(),
+                context -> new GhoflowerProjectileRenderer(context, GhoflowerProjectileRenderer.DAY_TEXTURE));
+        event.registerEntityRenderer(
+                ModEntities.GHOFLOWER_PROJECTILE_NIGHT.get(),
+                context -> new GhoflowerProjectileRenderer(context, GhoflowerProjectileRenderer.NIGHT_TEXTURE));
     }
 
     /** 三种粒子共用一支实现，只差参数，见 {@link CarminiteParticle}；027 的红石点、043 的大火焰与 095 的音符各一支 */

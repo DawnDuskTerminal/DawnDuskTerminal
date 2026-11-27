@@ -1,0 +1,22 @@
+{
+  "variants": {
+    "segment=0,head=false": {
+      "model": "dawnduskterminal:block/sunflower_stem"
+    },
+    "segment=0,head=true": {
+      "model": "dawnduskterminal:block/sunflower_stem"
+    },
+    "segment=1,head=false": {
+      "model": "dawnduskterminal:block/sunflower_stem"
+    },
+    "segment=1,head=true": {
+      "model": "dawnduskterminal:block/sunflower_stem"
+    },
+    "segment=2,head=false": {
+      "model": "dawnduskterminal:block/sunflower_stem"
+    },
+    "segment=2,head=true": {
+      "model": "dawnduskterminal:block/sunflower_stem"
+    }
+  }
+}

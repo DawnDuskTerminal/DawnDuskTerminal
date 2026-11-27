@@ -89,6 +89,10 @@ public final class ModCreativeTabs {
                         accept(output, ModTerrainBlocks.STELLARIA_VEGES_ITEM.get());
                         accept(output, ModTerrainBlocks.FAIRY_HANIWA_ITEM.get());
                         accept(output, ModTerrainBlocks.NIGHT_GLOW_BUSH_ITEM.get());
+                        accept(output, ModTerrainBlocks.SUNFLOWER_ITEM.get());
+                        accept(output, ModTerrainBlocks.MOONFLOWER_ITEM.get());
+                        accept(output, ModTerrainBlocks.GHOFLOWER_ITEM.get());
+                        accept(output, ModTerrainBlocks.LUNAR_GHOFLOWER_ITEM.get());
                         accept(output, ModTerrainBlocks.SCARLET_MOLYBDENUM_ORE_ITEM.get());
                         accept(output, ModChronoOres.DEEP_SCARLET_ITEM.get());
                         accept(output, ModChronoOres.CARID_ORE_ITEM.get());

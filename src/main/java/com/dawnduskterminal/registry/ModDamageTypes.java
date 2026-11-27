@@ -85,5 +85,25 @@ public final class ModDamageTypes {
     public static final ResourceKey<DamageType> HUI_DEATH =
             ResourceKey.create(Registries.DAMAGE_TYPE, DawnDuskTerminal.id("hui_death"));
 
+    /**
+     * 鬼花射弹的三条伤害类型，每次命中随机取一条，三条各有一句死亡信息
+     *
+     * <ul>
+     *   <li>{@code ghoflower_fertiliser}：「… 变成了太阳花肥」
+     *   <li>{@code ghoflower_beauty}：「… 见识了太阳花的美」
+     *   <li>{@code ghoflower_ghost}：「… 见鬼了」
+     * </ul>
+     *
+     * <p>三条都进 {@code no_knockback}，命中不产生击退。
+     */
+    public static final ResourceKey<DamageType> GHOFLOWER_FERTILISER =
+            ResourceKey.create(Registries.DAMAGE_TYPE, DawnDuskTerminal.id("ghoflower_fertiliser"));
+
+    public static final ResourceKey<DamageType> GHOFLOWER_BEAUTY =
+            ResourceKey.create(Registries.DAMAGE_TYPE, DawnDuskTerminal.id("ghoflower_beauty"));
+
+    public static final ResourceKey<DamageType> GHOFLOWER_GHOST =
+            ResourceKey.create(Registries.DAMAGE_TYPE, DawnDuskTerminal.id("ghoflower_ghost"));
+
     private ModDamageTypes() {}
 }

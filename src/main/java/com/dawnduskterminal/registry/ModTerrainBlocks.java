@@ -6,15 +6,22 @@ import com.dawnduskterminal.block.ClimbableHollowLogBlock;
 import com.dawnduskterminal.block.CountertopBlock;
 import com.dawnduskterminal.block.FairyDianthusBlock;
 import com.dawnduskterminal.block.FairyDianthusSmallBlock;
+import com.dawnduskterminal.block.GhoflowerBlock;
 import com.dawnduskterminal.block.HorizontalHollowLogBlock;
 import com.dawnduskterminal.block.LichenSheetBlock;
+import com.dawnduskterminal.block.LunarGhoflowerBlock;
 import com.dawnduskterminal.block.MimicBlock;
+import com.dawnduskterminal.block.MoonflowerBlock;
+import com.dawnduskterminal.block.MoonflowerStemBlock;
 import com.dawnduskterminal.block.NightGlowBushBlock;
+import com.dawnduskterminal.block.SunflowerBlock;
+import com.dawnduskterminal.block.SunflowerStemBlock;
 import com.dawnduskterminal.block.VerticalHollowLogBlock;
 import com.dawnduskterminal.block.WroughtIronGlassBlock;
 import com.dawnduskterminal.block.WroughtIronGlassTrapdoorBlock;
 import com.dawnduskterminal.item.FairyDianthusItem;
 import com.dawnduskterminal.item.FairyHaniwaItem;
+import com.dawnduskterminal.item.GhoflowerItem;
 import com.dawnduskterminal.item.HollowLogItem;
 import com.dawnduskterminal.item.StellariaVegesItem;
 import com.dawnduskterminal.world.CanopyFrostLayerBlock;
@@ -391,6 +398,59 @@ public final class ModTerrainBlocks {
     public static final DeferredItem<FairyDianthusItem> FAIRY_DIANTHUS_ITEM =
             ITEMS.register("fairy_dianthus", () -> new FairyDianthusItem(FAIRY_DIANTHUS.get(), new Item.Properties()));
 
+    // 向日葵：1~3 格，底段与中段是茎、顶段是花盘，只向下依附。花盘按所在侧朝太阳或月亮，
+    // 几何由 client/SunflowerRenderer 按株底坐标现算
+    public static final DeferredBlock<SunflowerBlock> SUNFLOWER =
+            BLOCKS.registerBlock("sunflower", SunflowerBlock::new, sunflower());
+
+    public static final DeferredItem<BlockItem> SUNFLOWER_ITEM = ITEMS.registerSimpleBlockItem(SUNFLOWER);
+
+    /**
+     * 向日葵的茎：与花盘是<b>两种方块</b>，没有独立物品
+     *
+     * <p>玩家破坏茎时按整株结算，掉的是顶段的物品。
+     */
+    public static final DeferredBlock<SunflowerStemBlock> SUNFLOWER_STEM =
+            BLOCKS.registerBlock("sunflower_stem", SunflowerStemBlock::new, sunflower());
+
+    /**
+     * 月葵：夜侧的向日葵
+     *
+     * <p>与向日葵同构、同几何，只是固定用夜版贴图，并且有自己的一份掉落与物品。
+     * 世界生成按晨昏线参数决定这一株长成向日葵还是月葵。
+     */
+    public static final DeferredBlock<MoonflowerBlock> MOONFLOWER =
+            BLOCKS.registerBlock("moonflower", MoonflowerBlock::new, sunflower());
+
+    public static final DeferredItem<BlockItem> MOONFLOWER_ITEM = ITEMS.registerSimpleBlockItem(MOONFLOWER);
+
+    /** 月葵的茎：与月葵花盘是两种方块，没有独立物品，破坏时掉顶段的物品 */
+    public static final DeferredBlock<MoonflowerStemBlock> MOONFLOWER_STEM =
+            BLOCKS.registerBlock("moonflower_stem", MoonflowerStemBlock::new, sunflower());
+
+    /**
+     * 鬼花：外观与所在侧的花相同，行为不同
+     *
+     * <p>与普通花分开注册，掉落、名字与行为都不必牵动普通花。
+     * 四类花盘共用同一个方块实体类型，方块属性也一致。
+     * 两侧各有一个武器物品（{@link #GHOFLOWER_ITEM} 与 {@link #LUNAR_GHOFLOWER_ITEM}），
+     * 拿在手里右键打一发，不放置方块。
+     */
+    public static final DeferredBlock<GhoflowerBlock> GHOFLOWER =
+            BLOCKS.registerBlock("ghoflower", GhoflowerBlock::new, sunflower());
+
+    /** 鬼花武器（昼侧）：拿在手里右键打一发，不放置方块 */
+    public static final DeferredItem<GhoflowerItem> GHOFLOWER_ITEM = ITEMS.registerItem(
+            "ghoflower", props -> new GhoflowerItem(GHOFLOWER.get(), false, props), new Item.Properties());
+
+    /** 月鬼花：夜侧的鬼花，与月葵同一套拆法 */
+    public static final DeferredBlock<LunarGhoflowerBlock> LUNAR_GHOFLOWER =
+            BLOCKS.registerBlock("lunarghoflower", LunarGhoflowerBlock::new, sunflower());
+
+    /** 鬼花武器（夜侧） */
+    public static final DeferredItem<GhoflowerItem> LUNAR_GHOFLOWER_ITEM = ITEMS.registerItem(
+            "lunarghoflower", props -> new GhoflowerItem(LUNAR_GHOFLOWER.get(), true, props), new Item.Properties());
+
     /**
      * 繁缕菜的食用属性：饥饿 2、饱和度 2
      *
@@ -482,6 +542,18 @@ public final class ModTerrainBlocks {
                 .noOcclusion()
                 .pushReaction(PushReaction.DESTROY);
         return collide ? properties : properties.noCollission();
+    }
+
+    // 向日葵与鬼花的公共属性：一碰即碎、草的音效、可穿过、活塞一推就毁。
+    // 掉落由 AbstractSunflowerBlock#onDestroyedByPlayer 与 #onExplosionHit 发出；getDrops 返回空，倒塌不会再掉第二件
+    private static BlockBehaviour.Properties sunflower() {
+        return BlockBehaviour.Properties.of()
+                .mapColor(MapColor.PLANT)
+                .instabreak()
+                .sound(SoundType.GRASS)
+                .noCollission()
+                .noOcclusion()
+                .pushReaction(PushReaction.DESTROY);
     }
 
     // 原版 Blocks.DEAD_BUSH 的属性：可被替换、无碰撞、一碰即碎、草类音效、随机 XZ 偏移；

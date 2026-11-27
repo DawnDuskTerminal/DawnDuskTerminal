@@ -28,6 +28,12 @@ public final class HazardousFluid {
                 || type == ModScorchingTwilight.FLOWING.get();
     }
 
+    /** 这一格流体是不是不稳定液体（{@code portal_fluid}） */
+    public static boolean isPortalFluid(FluidState fluid) {
+        Fluid type = fluid.getType();
+        return type == ModFluids.PORTAL_FLUID.get() || type == ModFluids.PORTAL_FLOWING.get();
+    }
+
     public static boolean isHazard(BlockGetter level, BlockPos pos) {
         return isHazard(level.getFluidState(pos));
     }

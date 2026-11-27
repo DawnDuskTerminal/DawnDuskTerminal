@@ -182,6 +182,14 @@
   "block.dawnduskterminal.skygate_pine_sapling": "天门松树苗",
   "block.dawnduskterminal.fairy_dianthus": "大仙灵石竹",
   "block.dawnduskterminal.night_glow_bush": "夜光灌木",
+  "block.dawnduskterminal.sunflower": "向日葵",
+  "block.dawnduskterminal.ghoflower": "鬼花",
+  "block.dawnduskterminal.moonflower": "月葵",
+  "item.dawnduskterminal.ghoflower": "鬼花",
+  "item.dawnduskterminal.lunarghoflower": "月鬼花",
+  "block.dawnduskterminal.lunarghoflower": "月鬼花",
+  "block.dawnduskterminal.sunflower_stem": "向日葵茎",
+  "block.dawnduskterminal.moonflower_stem": "月葵茎",
   "block.dawnduskterminal.fairy_dianthus_small": "小仙灵石竹",
   "item.dawnduskterminal.stellaria_veges": "繁缕菜",
   "item.dawnduskterminal.fairy_haniwa": "仙灵埴轮",
@@ -464,7 +472,11 @@
   "entity.dawnduskterminal.melon_projectile": "西瓜炮弹",
   "entity.dawnduskterminal.pumpkin_projectile": "南瓜炮弹",
   "subtitles.dawnduskterminal.melongun_shoot": "瓜炮发射",
-  "subtitles.dawnduskterminal.melon_hit": "西瓜炮弹炸开"
+  "subtitles.dawnduskterminal.melon_hit": "西瓜炮弹炸开",
+  "subtitles.dawnduskterminal.ghoflower_cave": "鬼花在低语",
+  "death.attack.ghoflower_fertiliser": "%1$s 变成了太阳花肥",
+  "death.attack.ghoflower_beauty": "%1$s 见识了太阳花的美",
+  "death.attack.ghoflower_ghost": "%1$s 见鬼了"
 }
 
 

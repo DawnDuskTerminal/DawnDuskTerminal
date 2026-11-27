@@ -1,0 +1,7 @@
+{
+  "type": "dawnduskterminal:sunflower",
+  "config": {
+    "radius": 7,
+    "count": 40
+  }
+}

@@ -6,17 +6,22 @@ import com.dawnduskterminal.client.animation.YsmAnimatable;
 import com.dawnduskterminal.client.animation.YsmEntityRenderer;
 import com.dawnduskterminal.entity.VirtualImageEntity;
 import com.dawnduskterminal.geckolib3.core.event.predicate.AnimationEvent;
+import com.dawnduskterminal.geckolib3.core.molang.context.AnimationContext;
 import com.dawnduskterminal.geckolib3.core.util.Color;
 import com.dawnduskterminal.geckolib3.geo.animated.AnimatedGeoBone;
 import com.dawnduskterminal.geckolib3.geo.animated.AnimatedGeoModel;
 import com.dawnduskterminal.registry.ModEntities;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
+import com.mojang.math.Axis;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.Pose;
+import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.client.event.EntityRenderersEvent;
 import org.jetbrains.annotations.Nullable;
 
@@ -91,6 +96,18 @@ public final class VirtualImageRenderer {
             return SCALE * entity.getRenderScale();
         }
 
+        @Override
+        protected void setupRotations(
+                VirtualImageEntity entity, PoseStack poseStack, float age, float yaw, float partialTick, float scale) {
+            super.setupRotations(entity, poseStack, age, yaw, partialTick, scale);
+            if (entity.getPose() == Pose.CROUCHING) {
+                poseStack.scale(1.0F, 5.0F / 6.0F, 1.0F);
+            } else if (entity.getPose() == Pose.SWIMMING) {
+                poseStack.translate(0.0F, 0.3F * scale, -0.75F * scale);
+                poseStack.mulPose(Axis.XP.rotationDegrees(90.0F));
+            }
+        }
+
         /**
          * 贴图是 32×1024 的动画竖条，几何只声明了单帧 32×32。
          * 这里换成「当前帧」的动态贴图，UV 的 0..1 才正好覆盖一帧，模型才会真的在流动
@@ -145,6 +162,11 @@ public final class VirtualImageRenderer {
                 float alpha) {
             this.jitterTime = entity.tickCount + partialTick;
             this.jitterFrame++;
+            AnimatedGeoBone leftArm = model.bones().get("left_arm");
+            float leftArmRotation = leftArm.getRotationX();
+            float leftSwing = entity.swingingArm == InteractionHand.OFF_HAND ? entity.getAttackAnim(partialTick) : 0.0F;
+            float leftUse = entity.getReplayUsedHand() == InteractionHand.OFF_HAND ? 0.55F : 0.0F;
+            leftArm.setRotationX(leftArmRotation - 105.0F * Mth.DEG_TO_RAD * Math.max(leftSwing, leftUse));
             setArmorHidden(model, true);
             super.render(
                     model,
@@ -178,6 +200,7 @@ public final class VirtualImageRenderer {
                     ARMOR_ALPHA);
             setBodyCubesHidden(model, false);
             setArmorHidden(model, true);
+            leftArm.setRotationX(leftArmRotation);
         }
 
         /**
@@ -263,6 +286,22 @@ public final class VirtualImageRenderer {
             return "idle";
         }
 
+        @Override
+        public boolean setCustomAnimations(AnimationContext<?> context, AnimationEvent<?> event) {
+            if (!this.entity.isReplaying()) {
+                return super.setCustomAnimations(context, event);
+            }
+            // 回放通过实体位置同步移动。动画求值期间用插值位移计算步态。
+            Vec3 velocity = this.entity.getDeltaMovement();
+            this.entity.setDeltaMovement(
+                    this.entity.getX() - this.entity.xOld, 0.0D, this.entity.getZ() - this.entity.zOld);
+            try {
+                return super.setCustomAnimations(context, event);
+            } finally {
+                this.entity.setDeltaMovement(velocity);
+            }
+        }
+
         /**
          * 把出手进度写进 {@code v.attack}
          *
@@ -272,7 +311,12 @@ public final class VirtualImageRenderer {
          */
         @Override
         public void codeAnimations(AnimationEvent<?> event) {
-            this.setRoaming("attack", this.entity.getAttackAnim(event.getPartialTick()));
+            float attack = this.entity.swingingArm == InteractionHand.OFF_HAND
+                    ? 0.0F
+                    : this.entity.getAttackAnim(event.getPartialTick());
+            this.setRoaming(
+                    "attack",
+                    this.entity.getReplayUsedHand() == InteractionHand.MAIN_HAND ? Math.max(attack, 0.55F) : attack);
         }
     }
 }

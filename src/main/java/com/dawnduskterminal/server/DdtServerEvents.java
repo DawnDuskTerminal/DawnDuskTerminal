@@ -4,6 +4,7 @@ import com.dawnduskterminal.DawnDuskTerminal;
 import com.dawnduskterminal.entity.GhastEliteEntity;
 import com.dawnduskterminal.entity.GhastElitePopulation;
 import com.dawnduskterminal.entity.GhastFruityPopulation;
+import com.dawnduskterminal.entity.VirtualImageRecording;
 import com.dawnduskterminal.item.BeetrootProcess;
 import com.dawnduskterminal.item.FireJetProcess;
 import com.dawnduskterminal.item.GhastTrapProcess;
@@ -36,6 +37,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.item.ItemEntity;
@@ -55,6 +57,7 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.neoforged.neoforge.event.AnvilUpdateEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
+import net.neoforged.neoforge.event.entity.player.AttackEntityEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.server.ServerAboutToStartEvent;
@@ -132,6 +135,7 @@ public final class DdtServerEvents {
      * 方块被挖掉都不打断，只有服务器停下才整批清掉，见 {@link #onServerStopped}
      */
     public static void onServerTick(ServerTickEvent.Post event) {
+        VirtualImageRecording.finishDeaths();
         com.dawnduskterminal.debug.ThreadWatchdog.heartbeat();
         FireJetProcess.tickAll();
         GhastTrapProcess.tickAll();
@@ -173,6 +177,7 @@ public final class DdtServerEvents {
 
     /** 清理服务器会话；晨昏线与实体容量快照仅在区块任务全部结束后释放。 */
     public static void onServerStopped(ServerStoppedEvent event) {
+        VirtualImageRecording.clear();
         com.dawnduskterminal.debug.ThreadWatchdog.stop();
         finishServerSession(event.getServer());
         FireJetProcess.clear();
@@ -236,6 +241,7 @@ public final class DdtServerEvents {
         if (!(event.getEntity() instanceof ServerPlayer player)) {
             return;
         }
+        VirtualImageRecording.sample(player);
         // 红篝火 16 格内的消耗度：小增量取反由 CampCarminiteFireExhaustionMixin 当场做掉，
         // 这里补「走过来的时候消耗度本来就是 0」那一种，见 CampCarminiteFireAura
         CampCarminiteFireAura.tick(player);
@@ -277,6 +283,36 @@ public final class DdtServerEvents {
             return;
         }
         BossProgressTracker.onBossKilled(dead, killer);
+    }
+
+    public static void onPlayerLogout(PlayerEvent.PlayerLoggedOutEvent event) {
+        if (event.getEntity() instanceof ServerPlayer player) {
+            VirtualImageRecording.leave(player);
+        }
+    }
+
+    public static void onPlayerChangedDimension(PlayerEvent.PlayerChangedDimensionEvent event) {
+        if (event.getEntity() instanceof ServerPlayer player) {
+            VirtualImageRecording.leave(player);
+        }
+    }
+
+    public static void recordPlayerAttack(AttackEntityEvent event) {
+        if (event.getEntity() instanceof ServerPlayer player) {
+            VirtualImageRecording.recordSwing(player, InteractionHand.MAIN_HAND);
+        }
+    }
+
+    public static void recordPlayerBlockInteraction(PlayerInteractEvent.RightClickBlock event) {
+        if (event.getEntity() instanceof ServerPlayer player) {
+            VirtualImageRecording.recordSwing(player, event.getHand());
+        }
+    }
+
+    public static void recordPlayerEntityInteraction(PlayerInteractEvent.EntityInteract event) {
+        if (event.getEntity() instanceof ServerPlayer player) {
+            VirtualImageRecording.recordSwing(player, event.getHand());
+        }
     }
 
     /**

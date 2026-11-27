@@ -92,6 +92,9 @@
 石岸 `stony_shore` 的地表规则沿用原版形态，只把砾石斑块换成橙大理石 `orange_marble`。
 详见 [世界生成](worldgen.md) 的「石岸的砾石」一节。
 
+`sunflower_plains` 的 `dawnduskterminal:patch_sunflower` 已改为指向本模组的 `dawnduskterminal:sunflower`，
+不再生成原版向日葵。详见 [世界生成](worldgen.md#向日葵与月葵)。
+
 ## 刷怪
 
 原版生物只保留蝙蝠。
@@ -143,6 +146,21 @@
 `rosy_grass` 由 `data/minecraft/tags/block/animals_spawnable_on.json` 追加，
 `frozen_canopy` 已在 `data/minecraft/tags/block/ice.json` 里。
 缺任何一条，条目写对了也是一只不刷，`ChronoSpawnTests` 把这两条钉在测试里。
+
+### 区块生成用哪一份表
+
+群系表管的是运行时自然刷怪。
+区块刚生成时落下的那一包动物走另一条路径，用哪一份表由 `NoiseBasedChunkGenerator#spawnOriginalMobs` 决定。
+
+原版在那一处问的是世界顶端那一格的群系（`getMaxBuildHeight() - 1`，本维度为 319），
+依据是主世界顶端与地表同群系。
+本维度不成立：顶端各列的采样深度都低于 −1.6，群系源直接返回 `floatrees`。
+若照抄原版，河海、海岸与其余空表群系的区块在生成阶段会拿到天门那份动物表，
+于是鹿、羊、兔落在河海群系的霞草地上。
+
+落点判定只读方块标签与亮度，不复核落点那一格的群系，因此这一条从群系文件上看不出来。
+`mixin/ChunkSpawnBiomeMixin` 把取样点改成该区块中心列的地表群系（`world/ChunkSpawnBiome`），其余照原版。
+`gametest/ChunkSpawnBiomeTests` 钉住「顶端是天门、地表不是」这一对条件与取样点的换算。
 
 ### 虚像
 

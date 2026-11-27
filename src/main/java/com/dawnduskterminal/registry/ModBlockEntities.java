@@ -10,6 +10,7 @@ import com.dawnduskterminal.block.entity.Experiment065BlockEntity;
 import com.dawnduskterminal.block.entity.Experiment069BlockEntity;
 import com.dawnduskterminal.block.entity.Experiment076BlockEntity;
 import com.dawnduskterminal.block.entity.PortalWaterfallBlockEntity;
+import com.dawnduskterminal.block.entity.SunflowerBlockEntity;
 import com.dawnduskterminal.block.entity.TowerdevBuilderType2BlockEntity;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.level.block.entity.BlockEntityType;
@@ -101,6 +102,24 @@ public final class ModBlockEntities {
             TOWERDEV_BUILDER_TYPE2 = BLOCK_ENTITIES.register("towerdev_builder_type2", () -> BlockEntityType.Builder.of(
                     TowerdevBuilderType2BlockEntity::new, ModBlocks.TOWERDEV_BUILDER_TYPE2.get())
             .build(null));
+
+    /**
+     * 向日葵、月葵与鬼花的方块实体：每格一个，客户端的 {@code SunflowerRenderer} 靠它挂上来，
+     * 鬼花的状态机也跑在顶段的方块实体里，见 {@link SunflowerBlockEntity}
+     *
+     * <p>四类花盘与两类茎共用一个类型：外观与几何完全相同，分类型只会在换方块时白丢一次缓存。
+     * 柱身与叶片的顶点缓存不持久化；鬼花的阶段、倒计时与朝向写入 NBT。
+     */
+    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<SunflowerBlockEntity>> SUNFLOWER =
+            BLOCK_ENTITIES.register("sunflower", () -> BlockEntityType.Builder.of(
+                            SunflowerBlockEntity::new,
+                            ModTerrainBlocks.SUNFLOWER.get(),
+                            ModTerrainBlocks.SUNFLOWER_STEM.get(),
+                            ModTerrainBlocks.MOONFLOWER.get(),
+                            ModTerrainBlocks.MOONFLOWER_STEM.get(),
+                            ModTerrainBlocks.GHOFLOWER.get(),
+                            ModTerrainBlocks.LUNAR_GHOFLOWER.get())
+                    .build(null));
 
     private ModBlockEntities() {}
 

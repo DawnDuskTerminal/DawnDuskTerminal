@@ -176,6 +176,14 @@
   "block.dawnduskterminal.skygate_pine_sapling": "Skygate Pine Sapling",
   "block.dawnduskterminal.fairy_dianthus": "Greater Fairy Dianthus",
   "block.dawnduskterminal.night_glow_bush": "Night Glow Bush",
+  "block.dawnduskterminal.sunflower": "Sunflower",
+  "block.dawnduskterminal.ghoflower": "Ghoflower",
+  "block.dawnduskterminal.moonflower": "Moonflower",
+  "item.dawnduskterminal.ghoflower": "Ghoflower",
+  "item.dawnduskterminal.lunarghoflower": "Lunar Ghoflower",
+  "block.dawnduskterminal.lunarghoflower": "Lunar Ghoflower",
+  "block.dawnduskterminal.sunflower_stem": "Sunflower Stem",
+  "block.dawnduskterminal.moonflower_stem": "Moonflower Stem",
   "block.dawnduskterminal.fairy_dianthus_small": "Lesser Fairy Dianthus",
   "item.dawnduskterminal.stellaria_veges": "Stellaria Veges",
   "item.dawnduskterminal.fairy_haniwa": "Fairy Haniwa",
@@ -461,7 +469,11 @@
   "entity.dawnduskterminal.melon_projectile": "Melon Cannonball",
   "entity.dawnduskterminal.pumpkin_projectile": "Pumpkin Cannonball",
   "subtitles.dawnduskterminal.melongun_shoot": "Gourd cannon fires",
-  "subtitles.dawnduskterminal.melon_hit": "Melon cannonball bursts"
+  "subtitles.dawnduskterminal.melon_hit": "Melon cannonball bursts",
+  "subtitles.dawnduskterminal.ghoflower_cave": "Ghoflower whispers",
+  "death.attack.ghoflower_fertiliser": "%1$s became sunflower fertiliser",
+  "death.attack.ghoflower_beauty": "%1$s beheld the beauty of a sunflower",
+  "death.attack.ghoflower_ghost": "%1$s saw a ghost"
 }
 
 

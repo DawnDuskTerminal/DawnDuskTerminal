@@ -15,10 +15,15 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.LiquidBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.FlowingFluid;
+import net.minecraft.world.phys.shapes.CollisionContext;
+import net.minecraft.world.phys.shapes.Shapes;
+import net.minecraft.world.phys.shapes.VoxelShape;
 
 public class PortalBlock extends LiquidBlock {
     /**
@@ -27,8 +32,27 @@ public class PortalBlock extends LiquidBlock {
      */
     private static final int REENTRY_GUARD_TICKS = 1;
 
+    /**
+     * 能站在不稳定液体上的生物踩的液面，高度取 14 像素
+     *
+     * <p>原版 {@link LiquidBlock#STABLE_SHAPE} 只有半格高，炽足兽站在岩浆上时脚陷进去半格；
+     * 「虚像」是人形，半格会把小腿埋进液面。这里给它一个贴近流体渲染高度（8/9 格）的面，
+     * 凡是通过 {@link CollisionContext#canStandOnFluid} 声明能站在这种液体上的实体都适用
+     */
+    private static final VoxelShape WALKABLE_SURFACE = Block.box(0.0D, 0.0D, 0.0D, 16.0D, 14.0D, 16.0D);
+
     public PortalBlock(FlowingFluid fluid, Properties properties) {
         super(fluid, properties);
+    }
+
+    @Override
+    protected VoxelShape getCollisionShape(
+            BlockState state, BlockGetter level, BlockPos pos, CollisionContext context) {
+        return state.getValue(LEVEL) == 0
+                        && context.canStandOnFluid(level.getFluidState(pos.above()), state.getFluidState())
+                        && context.isAbove(WALKABLE_SURFACE, pos, true)
+                ? WALKABLE_SURFACE
+                : Shapes.empty();
     }
 
     @Override

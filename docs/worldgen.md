@@ -248,7 +248,8 @@
 原版匹配结果按同名路径替换为模组群系。
 例如 `minecraft:plains` 映射为 `dawnduskterminal:plains`。
 
-气候深度低于 −1.6 时优先使用天门群系。
+气候深度低于 −1.6 时优先使用天门群系，维度顶端那一格因此恒为天门。
+区块生成阶段刷动物取表所用的群系另见 [群系对照](biomes.md) 的「区块生成用哪一份表」一节。
 其余位置根据最终温度在原版表和对应的极温表中选择。
 带界与河海的规则见「温度映射与极温气候表」。
 
@@ -581,6 +582,20 @@ vanilla 不校验 uv 顺序（`BlockFaceUV#getV` 只按顶点号取 `uvs[1]` / `
 
 `minimum_size` 是 `limit 1` / `lower_size 0` / `upper_size 2`，与原版樱花一致；
 旧配置的 `limit 20` 加 `upper_size 5` 等于要求树干高处 11x11 的范围全部为空地，树几乎无法生长。
+
+### 向日葵与月葵
+
+`sunflower_plains` 的 `dawnduskterminal:patch_sunflower` 已改为指向本模组的 `dawnduskterminal:sunflower`，
+不再生成原版向日葵。它指向的 `dawnduskterminal:sunflower` 配置在
+`data/dawnduskterminal/worldgen/configured_feature/sunflower.json`：`radius` 7、`count` 40。
+
+一株由 1~3 格叠成：底段与中段是茎（`sunflower_stem` / `moonflower_stem`），顶段是花盘
+（`sunflower` / `moonflower`）。株心的晨昏线参数决定这一株用昼侧还是夜侧那一套；
+顶段另有 2% 的概率换成鬼花（`ghoflower` / `lunarghoflower`），规则见 [鬼花](ghoflower.md)。
+
+方块模型只有 `particle` 与两张贴图，没有 element；几何由 `client/SunflowerRenderer` 按株底坐标现算。
+叶片模板在 `assets/dawnduskterminal/sunflower/leaves.json`，整株偏移沿用原版 `offsetType` 的算法，
+花盘朝太阳或月亮，方向由 `world/ChronoSun#headDirection` 给出。
 
 ## 温度映射与极温气候表
 
